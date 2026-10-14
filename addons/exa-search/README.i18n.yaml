@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write addons/exa-search/README.md
+/:
+  en: e8b9dc617d8ded36
+  zh: 8b92399ba59a3cf6
+/exa-web-search:
+  en: 8b79ee0a56f19f28
+  zh: 120b80dea50a3271
+/exa-web-search/summary:
+  en: 4f4bd54e4c0eff25
+  zh: c58bf24502a51c4e
+/exa-web-search/table-of-contents:
+  en: a216bbfd4e85da5e
+  zh: 3b08316d62df7d79
+/exa-web-search/use-this-addon:
+  en: 35812eb55a892eb0
+  zh: 30d3b3c9ffbd2856
+/exa-web-search/development:
+  en: 720dabd90c964203
+  zh: a898d86374815400
+/exa-web-search/ownership-and-removal:
+  en: de269cacb8974ba0
+  zh: 06dc3160ff555a88
+/exa-web-search/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/exa-web-search/model-experience/what-the-model-sees:
+  en: c02a89f360b76426
+  zh: c9c6a737dc2ea30d
+/exa-web-search/model-experience/token-effect:
+  en: e00a4e40d23c224e
+  zh: d2c4811ce1589da7
+/exa-web-search/model-experience/kv-cache-effect:
+  en: a4e60b5ad84f3d30
+  zh: 29110142633fa511
+/exa-web-search/known-limitations-and-deferred-work:
+  en: 7736a0c65c36b399
+  zh: 40a50e6b1db48993
+/exa-web-search/dev-note:
+  en: 4fb77698cfa5bf07
+  zh: 1ec5ae28a67cea9a
