@@ -88,7 +88,7 @@ ctx.tools.register(defineTool({
 
 `ctx.tools.guard(guard)` 在可扩展的 `tools/pre-execute` waterfall（瀑布式事件）之后注册单调同步守卫：返回的理由会拒绝调用，后续监听器无法把该拒绝重新变为允许。流水线事件给插件更多控制——`tools/pre-execute` 决定允许／拒绝／询问，`tools/execute` 为超时或重试包装分发，`tools/post-execute` 检查或替换结果，`tools/result` 观测冻结的最终结果。
 
-工具的 `projectContent` 在执行后策略之前安装执行期间准备的图文内容。策略仍可替换或阻止这些内容；`finalizeContent` 保留为策略之后的最终内容处理。
+工具的 `projectContent` 在执行后策略之前安装执行期间准备的图文内容。策略仍可替换或阻止这些内容；`finalizeContent` 保留为策略之后的最终内容处理。post-execute 阻止决策从 `feedback` 派生规范失败消息；可选的 `content` 覆盖只改变渲染结果，不改变返回给程序化调用方的错误。
 
 ### Host 展示描述
 
@@ -134,6 +134,8 @@ ctx.tools.register(defineTool({
 成功且包含图片的子调用结果会成为延后的 user-message 上下文，其 `source.kind` 为 `ptc-mode`。其他 additional context 保留其生产工具的归属。
 
 当已挂载运行时支持覆盖时，`run_code` 接受 `timeoutMs`；其 schema 报告配置的默认值和上限以及运行时使用说明。Node 默认值为 120,000 ms，上限为 600,000 ms，包含嵌套工具和审批等待。更宽的 `sandbox_permissions` 模式要求非空 `justification`，并在程序启动前获得审批。schema 提示模型使用当前用户的语言撰写理由。授权仅用于该次完整执行；常驻 Session 策略与嵌套工具保留各自权限。程序不会自动重放：显式重试被拒程序前，应检查先前已发生的效果。
+
+沙箱参数依据调用方 Session 的生效模式，遵循[共享升权规则](../../sandbox/sandbox/README.zh.md)。重复该模式保持权限不变，无需理由或审批；未请求模式时，缺省或空白理由不影响普通执行。更窄或不受支持的模式，以及运行时不支持沙箱限制时的显式请求，都会在程序启动前失败。
 
 <a id="extension-points"></a>
 ### 扩展点

@@ -1,0 +1,11 @@
+# Use the ordinary offline runner so platform-only ACL skills do not alter this PTC transcript.
+- id: sandbox
+  name: '@deepseek-ai/dsh-sandbox-local'
+  config:
+    runnerCommand:
+      - bash
+      - -c
+      - while [ "$1" != "--" ]; do shift; done; shift; exec "$@"
+      - passthrough-runner
+    runnerFailureSignatures:
+      - 'passthrough-runner: profile rejected'

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createUserMessage, ToolCallId  } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, HarnessError, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
-import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import { defineContentToolFixture, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
@@ -294,7 +294,10 @@ describe('chain semantics', () => {
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
     await waitForIdle(ctx, agent)
 
-    expect(reminders(agent)).toHaveLength(1)
+    expect(reminders(agent)).toHaveLength(0)
+    const results = agent.session.snapshotEvents().filter((event): event is SessionEvent<'tool/result'> => event.type === 'tool/result')
+    expect(results[1]!.data.message.content.slice(0, -1)).toEqual(results[0]!.data.message.content)
+    expect(results[1]!.data.message.content).toHaveLength(results[0]!.data.message.content.length + 1)
   })
 
   it('ignores direct executes with no agent (they neither crash nor advance any chain)', async () => {
@@ -335,17 +338,15 @@ describe('fold onto the downstream decision', () => {
     await waitForIdle(ctx, agent)
 
     const found = reminders(agent)
-    expect(found).toHaveLength(3)
-    // Only the repeated call adds guard context; downstream source fields survive.
-    expect(found[0]!.text).toBe('downstream-ctx')
-    expect(found[0]!.source).toEqual({ kind: 'test' })
-    expect(found[1]!.text).toContain('repeating the exact same tool call')
-    expect(found[1]!.source).toEqual(guardSource('probe', 2))
-    expect(found[2]).toEqual({ text: 'downstream-ctx', source: { kind: 'test' } })
-    // The block's feedback reached the tool result unchanged.
+    expect(found).toHaveLength(2)
+    expect(found[0]).toEqual({ text: 'downstream-ctx', source: { kind: 'test' } })
+    expect(found[1]).toEqual(found[0])
+    // Preserve the original policy feedback; only the repeated error gains advice.
     const results = agent.session.snapshotEvents().filter((e): e is SessionEvent<'tool/result'> => e.type === 'tool/result')
     expect(results.every(r => r.data.message.isError)).toBe(true)
-    expect(results[1]!.data.message.content).toEqual([{ type: 'text', text: 'nope' }])
+    expect(results[0]!.data.message.content).toEqual([{ type: 'text', text: 'nope' }])
+    expect(results[1]!.data.message.content.slice(0, -1)).toEqual(results[0]!.data.message.content)
+    expect(results[1]!.data.message.content).toHaveLength(2)
   })
 
   it('preserves a downstream canonical value replacement while folding', async () => {
@@ -369,6 +370,164 @@ describe('fold onto the downstream decision', () => {
     expect(found[0]!.text).toContain('repeating the exact same tool call')
     const results = agent.session.snapshotEvents().filter((e): e is SessionEvent<'tool/result'> => e.type === 'tool/result')
     expect(results[1]!.data.message.content).toEqual([{ type: 'text', text: 'replaced' }])
+  })
+})
+
+describe('inline repeated-failure advice', () => {
+  async function failingHarness(config: Config = {}) {
+    const ctx = await harness(config)
+    const fixture: { error: HarnessError | undefined } = { error: new HarnessError('failure-A', 'FAILURE_A') }
+    ctx.tools.register(defineContentToolFixture({
+      name: 'failing', description: 'scripted failure', parameters: {},
+      async execute() {
+        if (fixture.error) throw fixture.error
+        return [{ type: 'text', text: 'ok' }]
+      },
+    }))
+    ctx.llm.registerAdapter(['mock'], new MockAdapter([]))
+    const agent = await ctx.agentLoop.create(SessionId('failure-agent'), { provider: 'mock', model: 'mock' })
+    let calls = 0
+    const call = (args: unknown = {}, name = 'failing', caller: Agent = agent) => ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId(`failure-${++calls}`), name, arguments: args, agent: caller,
+    })
+    return { ctx, agent, fixture, call }
+  }
+
+  it('appends one warning from the second identical failure, preserving the error and avoiding duplicate context', async () => {
+    const { ctx, call } = await failingHarness()
+    try {
+      const first = await call({ a: 1, b: 2 })
+      const second = await call({ b: 2, a: 1 })
+      const third = await call({ a: 1, b: 2 })
+      expect(first.isError).toBe(true)
+      expect(second.isError).toBe(true)
+      expect(second.error).toEqual(first.error)
+      expect(second.content.slice(0, -1)).toEqual(first.content)
+      expect(second.content).toHaveLength(first.content.length + 1)
+      expect(second.content.at(-1)?.type).toBe('text')
+      expect(third.content).toEqual(second.content)
+      expect(second.additionalContexts).toBeUndefined()
+      expect(third.additionalContexts).toBeUndefined()
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it.each([false, true])('keeps canonical blocked failures separate from rendered advice (nested: %s)', async (nested) => {
+    const { ctx, agent } = await failingHarness()
+    try {
+      const feedback = [{ type: 'text' as const, text: 'canonical policy failure' }]
+      const content = [{ type: 'text' as const, text: 'rendered policy feedback' }]
+      ctx.on('tools/post-execute', (exec, _result, next) => exec.name === 'probe'
+        ? Promise.resolve({
+          kind: 'block' as const, feedback, content,
+          additionalContexts: [createUserMessage({
+            content: [{ type: 'text', text: 'policy context' }], source: { kind: 'test' },
+          })],
+        })
+        : next())
+      const results: ToolExecutionResult[] = []
+      ctx.tools.register(defineContentToolFixture({
+        name: 'nested-probe', description: 'Dispatch blocked subcalls.', parameters: {},
+        async execute(_args, exec) {
+          for (let index = 0; index < 3; index++) {
+            results.push(await ctx.tools.execute({
+              signal: exec.signal, agent, parent: exec.token, rootCallId: exec.rootCallId,
+              callId: ToolCallId(`nested-block-${index}`), name: 'probe', arguments: {},
+            }))
+          }
+          return []
+        },
+      }))
+      if (nested) {
+        await ctx.tools.execute({
+          signal: testToolSignal, agent, callId: ToolCallId('parent-block'), name: 'nested-probe', arguments: {},
+        })
+      } else {
+        for (let index = 0; index < 3; index++) {
+          results.push(await ctx.tools.execute({
+            signal: testToolSignal, agent, callId: ToolCallId(`direct-block-${index}`), name: 'probe', arguments: {},
+          }))
+        }
+      }
+      expect(results).toHaveLength(3)
+      expect(results.every(result => result.isError)).toBe(true)
+      expect(results.map(result => result.error)).toEqual(Array.from({ length: 3 }, () => ({ message: feedback[0]!.text })))
+      expect(results[0]!.content).toEqual(content)
+      expect(results[1]!.content.slice(0, -1)).toEqual(content)
+      expect(results[1]!.content).toHaveLength(content.length + 1)
+      expect(results[2]!.content).toEqual(results[1]!.content)
+      expect(results.map(result => result.additionalContexts?.map(context => context.source.kind)))
+        .toEqual([['test'], ['test'], nested ? ['repeat-tool-reminder', 'test'] : ['test']])
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it.each(['arguments', 'message', 'code', 'success'] as const)('starts a fresh failure chain after a change in %s', async (change) => {
+    const { ctx, fixture, call } = await failingHarness({ thresholds: [100] })
+    try {
+      await call()
+      let args = {}
+      if (change === 'arguments') args = { changed: true }
+      if (change === 'message') fixture.error = new HarnessError('failure-B', 'FAILURE_A')
+      if (change === 'code') fixture.error = new HarnessError('failure-A', 'FAILURE_B')
+      if (change === 'success') {
+        const error = fixture.error
+        fixture.error = undefined
+        const success = await call()
+        expect(success.isError).toBe(false)
+        expect(success.content).toHaveLength(1)
+        fixture.error = error
+      }
+      const fresh = await call(args)
+      const repeated = await call(args)
+      expect(fresh.content).toHaveLength(1)
+      expect(repeated.content.slice(0, -1)).toEqual(fresh.content)
+      expect(repeated.content).toHaveLength(2)
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('keeps excluded calls transparent and failure counts separate between agents', async () => {
+    const { ctx, call } = await failingHarness({ exclude: ['other'] })
+    try {
+      const first = await call()
+      await call({}, 'other')
+      const second = await call()
+      expect(second.content).toHaveLength(first.content.length + 1)
+      const otherAgent = await ctx.agentLoop.create(SessionId('other-failure-agent'), { provider: 'mock', model: 'mock' })
+      const separate = await call({}, 'failing', otherAgent)
+      expect(separate.content).toEqual(first.content)
+      const direct = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('direct-failure'), name: 'failing', arguments: {} })
+      expect(direct.content).toEqual(first.content)
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('resets failure counts on a new user message and records the inline warning in the model-visible result', async () => {
+    const ctx = await harness()
+    try {
+      ctx.tools.register(defineContentToolFixture({ name: 'failing', description: 'f', parameters: {}, async execute() {
+        throw new HarnessError('fixture failure', 'FIXTURE_FAILURE')
+      } }))
+      const adapter = new MockAdapter([
+        toolCallResponse('f1', 'failing', {}), toolCallResponse('f2', 'failing', {}), textResponse('done'),
+        toolCallResponse('f3', 'failing', {}), textResponse('done'),
+      ])
+      ctx.llm.registerAdapter(['mock'], adapter)
+      const agent = await ctx.agentLoop.create(SessionId('failure-loop'), { provider: 'mock', model: 'mock' })
+      for (const text of ['first request', 'new request']) {
+        const idle = waitForIdle(ctx, agent)
+        agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
+        await idle
+      }
+      const results = agent.session.snapshotEvents()
+        .filter((event): event is SessionEvent<'tool/result'> => event.type === 'tool/result')
+        .map(event => event.data.message)
+      expect(results).toHaveLength(3)
+      expect(results.map(result => result.isError)).toEqual([true, true, true])
+      expect(results[1]!.content.slice(0, -1)).toEqual(results[0]!.content)
+      expect(results[1]!.content).toHaveLength(results[0]!.content.length + 1)
+      expect(results[2]!.content).toEqual(results[0]!.content)
+      const visible = adapter.requests[2]!.messages.filter(message => message.role === 'tool')
+      expect(visible.at(-1)?.content).toEqual(results[1]!.content)
+      expect(reminders(agent)).toHaveLength(0)
+    } finally { await ctx.fiber.dispose() }
   })
 })
 

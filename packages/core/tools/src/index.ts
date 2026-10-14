@@ -614,11 +614,13 @@ export type PreToolDecision =
 /**
  * Post-dispatch decision: accept, replace one projection, attach context for the
  * next request, or block by turning corrective feedback into an error result.
+ * A block's optional `content` overrides only its rendering; `feedback` still
+ * defines the canonical failure message returned to programmatic callers.
  */
 export type PostToolDecision =
   | { kind: 'accept'; content?: ContentBlock[]; value?: never; additionalContexts?: UserMessage[] }
   | { kind: 'accept'; value: JsonValue; content?: never; additionalContexts?: UserMessage[] }
-  | { kind: 'block'; feedback: ContentBlock[]; additionalContexts?: UserMessage[] }
+  | { kind: 'block'; feedback: ContentBlock[]; content?: ContentBlock[]; additionalContexts?: UserMessage[] }
 
 /**
  * Best-effort human-readable message from an arbitrary thrown value: Error
@@ -1776,8 +1778,9 @@ export class ToolRuntime extends Service {
   /**
    * Run the `tools/post-execute` waterfall over a dispatched `result` and apply
    * its {@link PostToolDecision}: `accept` keeps the call successful (replacing
-   * `content` when given), `block` turns it into an `isError` whose content is
-   * the corrective `feedback`. Either decision may attach `additionalContexts`,
+   * `content` when given), `block` turns it into an `isError` whose canonical
+   * failure message comes from `feedback` and whose rendered content may be
+   * overridden separately. Either decision may attach `additionalContexts`,
    * which are ferried on the returned result for the loop's active-batch FIFO.
    * Context deferred by the tool body survives an accepted result but is
    * discarded when the outer call is blocked; a block exposes only context the
@@ -1793,7 +1796,7 @@ export class ToolRuntime extends Service {
     if (decision.kind === 'block') {
       const message = failureMessageFromContent(decision.feedback)
       return this.markCanonical(exec, {
-        content: decision.feedback,
+        content: decision.content ?? decision.feedback,
         isError: true,
         error: { message },
         ...decisionContexts.length > 0 ? { additionalContexts: decisionContexts } : {},

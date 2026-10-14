@@ -80,11 +80,7 @@ function validateBashArgs(args: BashToolArgs, effectiveMode: SandboxMode | undef
   if (args.timeoutMs !== undefined && (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0)) {
     throw new Error(`invalid timeoutMs: expected a positive number, got ${JSON.stringify(args.timeoutMs)}`)
   }
-  if (args.sandbox_permissions !== undefined && args.sandbox_permissions === effectiveMode) return
-  const justification = args.sandbox_permissions === undefined && args.justification?.trim() === ''
-    ? undefined
-    : args.justification
-  validateEscalationArgs(args.sandbox_permissions, justification)
+  validateEscalationArgs(args.sandbox_permissions, args.justification, effectiveMode)
 }
 
 function bashDescription(): string {
@@ -227,7 +223,7 @@ export function apply(ctx: Context, config: Config = {}): void {
    */
   const approveBashEscalation = (
     mode: string,
-    justification: string,
+    justification: string | undefined,
     exec: ToolExecution,
     standingPolicy: SandboxExecutionPolicy | undefined,
   ): Promise<SandboxMode> => {
@@ -478,7 +474,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         // Description is display metadata; workdir defaults to the caller's session.
         const standingPolicy = resolveSandboxPolicy(exec)
         validateBashArgs(args, standingPolicy?.mode)
-        const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
+        const approvedMode = args.sandbox_permissions !== undefined
           ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
           : undefined
         const policy = approvedMode === undefined

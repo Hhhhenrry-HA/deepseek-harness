@@ -30,6 +30,8 @@ import {
   buildGlobCommand,
   buildGrepCommand,
   formatGrepMatches,
+  parseGlobArgs,
+  parseGrepArgs,
   parseGrepMatches,
   presentGlobCall,
   presentGlobResult,
@@ -331,6 +333,33 @@ describe('config validation', () => {
       ...DEFAULT_CONFIG,
       graceMs: MAX_TIMER_DELAY_MS + 1,
     })).rejects.toThrow(`tool-fs-search: graceMs must be no greater than ${MAX_TIMER_DELAY_MS}`)
+  })
+})
+
+describe('optional search arguments', () => {
+  it.each([{}, { path: '' }, { path: '  ' }, { path: '\t\r\n' }])('omits a blank glob path: %j', (args) => {
+    const input = parseGlobArgs({ pattern: '*', ...args })
+    expect(input).toEqual({ pattern: '*' })
+    expect(buildGlobCommand(input)).toEqual(buildGlobCommand({ pattern: '*' }))
+  })
+
+  it.each([undefined, '', '  ', '\t\r\n'])('omits blank grep path and include independently: %j', (blank) => {
+    const path = blank === undefined ? {} : { path: blank }
+    const include = blank === undefined ? {} : { include: blank }
+    expect(parseGrepArgs({ pattern: 'x', ...path, ...include })).toEqual({ pattern: 'x' })
+    expect(buildGrepCommand(parseGrepArgs({ pattern: 'x', ...path, ...include })))
+      .toEqual(['--json', '--regexp=x'])
+    expect(buildGrepCommand(parseGrepArgs({ pattern: 'x', ...path, include: '*.ts' })))
+      .toEqual(['--json', '--regexp=x', '--glob=*.ts'])
+    expect(buildGrepCommand(parseGrepArgs({ pattern: 'x', path: 'src', ...include })))
+      .toEqual(['--json', '--regexp=x', '--', 'src'])
+  })
+
+  it.each([' leading and trailing spaces ', '-leading-dash', 'dir with spaces/file.ts'])('preserves a non-blank path as one argument after --: %j', (path) => {
+    expect(buildGlobCommand(parseGlobArgs({ pattern: ' *.ts ', path })))
+      .toEqual([...buildGlobCommand({ pattern: ' *.ts ' }), '--', path])
+    expect(buildGrepCommand(parseGrepArgs({ pattern: ' x ', path, include: ' *.{ts,tsx} ' })))
+      .toEqual(['--json', '--regexp= x ', '--glob= *.{ts,tsx} ', '--', path])
   })
 })
 
@@ -740,16 +769,16 @@ describe('glob results', () => {
   it('lists workdir-relative paths (absolute output under the workdir is relativized)', async () => {
     const { ctx, subprocess } = await setup()
     subprocess.handler = () => runResult('/sessions/s1/src/a.ts\n/elsewhere/b.ts\nrel/c.ts\n')
-    const result = await call(ctx, 'glob', { pattern: '*' }, { agent: agent('/sessions/s1') })
+    const result = await call(ctx, 'glob', { pattern: '*', path: '\t ' }, { agent: agent('/sessions/s1') })
     if (result.isError) throw new Error('expected glob success')
     expect(result.value).toEqual({ root: '.', paths: [join('src', 'a.ts'), '/elsewhere/b.ts', 'rel/c.ts'] })
     expect(text(result)).toBe(`${join('src', 'a.ts')}\n/elsewhere/b.ts\nrel/c.ts`)
   })
 
-  it('validates arguments (blank pattern, blank path)', async () => {
-    const { ctx } = await setup()
-    expect(text(await call(ctx, 'glob', { pattern: '  ' }))).toContain('pattern must be a non-empty string')
-    expect(text(await call(ctx, 'glob', { pattern: '*', path: ' ' }))).toContain('path must be a non-empty string')
+  it.each(['', '  ', '\t\r\n'])('rejects a blank glob pattern before spawning: %j', async (pattern) => {
+    const { ctx, subprocess } = await setup()
+    expect((await call(ctx, 'glob', { pattern, path: '' })).isError).toBe(true)
+    expect(subprocess.spawns).toHaveLength(0)
   })
 
   it('threads a valid path through to the spawn as the plain search root element', async () => {
@@ -1064,20 +1093,22 @@ describe('grep results', () => {
     expect(text(result)).toBe('Found 1 of 2 matches\n\na.ts\nLine 1: one\n\n(The complete result could not be saved; narrow pattern, path, or include to see more.)')
   })
 
-  it('validates arguments (empty pattern, blank path, bad include)', async () => {
-    const { ctx } = await setup()
-    expect(text(await call(ctx, 'grep', { pattern: '' }))).toContain('pattern must be a non-empty string')
-    expect(text(await call(ctx, 'grep', { pattern: 'x', path: '  ' }))).toContain('path must be a non-empty string')
-    expect(text(await call(ctx, 'grep', { pattern: 'x', include: '  ' }))).toContain('include must be a non-empty glob')
-    expect(text(await call(ctx, 'grep', { pattern: 'x', include: '!*.ts' }))).toContain('negated patterns')
-    expect(text(await call(ctx, 'grep', { pattern: 'x', include: '*.ts,*.js' }))).toContain('comma-separated list')
+  it.each([
+    { pattern: '', path: '', include: '' },
+    { pattern: 'x', path: '', include: '!*.ts' },
+    { pattern: 'x', path: '', include: '*.ts,*.js' },
+  ])('rejects an empty grep pattern or invalid include before spawning: %j', async (args) => {
+    const { ctx, subprocess } = await setup()
+    expect((await call(ctx, 'grep', args)).isError).toBe(true)
+    expect(subprocess.spawns).toHaveLength(0)
   })
 
   it('accepts a whitespace-only pattern (a legitimate regex) and brace alternation in include', async () => {
     const { ctx, subprocess } = await setup()
     subprocess.handler = () => runResult('', { exitCode: 1 })
-    const result = await call(ctx, 'grep', { pattern: '  ', include: '*.{ts,tsx}' })
+    const result = await call(ctx, 'grep', { pattern: '  ', path: '', include: '*.{ts,tsx}' })
     expect(result.isError).toBe(false)
+    expect(subprocess.spawns[0]?.argv).toEqual([rgPath, '--no-config', '--json', '--regexp=  ', '--glob=*.{ts,tsx}'])
   })
 })
 

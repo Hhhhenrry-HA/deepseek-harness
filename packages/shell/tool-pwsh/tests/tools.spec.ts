@@ -659,21 +659,49 @@ describe('sandbox escalation through ctx.approval', () => {
 
   it('rejects injected escalation without a sandbox and narrower escalation without prompting', async () => {
     const plain = await setup()
-    expect(text(await call(plain.ctx, 'pwsh', escalate))).toContain('not available in this composition')
+    const { ctx, bash } = await setupSandboxed(true)
+    const prompted = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    ctx.on('approval/request', prompted)
+    try {
+      for (const reason of [{ justification: 'the command needs workspace writes' }, {}]) {
+        const args = { command: 'Write-Output ok', description: 'test escalation', sandbox_permissions: 'workspace-write', ...reason }
+        expect((await call(plain.ctx, 'pwsh', args)).isError).toBe(true)
+        expect((await call(ctx, 'pwsh', args, sandboxAgent('danger-full-access'))).isError).toBe(true)
+      }
+      expect(plain.bash.specs).toEqual([])
+      expect(bash.modes).toEqual([])
+      expect(prompted).not.toHaveBeenCalled()
 
-    const { ctx } = await setupSandboxed(true)
-    const prompted = vi.fn()
-    ctx.on('approval/request', () => { prompted(); return Promise.resolve<ApprovalOutcome>('allowed-once') })
-    const result = await call(ctx, 'pwsh', { ...escalate, sandbox_permissions: 'workspace-write' }, sandboxAgent('danger-full-access'))
-    expect(text(result)).toContain('not strictly wider')
-    expect(prompted).not.toHaveBeenCalled()
+      const malformed = sandboxAgent()
+      ;(malformed.session.append as unknown as (
+        type: string,
+        data: Record<string, unknown>,
+      ) => unknown)('sandbox/mode', { mode: 'unknown-mode' })
+      expect(text(await call(ctx, 'pwsh', escalate, malformed))).toContain('not strictly wider')
+    } finally {
+      await plain.ctx.fiber.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
 
-    const malformed = sandboxAgent()
-    ;(malformed.session.append as unknown as (
-      type: string,
-      data: Record<string, unknown>,
-    ) => unknown)('sandbox/mode', { mode: 'unknown-mode' })
-    expect(text(await call(ctx, 'pwsh', escalate, malformed))).toContain('not strictly wider')
+  it('keeps the session mode for ordinary and repeated-mode calls without a reason', async () => {
+    const { ctx, bash } = await setupSandboxed(true)
+    const agent = sandboxAgent('workspace-write')
+    const prompted = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    ctx.on('approval/request', prompted)
+    try {
+      for (const args of [
+        { justification: '' },
+        { sandbox_permissions: 'workspace-write' },
+        { sandbox_permissions: 'workspace-write', justification: ' \t\n' },
+      ]) {
+        const result = await call(ctx, 'pwsh', { command: 'Write-Output ok', description: 'current permissions', ...args }, agent)
+        expect(result.isError).toBe(false)
+      }
+      expect(bash.modes).toEqual(['workspace-write', 'workspace-write', 'workspace-write'])
+      expect(ctx.sandboxPolicy.resolve({ session: agent.session }).mode).toBe('workspace-write')
+      expect(prompted).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
   })
 
   it.each(['workspace-write', 'danger-full-access'] as const)('runs a repeated %s request without approval', async (mode) => {

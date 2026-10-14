@@ -1,0 +1,9 @@
+version: 1
+scenario: optional-tool-arguments
+profile: headless
+composition: default
+recording: authored
+header:
+  class: default
+workspace:
+  final: true

@@ -88,7 +88,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 `ctx.tools.guard(guard)` registers a monotonic synchronous guard after the extensible `tools/pre-execute` waterfall: a returned reason denies the call, and no later listener can turn that denial back into permission. The pipeline's events give plugins more control — `tools/pre-execute` decides allow/deny/ask, `tools/execute` wraps dispatch for timeout or retry, `tools/post-execute` inspects or replaces the result, and `tools/result` observes the frozen final outcome.
 
-A tool’s `projectContent` installs execution-prepared content before post-execute policies. Policies may still replace or block it; `finalizeContent` remains the final content transform after those policies.
+A tool’s `projectContent` installs execution-prepared content before post-execute policies. Policies may still replace or block it; `finalizeContent` remains the final content transform after those policies. A post-execute block derives its canonical failure message from `feedback`; an optional `content` override changes only the rendered result, not the error returned to a programmatic caller.
 
 ### Host presentation descriptors
 
@@ -134,6 +134,8 @@ New sub-calls use `<parent>:ptc:<n>` ids. Consumers treat these ids as opaque an
 Successful image-bearing subcall results become deferred user-message context with `source.kind` set to `ptc-mode`. Other additional contexts retain their producing tool's attribution.
 
 `run_code` accepts `timeoutMs` when the mounted runtime supports an override; its schema reports the configured default and maximum, and the runtime's usage instructions. The Node default is 120,000 ms with a 600,000 ms cap, including nested tool and approval waits. A wider `sandbox_permissions` mode requires a non-empty `justification` and approval before the program starts. The schema asks the model to write that reason in the current user's language. The grant applies to that complete execution; standing Session policy and nested tools retain their own authority. Programs are never replayed automatically: inspect earlier effects before explicitly retrying a denied program.
+
+Sandbox arguments follow the [shared escalation rules](../../sandbox/sandbox/README.md) against the calling Session's effective mode. Repeating that mode preserves permissions and needs neither a reason nor approval; without a requested mode, an omitted or blank reason leaves ordinary execution unchanged. Narrower or unsupported modes and explicit requests without runtime confinement support fail before the program starts.
 
 <a id="extension-points"></a>
 ### Extension points

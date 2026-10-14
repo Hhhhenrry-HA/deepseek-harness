@@ -60,12 +60,11 @@ export interface GrepInput {
 }
 
 /**
- * Reject an `include` that is not ONE positive glob filter: blank strings,
- * negated patterns (`!…`), and comma-separated lists. A comma inside a brace
- * group is fine — `*.{ts,tsx}` is one glob with alternation, not a list.
+ * Reject negated patterns (`!…`) and comma-separated lists in a non-blank
+ * `include`. A comma inside a brace group is fine — `*.{ts,tsx}` is one glob
+ * with alternation, not a list.
  */
 function validateInclude(include: string): void {
-  if (include.trim().length === 0) throw new Error('include must be a non-empty glob when given')
   if (include.startsWith('!')) throw new Error('include must be a positive glob filter; negated patterns ("!…") are not supported')
   let braceDepth = 0
   for (const char of include) {
@@ -78,22 +77,23 @@ function validateInclude(include: string): void {
 }
 
 /**
- * Validate value constraints the schema DSL can't express: a non-EMPTY
- * `pattern` (whitespace is a legitimate regex), a non-blank `path` when given,
- * and a single positive `include` glob ({@link GrepInput}). Throws a plain
- * `Error` (an ordinary tool argument error) otherwise.
+ * Require a non-empty `pattern` (whitespace is a legitimate regex) and a
+ * single positive `include` glob when present. Blank optional `path` and
+ * `include` values are omitted; non-blank values retain their original
+ * spelling. An empty pattern or unsupported include throws a plain `Error`.
  *
  * @param args - the schema-validated `grep` arguments.
- * @returns the accepted input, unchanged.
+ * @returns the accepted input with blank optional values omitted.
  */
 export function parseGrepArgs(args: { pattern: string; path?: string; include?: string }): GrepInput {
   if (args.pattern.length === 0) throw new Error('pattern must be a non-empty string')
-  if (args.path !== undefined && args.path.trim().length === 0) throw new Error('path must be a non-empty string when given')
-  if (args.include !== undefined) validateInclude(args.include)
+  const path = args.path?.trim() === '' ? undefined : args.path
+  const include = args.include?.trim() === '' ? undefined : args.include
+  if (include !== undefined) validateInclude(include)
   return {
     pattern: args.pattern,
-    ...args.path !== undefined ? { path: args.path } : {},
-    ...args.include !== undefined ? { include: args.include } : {},
+    ...path !== undefined ? { path } : {},
+    ...include !== undefined ? { include } : {},
   }
 }
 

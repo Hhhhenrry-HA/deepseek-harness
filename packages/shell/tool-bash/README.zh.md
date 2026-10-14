@@ -67,7 +67,7 @@ kind: "package-reference"
 
 ### 沙箱执行与升权
 
-当已挂载的执行器约束命令（例如 `dsh-bash-sandbox`）时，被阻止的文件操作会报告为 `[sandbox: file access denied under <mode> mode]`——这是策略拒绝，不是命令失败。模型随后可以在同一轮次中用 `sandbox_permissions`（满足需要的最窄更宽模式）与一句 `justification` 重试完全相同的命令一次；该重试引发的审批提示就是用户同意的方式。只有发生真实拒绝后才请求更宽权限；被拒绝的升权对该命令即为最终结果。重复当前模式无需审批即可执行，更窄目标则在执行前失败。未提供 `sandbox_permissions` 时，`justification` 可以省略、为空字符串或仅含空白；未指定模式却提供非空理由会被拒绝。重复当前生效模式时也可省略理由或提供空白理由。请求不同模式时必须提供非空理由；升权仍需审批。
+当已挂载的执行器约束命令（例如 `dsh-bash-sandbox`）时，被阻止的文件操作会报告为 `[sandbox: file access denied under <mode> mode]`——这是策略拒绝，不是命令失败。模型随后可以在同一轮次中用 `sandbox_permissions`（满足需要的最窄更宽模式）与一句 `justification` 重试完全相同的命令一次；该重试引发的审批提示就是用户同意的方式。只有发生真实拒绝后才请求更宽权限；被拒绝的升权对该命令即为最终结果。升权依据调用方 Session 的生效模式，按[共享升权规则](../../sandbox/sandbox/README.zh.md)判定。重复该模式保持权限不变，无需理由或审批；更窄或不受支持的目标在执行前失败。未请求模式时，缺省或空白的 `justification` 视为未填写，非空白理由则被拒绝。
 
 ### 可能出什么问题
 

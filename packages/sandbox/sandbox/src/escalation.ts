@@ -41,14 +41,20 @@ export const WIDER_MODES: Record<string, readonly SandboxMode[]> = {
 export const ESCALATION_TARGETS: readonly SandboxMode[] = ['workspace-write', 'danger-full-access']
 
 /**
- * Validate the escalation argument pairing a tool schema cannot express:
- * `sandbox_permissions` and `justification` travel together — an approval
- * prompt without a reason, or a reason driving nothing, is a malformed ask —
- * and the justification must be a non-empty sentence.
+ * Validate escalation arguments against the call's effective mode. An omitted
+ * mode accepts an omitted or blank reason; repeating the effective mode needs
+ * no reason. Every other explicit mode requires a non-empty reason.
  * @param sandboxPermissions - the raw `sandbox_permissions` argument, if given.
  * @param justification - the raw `justification` argument, if given.
+ * @param effectiveMode - the call's resolved mode, or undefined for an unsandboxed capability.
  */
-export function validateEscalationArgs(sandboxPermissions: string | undefined, justification: string | undefined): void {
+export function validateEscalationArgs(
+  sandboxPermissions: string | undefined,
+  justification: string | undefined,
+  effectiveMode: SandboxMode | undefined,
+): void {
+  if (sandboxPermissions === undefined && justification?.trim() === '') return
+  if (sandboxPermissions !== undefined && sandboxPermissions === effectiveMode) return
   if (sandboxPermissions !== undefined && justification === undefined) {
     throw new Error('invalid escalation: sandbox_permissions requires a justification')
   }
@@ -150,8 +156,8 @@ export interface EscalationApproval<A = object, C = string> {
 export interface EscalationRequest {
   /** The requested target mode (schema-pinned to {@link ESCALATION_TARGETS} when advertised). */
   requestedMode: string
-  /** The model's one-sentence reason, shown verbatim to the user inside the audit reason. */
-  justification: string
+  /** The reason shown to the user; required and non-blank only for a strictly wider mode. */
+  justification: string | undefined
   /** The call's effective mode (session override ?? composition default); repeating it needs no approval. */
   effectiveMode: SandboxMode
   /** The family's noun for the escalated action in user-facing texts (`command` for bash, `operation` for fs). */
@@ -160,8 +166,9 @@ export interface EscalationRequest {
 
 /**
  * Resolve a sandbox permission request before execution. Repeating the call's
- * effective mode returns it without approval. A strictly wider mode requires
- * approval and applies only to this call. Narrower or unsupported targets,
+ * effective mode needs neither a reason nor approval. A strictly wider mode
+ * requires a non-blank reason and approval, and applies only to this call.
+ * Narrower or unsupported targets, invalid reasons for widening,
  * missing approval services or agents for widening, and non-grant outcomes
  * throw before execution.
  * @param request - the escalation to judge (see {@link EscalationRequest}).
@@ -177,6 +184,7 @@ export async function approveEscalation<A, C>(request: EscalationRequest, approv
   if (!(WIDER_MODES[effectiveMode] ?? []).includes(mode as SandboxMode)) {
     throw new Error(`sandbox escalation to "${mode}" is not strictly wider than this call's current "${effectiveMode}" mode`)
   }
+  validateEscalationArgs(mode, justification, effectiveMode)
   if (approval.approver === undefined) {
     throw new Error(`sandbox escalation to "${mode}" requires approval, but no approval service is composed`)
   }

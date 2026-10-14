@@ -1353,6 +1353,30 @@ describe('the run_code dispatch bridge', () => {
     expect(dispatch.arguments).toEqual({ value: 'x', nested: ['same'] })
   })
 
+  it('keeps rendered block content out of the program-facing failure', async () => {
+    const { ctx, runtime } = await setup({ mode: 'ptc' })
+    try {
+      registerEcho(ctx)
+      const feedback = [{ type: 'text' as const, text: 'canonical policy failure' }]
+      const content = [{ type: 'text' as const, text: 'rendered policy feedback' }]
+      ctx.on('tools/post-execute', (exec, _result, next) => exec.name === 'echo'
+        ? Promise.resolve({ kind: 'block' as const, feedback, content })
+        : next())
+      const session = Session.create(SessionId('ptc-block-display'))
+      const agent = { session } as Agent
+      runtime.behavior = async (request) => {
+        await expect(request.bindings[0]!.functions.echo!({ value: 'x' }))
+          .rejects.toMatchObject({ message: feedback[0]!.text })
+        return { logs: [] }
+      }
+
+      const result = await runCode(ctx, 'program', { agent })
+      expect(result.isError).toBe(false)
+      const dispatch = session.snapshotEvents().find(event => event.type === 'tool/ptc-dispatch')
+      expect(dispatch?.data).toMatchObject({ isError: true, content })
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('defers sub-call additionalContexts onto the outer run_code result', async () => {
     const { ctx, runtime } = await setup({ mode: 'ptc' })
     registerEcho(ctx)
@@ -2313,12 +2337,13 @@ describe('per-program execution controls', () => {
   it('rejects escalation fields for a runtime without confinement support', async () => {
     const { ctx, tools, runtime } = await setup()
     try {
-      const result = await tools.execute({
-        callId: ToolCallId('unsupported-escalation'), name: RUN_CODE_NAME, signal: testToolSignal,
-        arguments: { code: 'return 1', description: 'Try an unsupported mode', sandbox_permissions: 'workspace-write', justification: 'Need file writes' },
-      })
-      expect(result.isError).toBe(true)
-      expect(JSON.stringify(result.content)).toContain('sandbox_permissions is not available for this PTC runtime')
+      for (const reason of [{ justification: 'Need file writes' }, {}]) {
+        const result = await tools.execute({
+          callId: ToolCallId('unsupported-escalation'), name: RUN_CODE_NAME, signal: testToolSignal,
+          arguments: { code: 'return 1', description: 'Try an unsupported mode', sandbox_permissions: 'workspace-write', ...reason },
+        })
+        expect(result.isError).toBe(true)
+      }
       expect(runtime.lastRequest).toBeUndefined()
     } finally { await ctx.fiber.dispose() }
   })
@@ -2345,6 +2370,39 @@ describe('per-program execution controls', () => {
       expect((await execute(args)).isError).toBe(true)
       expect(ask).not.toHaveBeenCalled()
       expect(runtime.lastRequest).toBeUndefined()
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('keeps the session mode for ordinary and repeated-mode programs without a reason', async () => {
+    const { ctx, runtime, agent, session, execute } = await controlledSetup()
+    session.append('sandbox/mode', { mode: 'workspace-write' })
+    const ask = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    ctx.on('approval/request', ask)
+    const run = vi.spyOn(runtime, 'run')
+    try {
+      for (const args of [
+        { justification: '' },
+        { sandbox_permissions: 'workspace-write' },
+        { sandbox_permissions: 'workspace-write', justification: ' \t\n' },
+      ]) {
+        expect((await execute(args)).isError).toBe(false)
+        expect(runtime.lastRequest?.sandboxPolicy?.mode).toBe('workspace-write')
+      }
+      expect(run).toHaveBeenCalledTimes(3)
+      expect(ctx.sandboxPolicy.resolve({ session: agent.session }).mode).toBe('workspace-write')
+      expect(ask).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('rejects a narrower mode without a reason before runtime execution', async () => {
+    const { ctx, runtime, session, execute } = await controlledSetup()
+    session.append('sandbox/mode', { mode: 'danger-full-access' })
+    const ask = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    ctx.on('approval/request', ask)
+    try {
+      expect((await execute({ sandbox_permissions: 'workspace-write' })).isError).toBe(true)
+      expect(runtime.lastRequest).toBeUndefined()
+      expect(ask).not.toHaveBeenCalled()
     } finally { await ctx.fiber.dispose() }
   })
 

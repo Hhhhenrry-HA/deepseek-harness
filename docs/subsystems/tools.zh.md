@@ -418,11 +418,13 @@ type PreToolDecision =
 /**
  * Post-dispatch decision: accept, replace one projection, attach context for the
  * next request, or block by turning corrective feedback into an error result.
+ * A block's optional `content` overrides only its rendering; `feedback` still
+ * defines the canonical failure message returned to programmatic callers.
  */
 type PostToolDecision =
   | { kind: 'accept'; content?: ContentBlock[]; value?: never; additionalContexts?: UserMessage[] }
   | { kind: 'accept'; value: JsonValue; content?: never; additionalContexts?: UserMessage[] }
-  | { kind: 'block'; feedback: ContentBlock[]; additionalContexts?: UserMessage[] }
+  | { kind: 'block'; feedback: ContentBlock[]; content?: ContentBlock[]; additionalContexts?: UserMessage[] }
 ```
 
 调用 `next()` 获取默认决策，或直接返回一个决策以短路。前置策略可以 deny 或 ask；只有 `allowed-once` 才继续执行，而未授权、缺少审批通道或服务、或无 agent 的请求都会变为拒绝。拒绝可以附带结构化身份与用户可见详情，而不改变其模型可见原因。Guard 仍可施加最终拒绝。参数不可被改写，因为历史记录、审计、UI 和执行必须保持一致。

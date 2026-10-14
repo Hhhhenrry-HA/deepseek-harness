@@ -23,7 +23,7 @@ try {
     signal: new AbortController().signal,
     callId: ToolCallId('loader-fg'),
     name: 'pwsh',
-    arguments: { command: 'Write-Output loader-ok', description: 'loader foreground' },
+    arguments: { command: 'Write-Output loader-ok', description: 'loader foreground', justification: '' },
   })
   const foregroundText = foreground.content.filter(block => block.type === 'text').map(block => block.text).join('')
 

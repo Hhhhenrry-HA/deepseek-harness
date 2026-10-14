@@ -502,6 +502,20 @@ describe('ToolRuntime', () => {
     expect('value' in result).toBe(false)
   })
 
+  it('keeps canonical block feedback separate from a rendered content override', async () => {
+    const ctx = await setup()
+    try {
+      ctx.tools.register(echoTool)
+      const feedback = [{ type: 'text' as const, text: 'canonical policy failure' }]
+      const content = [{ type: 'text' as const, text: 'rendered policy feedback' }]
+      ctx.on('tools/post-execute', async () => ({ kind: 'block', feedback, content }))
+
+      const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('block-display'), name: 'echo', arguments: {} })
+      expect(result).toEqual({ isError: true, error: { message: feedback[0]!.text }, content })
+      expect('value' in result).toBe(false)
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('replaces a canonical value without manufacturing additional context', async () => {
     const ctx = await setup()
     ctx.tools.register(echoTool)

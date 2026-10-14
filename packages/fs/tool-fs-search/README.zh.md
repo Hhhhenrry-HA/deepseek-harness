@@ -50,6 +50,8 @@ kind: "package-reference"
 | `glob` | `pattern`、`path?` | 查找路径匹配 glob 模式的文件，包含隐藏与忽略文件但排除 VCS 元数据；不含 `/` 的模式匹配任意深度的基名，因此 `*` 匹配整棵树；完整结果保持按修改时间排序 |
 | `grep` | `pattern`、`path?`、`include?` | 用 ripgrep 正则搜索文件内容，并按文件分组返回 `Line N: <preview>` 匹配；`include` 是一个正向 glob 过滤器，逗号分隔列表与否定值会被前置拒绝 |
 
+空字符串或仅含空白字符的 `path` 与 `include` 视为省略；非空白值原样传递。省略 `path` 时搜索当前工作目录，省略 `include` 时不应用 glob 过滤器。`glob` 要求 `pattern` 非空白；`grep` 拒绝空字符串 `pattern`，但接受将空白字符作为匹配内容的正则表达式。
+
 常规预算不进入面向模型的 schema：需要周边上下文的模型用 `read` 读取匹配文件，需要后续结果的模型遵循返回的 spill locator 检索提示。
 
 ### 配置

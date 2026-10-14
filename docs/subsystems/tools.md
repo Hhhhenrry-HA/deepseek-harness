@@ -418,11 +418,13 @@ type PreToolDecision =
 /**
  * Post-dispatch decision: accept, replace one projection, attach context for the
  * next request, or block by turning corrective feedback into an error result.
+ * A block's optional `content` overrides only its rendering; `feedback` still
+ * defines the canonical failure message returned to programmatic callers.
  */
 type PostToolDecision =
   | { kind: 'accept'; content?: ContentBlock[]; value?: never; additionalContexts?: UserMessage[] }
   | { kind: 'accept'; value: JsonValue; content?: never; additionalContexts?: UserMessage[] }
-  | { kind: 'block'; feedback: ContentBlock[]; additionalContexts?: UserMessage[] }
+  | { kind: 'block'; feedback: ContentBlock[]; content?: ContentBlock[]; additionalContexts?: UserMessage[] }
 ```
 
 Call `next()` for the default or return a decision to short-circuit. Pre-policy may deny or ask; only `allowed-once` proceeds, while a non-grant, missing approval channel or service, or agent-less request becomes a denial. A deny may attach structured identity and user-facing detail without changing its model-facing reason. Guards may still impose a final denial. Arguments cannot be rewritten because history, audit, UI, and execution must agree.

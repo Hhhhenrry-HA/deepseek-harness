@@ -31,15 +31,25 @@ describe('the strictly-wider ladder', () => {
 })
 
 describe('validateEscalationArgs', () => {
-  it('accepts neither field, or both with a non-empty justification', () => {
-    expect(() => { validateEscalationArgs(undefined, undefined) }).not.toThrow()
-    expect(() => { validateEscalationArgs('workspace-write', 'because the workspace needs it') }).not.toThrow()
+  it.each([undefined, '', ' \t\n'])('accepts an unused empty reason %j', (justification) => {
+    expect(() => { validateEscalationArgs(undefined, justification, undefined) }).not.toThrow()
   })
 
-  it('rejects one field without the other, and a blank justification', () => {
-    expect(() => { validateEscalationArgs('workspace-write', undefined) }).toThrow(/requires a justification/)
-    expect(() => { validateEscalationArgs(undefined, 'orphan reason') }).toThrow(/only valid together with sandbox_permissions/)
-    expect(() => { validateEscalationArgs('workspace-write', '   ') }).toThrow(/non-empty sentence/)
+  it.each(ESCALATION_TARGETS)('repeating %s does not require a reason', (mode) => {
+    for (const justification of [undefined, '', ' \t\n', 'existing access']) {
+      expect(() => { validateEscalationArgs(mode, justification, mode) }).not.toThrow()
+    }
+  })
+
+  it('accepts a reason for a wider mode and rejects an orphan reason', () => {
+    expect(() => { validateEscalationArgs('workspace-write', 'because the workspace needs it', 'read-only') }).not.toThrow()
+    expect(() => { validateEscalationArgs(undefined, 'orphan reason', undefined) }).toThrow()
+  })
+
+  it.each([undefined, '', ' \t\n'])('does not omit an explicit mode with an empty reason %j', (justification) => {
+    expect(() => { validateEscalationArgs('workspace-write', justification, 'read-only') }).toThrow()
+    expect(() => { validateEscalationArgs('workspace-write', justification, 'danger-full-access') }).toThrow()
+    expect(() => { validateEscalationArgs('workspace-write', justification, undefined) }).toThrow()
   })
 })
 
@@ -95,12 +105,31 @@ describe('approveEscalation', () => {
 
   it.each(ESCALATION_TARGETS)('repeating %s succeeds without asking for approval', async (mode) => {
     const seen: unknown[] = []
-    const request = req({ requestedMode: mode, effectiveMode: mode })
-    await expect(approveEscalation(request, ingredients({ approver: approver('rejected', r => seen.push(r)) })))
-      .resolves.toBe(mode)
+    for (const justification of [undefined, '', ' \t\n', 'existing access']) {
+      const request = req({ requestedMode: mode, effectiveMode: mode, justification })
+      await expect(approveEscalation(request, ingredients({ approver: approver('rejected', r => seen.push(r)) })))
+        .resolves.toBe(mode)
+      await expect(approveEscalation(request, ingredients({ approver: undefined, agent: undefined })))
+        .resolves.toBe(mode)
+    }
     expect(seen).toEqual([])
-    await expect(approveEscalation(request, ingredients({ approver: undefined, agent: undefined })))
-      .resolves.toBe(mode)
+  })
+
+  it.each([undefined, '', ' \t\n'])('rejects widening with an empty reason %j before asking', async (justification) => {
+    const seen: unknown[] = []
+    await expect(approveEscalation(req({ justification }), ingredients({ approver: approver('allowed-once', r => seen.push(r)) })))
+      .rejects.toThrow()
+    expect(seen).toEqual([])
+  })
+
+  it.each([undefined, '', ' \t\n'])('rejects narrower and unsupported modes even with empty reason %j', async (justification) => {
+    const seen: unknown[] = []
+    const approval = ingredients({ approver: approver('allowed-once', r => seen.push(r)) })
+    for (const requestedMode of ['read-only', 'workspace-write', '', 'unknown-mode']) {
+      await expect(approveEscalation(req({ requestedMode, effectiveMode: 'danger-full-access', justification }), approval))
+        .rejects.toThrow()
+    }
+    expect(seen).toEqual([])
   })
 
   it('a narrower or unsupported target fails closed without asking', async () => {

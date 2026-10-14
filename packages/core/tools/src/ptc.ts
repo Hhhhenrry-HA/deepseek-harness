@@ -384,7 +384,6 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         throw new Error('invalid description: expected a non-empty string')
       }
       const runtime = requireRuntime()
-      validateEscalationArgs(args.sandbox_permissions, args.justification)
       if (args.timeoutMs !== undefined && runtime.timeout === undefined) {
         throw new Error('timeoutMs is not available for this PTC runtime')
       }
@@ -392,8 +391,9 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         throw new Error('invalid timeoutMs: expected a positive finite number')
       }
       const standingPolicy = runtime.sandboxMode === undefined ? undefined : options.resolveSandboxPolicy(exec)
+      validateEscalationArgs(args.sandbox_permissions, args.justification, standingPolicy?.mode)
       let policy = standingPolicy
-      if (args.sandbox_permissions !== undefined && args.justification !== undefined) {
+      if (args.sandbox_permissions !== undefined) {
         if (standingPolicy === undefined) throw new Error('sandbox_permissions is not available for this PTC runtime')
         const approvedMode = await approveEscalation({
           requestedMode: args.sandbox_permissions,

@@ -751,7 +751,7 @@ describe('sandbox escalation through the generic task producer', () => {
     }
   })
 
-  it.each(['', ' \t\n'])('rejects an explicit mode with blank justification %j before execution', async (justification) => {
+  it.each(['', ' \t\n'])('rejects widening with blank justification %j before execution', async (justification) => {
     const { ctx, bash } = await setupSandboxed(true)
     try {
       const prompted = vi.fn()
@@ -768,22 +768,31 @@ describe('sandbox escalation through the generic task producer', () => {
 
   it('rejects injected escalation without a sandbox and narrower escalation without prompting', async () => {
     const plain = await setup()
-    expect(text(await call(plain, 'bash', escalate))).toContain('not available in this composition')
+    const started = vi.spyOn(plain.shell, 'execute')
+    const { ctx, bash } = await setupSandboxed(true)
+    const prompted = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    ctx.on('approval/request', prompted)
+    try {
+      for (const reason of [{ justification: 'the command needs workspace writes' }, {}]) {
+        const args = { command: 'true', description: 'test escalation', sandbox_permissions: 'workspace-write', ...reason }
+        expect((await call(plain, 'bash', args)).isError).toBe(true)
+        expect((await call(ctx, 'bash', args, sandboxAgent('danger-full-access'))).isError).toBe(true)
+      }
+      expect(started).not.toHaveBeenCalled()
+      expect(bash.modes).toEqual([])
+      expect(prompted).not.toHaveBeenCalled()
 
-    const { ctx } = await setupSandboxed(true)
-    const prompted = vi.fn()
-    ctx.on('approval/request', () => { prompted(); return Promise.resolve<ApprovalOutcome>('allowed-once') })
-    const result = await call(ctx, 'bash', { ...escalate, sandbox_permissions: 'workspace-write' }, sandboxAgent('danger-full-access'))
-    expect(text(result)).toContain('not strictly wider')
-    expect(prompted).not.toHaveBeenCalled()
-
-    const malformed = sandboxAgent()
-    ;(malformed.session.snapshotEvents() as unknown as Array<{ type: string; data: { mode: string }; seq: number }>).push({
-      type: 'sandbox/mode',
-      data: { mode: 'unknown-mode' },
-      seq: malformed.session.seq,
-    })
-    expect(text(await call(ctx, 'bash', escalate, malformed))).toContain('not strictly wider')
+      const malformed = sandboxAgent()
+      ;(malformed.session.snapshotEvents() as unknown as Array<{ type: string; data: { mode: string }; seq: number }>).push({
+        type: 'sandbox/mode',
+        data: { mode: 'unknown-mode' },
+        seq: malformed.session.seq,
+      })
+      expect(text(await call(ctx, 'bash', escalate, malformed))).toContain('not strictly wider')
+    } finally {
+      await plain.fiber.dispose()
+      await ctx.fiber.dispose()
+    }
   })
 
   it.each(['workspace-write', 'danger-full-access'] as const)('runs a repeated %s request without approval', async (mode) => {

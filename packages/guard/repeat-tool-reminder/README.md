@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package helps a model escape loops in which it calls the same tool with identical arguments without making progress. At configured repeat counts, it asks the model to inspect the previous result and change approach or finish. The reminder is advisory: it never blocks or delays a legitimate repeated call. Repeats are tracked separately for each agent and cleared by a new user message. The `dsh` base bundle enables the package with reminders at 3, 5, and 8 repeats.
+This package advises a model when it repeats the same tool with identical arguments. From the second identical failure, it appends advice to the original error result; other repeats use configured context reminders. It never blocks or delays calls. Counters are per-agent, reset on new user messages, and remain in memory. The `dsh` base bundle enables the plugin.
 
 ## Table of Contents
 
@@ -46,7 +46,7 @@ When you want to change when reminders fire or which tools they cover, mount the
 
 | Field | Default | Meaning |
 |---|---|---|
-| `thresholds` | `[3, 5, 8]` | Repeat counts that trigger a reminder |
+| `thresholds` | `[3, 5, 8]` | Generic call-repeat reminders; the inline failure warning starts at 2 independently |
 | `include` | `[]` | Only these tools are tracked; empty means every tool |
 | `exclude` | `[]` | These tools are never tracked; calls to them neither count nor reset |
 | `argumentsPreviewChars` | `500` | How many characters of the repeated arguments the detailed reminder shows |
@@ -88,7 +88,11 @@ Each agent's chain is keyed by `(tool name, canonical arguments)` — two calls 
 
 ### Reminder delivery
 
-Reminders ride the post-execute decision's `additionalContexts` (source `{kind: 'repeat-tool-reminder', form: 'notice', summary: '<tool> × <count>'}`), never a `content` replacement: the `tool/result` event stays the tool's own output for audit. The loop buffers the context and appends it as an injected `user/message` after the step's tool results, which the session renders as a plain synthetic user message — model-visible, source-attributed, and reconstructable from the session log with no new session event. The guard always delegates via `next()` and prepends its reminder to the downstream decision's context array, so both decision variants (a blocked call included) still get the nudge while every entry retains its own source and metadata.
+A separate per-agent failure chain compares the tool name, canonical arguments, structured error identity when available, and final visible diagnostic. The second and every later identical failure keep the original content blocks and append one advisory text block. A successful tracked call or a different failure resets this chain; excluded calls remain transparent, and a new user message clears both chains. This changes neither call arguments nor failure status. Downstream feedback and contexts are preserved.
+
+For model-direct calls, an inline failure warning replaces that call's generic context reminder rather than delivering both. Programmatic subcalls retain their canonical error message, including downstream policy blocks. Their rendered result retains the inline warning, and existing context reminders remain available to the parent model.
+
+Generic reminders ride the post-execute decision's `additionalContexts` (source `{kind: 'repeat-tool-reminder', form: 'notice', summary: '<tool> × <count>'}`); inline failure warnings instead extend the `tool/result` content without removing the original diagnostic. The loop buffers the context and appends it as an injected `user/message` after the step's tool results, which the session renders as a plain synthetic user message — model-visible, source-attributed, and reconstructable from the session log with no new session event. The guard always delegates via `next()` and prepends its reminder to the downstream decision's context array, so both decision variants (a blocked call included) still get the nudge while every entry retains its own source and metadata.
 
 ### Source map
 
@@ -113,6 +117,24 @@ Read these pages when the package-level contract is not enough. They move from t
 
 <a id="model-experience"></a>
 ## Model Experience
+
+### Inline repeated-failure warning
+
+#### What the model sees
+
+From the second identical failure, the original error result is followed by this text block:
+
+```markdown
+提醒：相同报错已连续出现至少 2 次，请勿用相同参数反复重试；应先检查工具出错原因、向用户汇报，或采用不绕过权限与安全限制的其他方法。
+```
+
+#### Token effect
+
+One fixed-size text block per repeated failure, retained with its tool result; no argument or error text is repeated. Successful results do not receive this block.
+
+#### KV Cache effect
+
+Append-only at result creation; earlier messages are not rewritten.
 
 ### First-threshold context message
 
@@ -170,7 +192,7 @@ These limits define when the guard is a poor fit. They are current package const
 - **Advisory only** — escalating to a blocking form at a high threshold is not implemented, though `PostToolDecision` already supports blocking.
 - **No subagent chain-sharing** — chains stay isolated per agent; a parent and its subagent repeating the same call never combine.
 - **Legitimate idempotent polling still draws nudges** past the thresholds — the pressure valves are the `thresholds`/`exclude` config.
-- **Past the highest threshold a chain goes silent** — reminders fire only at exact configured counts, never beyond them.
+- **Generic context reminders stop after the highest threshold** — they fire only at exact configured counts; inline failure warnings continue on every identical failure from the second occurrence.
 
 <a id="dev-note"></a>
 ### Dev Note

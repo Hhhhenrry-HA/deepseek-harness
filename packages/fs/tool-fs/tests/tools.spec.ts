@@ -996,6 +996,29 @@ describe('sandbox escalation API (write/edit)', () => {
     }])
   })
 
+  it('keeps the session mode for writes and edits with no escalation reason', async () => {
+    const { ctx, fs } = await setupConfining({ approval: true })
+    const agent = escalationAgent([{ type: 'sandbox/mode', data: { mode: 'danger-full-access' } }])
+    const prompted = vi.fn(() => Promise.resolve('allowed-once' as const))
+    ctx.on('approval/request', prompted)
+    try {
+      expect((await call(ctx, 'write', {
+        file_path: 'a.txt', content: 'x', justification: '',
+      }, agent)).isError).toBe(false)
+      expect((await call(ctx, 'edit', {
+        file_path: 'a.txt', old_string: 'x', new_string: 'y', sandbox_permissions: 'danger-full-access',
+      }, agent)).isError).toBe(false)
+      expect((await call(ctx, 'edit', {
+        file_path: 'a.txt', old_string: 'y', new_string: 'z', sandbox_permissions: 'danger-full-access', justification: ' \t\n',
+      }, agent)).isError).toBe(false)
+      expect(fs.files.get('key:a.txt')).toBe('z')
+      expect(fs.stamped).toEqual(Array.from({ length: 3 }, () => ({
+        mode: 'danger-full-access', workspaceRoot: '/session-project', sessionId: SessionId('sess-fs-esc'),
+      })))
+      expect(prompted).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('a rejected escalation fails closed with its own text and never mutates', async () => {
     const { ctx, fs } = await setupConfining({ approval: true })
     ctx.on('approval/request', () => Promise.resolve('rejected' as const))
@@ -1019,18 +1042,40 @@ describe('sandbox escalation API (write/edit)', () => {
     expect(text(result)).toContain('no agent to route it through')
   })
 
-  it('rejects the escalation argument pairing (one field without the other)', async () => {
-    const { ctx } = await setupConfining()
-    const missing = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write' }, escalationAgent())
-    expect(missing.isError).toBe(true)
-    expect(text(missing)).toContain('sandbox_permissions requires a justification')
+  it('rejects a wider or narrower mode without a reason before mutation', async () => {
+    const { ctx, fs } = await setupConfining({ approval: true })
+    const prompted = vi.fn(() => Promise.resolve('allowed-once' as const))
+    ctx.on('approval/request', prompted)
+    try {
+      const wider = await call(ctx, 'write', {
+        file_path: 'a.txt', content: 'x', sandbox_permissions: 'danger-full-access',
+      }, escalationAgent())
+      expect(wider.isError).toBe(true)
+      const agent = escalationAgent([{ type: 'sandbox/mode', data: { mode: 'danger-full-access' } }])
+      fs.files.set('key:a.txt', 'original')
+      expect((await call(ctx, 'read', { file_path: 'a.txt' }, agent)).isError).toBe(false)
+      const narrower = await call(ctx, 'edit', {
+        file_path: 'a.txt', old_string: 'original', new_string: 'changed', sandbox_permissions: 'workspace-write',
+      }, agent)
+      expect(narrower.isError).toBe(true)
+      expect(fs.stamped).toEqual([])
+      expect(fs.files.get('key:a.txt')).toBe('original')
+      expect(prompted).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
   })
 
   it('sandbox_permissions under a non-confining backend fails closed (unadvertised field still reaches execute)', async () => {
-    const { ctx } = await setup()
-    const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write', justification: 'why' }, escalationAgent())
-    expect(result.isError).toBe(true)
-    expect(text(result)).toContain('not available in this composition')
+    const { ctx, fs } = await setup()
+    try {
+      for (const reason of [{ justification: 'why' }, {}]) {
+        const result = await call(ctx, 'write', {
+          file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write', ...reason,
+        }, escalationAgent())
+        expect(result.isError).toBe(true)
+      }
+      expect(fs.writeIntents).toEqual([])
+      expect(fs.files.size).toBe(0)
+    } finally { await ctx.fiber.dispose() }
   })
 })
 

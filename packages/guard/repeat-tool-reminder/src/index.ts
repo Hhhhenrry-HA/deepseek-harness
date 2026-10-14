@@ -1,8 +1,7 @@
 /**
- * Advisory per-agent repeat-call detector. It enriches post-execute decisions
- * with logged model context without vetoing or rewriting calls. Configuration
- * and chain semantics live in the package README; rationale lives in the
- * repeat-tool-reminder Agent Note.
+ * Advisory per-agent repeat-call detector. Identical failures receive inline
+ * advice from the second occurrence; other repeats receive model context at
+ * configured thresholds. Neither path vetoes or rewrites a call's arguments.
  * @module @deepseek-ai/dsh-repeat-tool-reminder
  */
 
@@ -19,7 +18,7 @@ declare module '@deepseek-ai/dsh-llm' {
 
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
-import type { PostToolDecision, ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { PostToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 
 export const name = 'repeat-tool-reminder'
 
@@ -62,6 +61,10 @@ export const Config: z<Config> = z.object({
  * render as a user prompt in derived history).
  */
 const REMINDER_SOURCE: MessageSource = { kind: 'repeat-tool-reminder' }
+
+const FAILURE_THRESHOLD = 2
+const FAILURE_REMINDER = `提醒：相同报错已连续出现至少 ${FAILURE_THRESHOLD} 次，请勿用相同参数反复重试；`
+  + '应先检查工具出错原因、向用户汇报，或采用不绕过权限与安全限制的其他方法。'
 
 /**
  * The gentle first-threshold reminder. Keyed to `thresholds[0]`, not a literal
@@ -161,6 +164,14 @@ interface Chain {
   count: number
 }
 
+/** Advance one agent's exact-match chain; a different key starts a new run. */
+function advanceChain(chains: WeakMap<Agent, Chain>, agent: Agent, key: string): number {
+  const previous = chains.get(agent)
+  const count = previous?.key === key ? previous.count + 1 : 1
+  chains.set(agent, { key, count })
+  return count
+}
+
 /**
  * Install the guard's listeners.
  * @param ctx - plugin context; listeners are scoped to it and disposed with it.
@@ -178,6 +189,7 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   const chains = new WeakMap<Agent, Chain>()
+  const failures = new WeakMap<Agent, Chain>()
 
   /** Whether a tool participates in the chain (untracked calls are transparent: they neither count nor reset). */
   function tracked(toolName: string): boolean {
@@ -200,9 +212,7 @@ export function apply(ctx: Context, config: Config): void {
     if (!tracked(exec.name)) return undefined
     const canonical = canonicalize(exec.arguments)
     const key = JSON.stringify([exec.name, canonical])
-    const chain = chains.get(exec.agent)
-    const count = chain !== undefined && chain.key === key ? chain.count + 1 : 1
-    chains.set(exec.agent, { key, count })
+    const count = advanceChain(chains, exec.agent, key)
     if (!thresholdSet.has(count)) return undefined
     const text = count === thresholds[0]
       ? GENTLE_REMINDER
@@ -213,20 +223,43 @@ export function apply(ctx: Context, config: Config): void {
     })
   }
 
-  // Observe-and-enrich, never veto: count first (state advances regardless of
-  // the downstream outcome), DELEGATE so a later listener can still block or
-  // replace, then fold the reminder onto whatever came back — additionalContexts
-  // rides both decision variants, so a blocked call still gets the nudge.
-  ctx.on('tools/post-execute', async (exec, _result, next): Promise<PostToolDecision> => {
+  /** Append advice to repeated failures without replacing their diagnostic or downstream policy. */
+  function appendFailureReminder(
+    exec: ToolExecution,
+    result: Readonly<ToolExecutionResult>,
+    decision: PostToolDecision,
+  ): PostToolDecision {
+    if (!exec.agent || !tracked(exec.name)) return decision
+    if (decision.kind === 'accept' && (!result.isError || Object.hasOwn(decision, 'value'))) {
+      failures.delete(exec.agent)
+      return decision
+    }
+    const content = decision.content ?? (decision.kind === 'block' ? decision.feedback : result.content)
+    const code = decision.kind === 'accept' && result.isError ? result.error.info?.code ?? null : null
+    const key = canonicalize([exec.name, exec.arguments, code, content])
+    if (advanceChain(failures, exec.agent, key) < FAILURE_THRESHOLD) return decision
+    const appended = [...content, { type: 'text' as const, text: FAILURE_REMINDER }]
+    if (decision.kind === 'block') return { ...decision, content: appended }
+    return {
+      kind: 'accept',
+      content: appended,
+      ...decision.additionalContexts !== undefined ? { additionalContexts: decision.additionalContexts } : {},
+    }
+  }
+
+  // Delegate before inspecting the visible failure. An inline warning replaces
+  // this call's generic reminder, not downstream feedback or context.
+  ctx.on('tools/post-execute', async (exec, result, next): Promise<PostToolDecision> => {
     const reminder = observe(exec)
     const downstream = await next()
-    if (!reminder) return downstream
-    if (downstream.kind === 'block') {
-      return { kind: 'block', feedback: downstream.feedback, additionalContexts: prependContext(reminder, downstream.additionalContexts) }
-    }
+    const enriched = appendFailureReminder(exec, result, downstream)
+    // PTC subcalls expose the canonical error message rather than rendered
+    // content to their program, so retain their existing context reminders.
+    if (enriched !== downstream && exec.parent === undefined) return enriched
+    if (!reminder) return enriched
     return {
-      ...downstream,
-      additionalContexts: prependContext(reminder, downstream.additionalContexts),
+      ...enriched,
+      additionalContexts: prependContext(reminder, enriched.additionalContexts),
     }
   })
 
@@ -234,7 +267,10 @@ export function apply(ctx: Context, config: Config): void {
   // loop. Pure reset hook: always delegates (attaching nothing, vetoing
   // nothing).
   ctx.on('agent/pre-step', ({ agent, messages }, next): Promise<PreStepDecision> => {
-    if (messages.some(message => message.source.kind === 'user')) chains.delete(agent)
+    if (messages.some(message => message.source.kind === 'user')) {
+      chains.delete(agent)
+      failures.delete(agent)
+    }
     return next()
   })
 }
