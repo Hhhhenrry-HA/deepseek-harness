@@ -5,6 +5,14 @@ export const NS = 'chat'
 
 /** Simplified Chinese dictionary and key-set source of truth. */
 export const zh = {
+  'message.edit': '编辑消息',
+  'message.resend': '保存并重发',
+  'message.cancelEdit': '取消',
+  'message.editHint': '将从这里重新回答，后续消息不再用于当前对话；已执行的文件操作不会撤销',
+  'message.regenerate': '重新生成',
+  'message.restart.busy': '请等当前任务结束后再试',
+  'message.restart.unavailable': '这条消息已不在当前上下文中，请发送一条新消息',
+  'message.restart.failed': '未能确认重发结果，请检查连接后重试',
   'message.stepProcess.thinking': '正在分析请求',
   'message.stepProcess.read': '正在读取文件',
   'message.stepProcess.readImage': '正在读取图片',
@@ -202,6 +210,14 @@ export type ChatKey = keyof typeof zh
 
 /** English dictionary, checked against the Chinese key set. */
 export const en = {
+  'message.edit': 'Edit message',
+  'message.resend': 'Save and resend',
+  'message.cancelEdit': 'Cancel',
+  'message.editHint': 'Restart here without the later messages. Completed file operations will not be undone.',
+  'message.regenerate': 'Regenerate',
+  'message.restart.busy': 'Wait for the current task to finish, then try again',
+  'message.restart.unavailable': 'This message is no longer in the current context. Send a new message.',
+  'message.restart.failed': 'Could not confirm the resend. Check the connection and try again.',
   'message.stepProcess.thinking': 'Analyzing the request',
   'message.stepProcess.read': 'Reading files',
   'message.stepProcess.readImage': 'Reading images',

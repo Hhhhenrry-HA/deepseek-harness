@@ -69,6 +69,8 @@ Preference menus restore focus to their trigger without scrolling before publish
 <a id="completed-turn-footer"></a>
 ## Completed-turn footer
 
+Human messages offer inline Edit with Cancel and Save and resend; attachments stay attached. Only the latest closed human turn offers Regenerate, including failed responses and restart preparation failures. Running work disables both actions. Failed submissions retain the draft and show recovery guidance beside it. Chat hides the replaced suffix only after the replacement input is admitted; Trajectory retains the original events. The [Session Controller](../../api/session-controller/README.md#use-this-package) owns admission, duplicate suppression, and failure semantics.
+
 Artifact extensions can subscribe to one Turn and Node kind through `ChatNodeStore.turnDataSource`. The source includes hidden Nodes and exposes their business data in anchor order. Membership updates incrementally; only observed collections materialize ordered arrays, and unrelated Turns or kinds do not notify them.
 
 The completed-turn action footer follows the recorded Turn end. Its action row starts 20px below preceding prose or extension content. Actions remain visible only on the latest Turn when its final visible content is a reply; other endings and historical Turns reveal actions on hover or keyboard focus. Devices without hover keep actions visible.

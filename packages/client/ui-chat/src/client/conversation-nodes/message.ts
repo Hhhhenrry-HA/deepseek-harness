@@ -64,7 +64,7 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
   target: 'chat',
   match: (event) => {
     if (event.type === 'user/message') {
-      return isAppendSurfaceEvent(event) && !isCompactionCheckpoint(event)
+      return (isAppendSurfaceEvent(event) || (isReplacementSurfaceEvent(event) && event.data.source.kind === 'user')) && !isCompactionCheckpoint(event)
         ? { id: String(event.data.id), role: 'start' }
         : null
     }

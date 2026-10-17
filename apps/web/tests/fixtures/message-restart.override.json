@@ -1,0 +1,23 @@
+[
+  { "kind": "chunks", "chunks": [
+    { "type": "block-start", "index": 0, "blockType": "text" },
+    { "type": "block-end", "index": 0, "block": { "type": "text", "text": "FIRST_REPLY" } },
+    { "type": "finish", "reason": { "kind": "stop" } }
+  ] },
+  { "kind": "chunks", "chunks": [
+    { "type": "block-start", "index": 0, "blockType": "text" },
+    { "type": "block-end", "index": 0, "block": { "type": "text", "text": "LATER_REPLY" } },
+    { "type": "finish", "reason": { "kind": "stop" } }
+  ] },
+  { "kind": "chunks", "chunks": [
+    { "type": "block-start", "index": 0, "blockType": "text" },
+    { "type": "block-end", "index": 0, "block": { "type": "text", "text": "EDITED_REPLY" } },
+    { "type": "finish", "reason": { "kind": "stop" } }
+  ] },
+  { "kind": "throw", "chunks": [], "message": "fixture request rejected", "code": "INVALID_REQUEST" },
+  { "kind": "chunks", "chunks": [
+    { "type": "block-start", "index": 0, "blockType": "text" },
+    { "type": "block-end", "index": 0, "block": { "type": "text", "text": "RECOVERED_REPLY" } },
+    { "type": "finish", "reason": { "kind": "stop" } }
+  ] }
+]

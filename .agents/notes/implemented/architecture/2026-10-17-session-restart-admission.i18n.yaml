@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-10-17-session-restart-admission.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-17-session-restart-admission.md
+/agent-note-admit-same-session-restarts-through-the-existing-message-surface:
+  en: c3fd9d3630a27e91
+  zh: a74269f4fb6b7445
+/agent-note-admit-same-session-restarts-through-the-existing-message-surface/problem:
+  en: 3ce5e6e9e145e9f0
+  zh: 51b6077c0a2b15f0
+/agent-note-admit-same-session-restarts-through-the-existing-message-surface/decision:
+  en: 242d248c0bc7cd37
+  zh: 6a9a85a53c0a6e74
+/agent-note-admit-same-session-restarts-through-the-existing-message-surface/alternatives-considered:
+  en: 566ebc0cea41c4a1
+  zh: 40512baeff41a58e
+/agent-note-admit-same-session-restarts-through-the-existing-message-surface/consequences:
+  en: 5e415efa3332bb26
+  zh: 27ff9251c688a52a
+/agent-note-admit-same-session-restarts-through-the-existing-message-surface/verification:
+  en: 001ed6466a93f78b
+  zh: 557aaa01389d1a95

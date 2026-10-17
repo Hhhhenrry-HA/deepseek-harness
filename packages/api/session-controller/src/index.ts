@@ -20,6 +20,7 @@ import {
   type ApiSessionAgentResult,
 } from './agent.ts'
 import { SessionCommandController } from './commands.ts'
+import { installRestartAdmission, restartSession } from './restart.ts'
 import { SessionControlController } from './control.ts'
 import { SessionHistoryController } from './history.ts'
 import { SessionFileReferences } from './file-references.ts'
@@ -43,6 +44,7 @@ import type {
   SessionFollowRequest,
   SessionForkRequest,
   SessionForkValue,
+  SessionRestartRequest,
   SessionListRequest,
   SessionListValue,
   SessionOpenWorkspacePathRequest,
@@ -145,6 +147,7 @@ export class SessionController extends TypertRemoteService {
     installModelSelectionProjection(ctx)
     this.agents = new ApiSessionAgentController(ctx)
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
+    installRestartAdmission(ctx)
     ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
       const result = await this.agents.resolveAgent(sessionId)
       if ('error' in result) throw result.error
@@ -442,6 +445,21 @@ export class SessionController extends TypertRemoteService {
   prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
     signal.throwIfAborted()
     return this.commands.prompt(request)
+  }
+
+  /**
+   * Restart from a human input without creating another Session.
+   * @param request - edit or latest-turn regeneration with an idempotency identity.
+   * @param signal - cancellation before admission.
+   * @returns acceptance; history changes only when the replacement input enters a model step.
+   */
+  @Remote('restart')
+  async restart(request: SessionRestartRequest, signal: AbortSignal): Promise<SessionPromptValue> {
+    signal.throwIfAborted()
+    const result = await this.agents.resolveAgent(request.sessionId)
+    if ('error' in result) throw result.error
+    signal.throwIfAborted()
+    return restartSession(this.ctx, result.agent, request, signal)
   }
 
   /**

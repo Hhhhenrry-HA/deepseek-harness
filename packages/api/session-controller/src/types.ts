@@ -7,7 +7,7 @@ import type {
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { LlmAttemptId, MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { TextBlock } from '@deepseek-ai/dsh-llm'
-import type { SessionId, SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
+import type { SessionId, SessionSeq, SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -38,6 +38,8 @@ declare module '@deepseek-ai/dsh-session/types' {
      * assembly. Log-only: it never enters derived model history.
      */
     'model/selection': ModelSelection
+    /** Required restart intent; takes effect only when its referenced user input is admitted. */
+    'session/restart': { readonly fromSeq: SessionSeq; readonly throughSeq: SessionSeq }
   }
 }
 
@@ -226,6 +228,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/steer-unavailable': { readonly itemId: MessageId }
     'session/title-invalid': { readonly sessionId: SessionId }
     'session/fork-unavailable': { readonly sessionId: SessionId }
+    'session/restart-unavailable': Record<string, never>
     'session/migration-required': { readonly sessionId: SessionId }
     'subagent/not-found': {
       readonly parentSessionId: SessionId
@@ -334,6 +337,15 @@ export interface SessionForkValue {
   readonly sessionId: SessionId
 }
 
+/** Edit one active human input, or regenerate only the latest closed turn. */
+export interface SessionRestartRequest {
+  readonly sessionId: SessionId
+  readonly requestId: SessionRequestId
+  /** User-message sequence for edits; turn/end sequence for regeneration. */
+  readonly seq: number
+  readonly action: { readonly kind: 'edit'; readonly text: string } | { readonly kind: 'retry' }
+}
+
 /** Session prompt request. */
 export interface SessionPromptRequest {
   /** Client-minted identity persisted on the exact accepted user message. */
@@ -405,7 +417,7 @@ export type SessionRequestId = Branded<'session-request-id'>
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     /** Browser prompt correlation and optional Host-validated time zone. */
-    'user-rpc': { kind: 'user'; rpcId: SessionRequestId; clientTimeZone?: string }
+    'user-rpc': { kind: 'user'; rpcId: SessionRequestId; clientTimeZone?: string; restartSeq?: SessionSeq }
   }
 }
 

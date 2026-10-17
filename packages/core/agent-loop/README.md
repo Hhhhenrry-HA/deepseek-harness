@@ -79,6 +79,8 @@ Each step sends the session's derived history — with the latest non-empty `sys
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
+An accepted pre-step decision can request `replaceTail` for one of its messages. After request preparation succeeds, the loop replaces the active suffix with that message before reconciling the system prompt, refreshing runtime context, or appending other accepted input. Failed preparation leaves history unchanged. The owning plugin validates the selected input and retains any restart intent; the loop owns only atomic message admission.
+
 <details>
 <summary>Implementation internals — click to expand</summary>
 

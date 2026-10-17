@@ -302,7 +302,7 @@ function HarnessChatNode({ standard, owner, hookContext, usePerformanceUsage, to
     useGroupAction: CHAT_NODE_INJECT.hooks.groupAction(standard, hookContext),
   }), [standard, hookContext])
   const { renderSlot: _rootRenderSlot, __renders: _rootRenders, ...shared } = standard
-  const nodeProps = { ...shared, ...owner, ...hooks }
+  const nodeProps = { ...shared, ...owner, ...hooks, restartMessage: async () => null }
   switch (owner.node.kind) {
     case 'user':
       return <UserMessageNodeView {...nodeProps} node={owner.node} />

@@ -14,6 +14,7 @@ import { SystemPromptNodeView } from './SystemPromptRow.tsx'
 import { TurnProcessNodeView } from './TurnProcessNodeView.tsx'
 import { TurnTailNodeView } from './TurnTailNodeView.tsx'
 import { TurnTriggerNodeView } from './TurnTriggerNodeView.tsx'
+import type { MessageRestartInjected } from './use-message-restart.ts'
 
 /**
  * Register this package's business renderers behind the keyed Chat Node seat.
@@ -28,6 +29,12 @@ export function registerChatNodeRenderers(
   performanceUsage: ObservableSnapshot<PerformanceUsageMode>,
   presentation: ObservableSnapshot<ChatPresentationPolicy>,
 ): void {
+  const restart: MessageRestartInjected = {
+    restartMessage: async (request) => {
+      const result = await ctx.remote.session.restart(request)
+      return result.ok ? null : result.error
+    },
+  }
   ctx.effect(() => ctx.slots.registerFactory({
     name: 'conversation.chat.reasoning.content',
     scope: 'root',
@@ -38,9 +45,9 @@ export function registerChatNodeRenderers(
     priority: 100,
   }, DefaultReasoningBody))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
-    { name: 'conversation.chat.node', key: 'user', locale: NS }, UserMessageNodeView))
+    { name: 'conversation.chat.node', key: 'user', locale: NS, inject: () => restart }, UserMessageNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
-    { name: 'conversation.chat.node', key: 'steering', locale: NS }, UserMessageNodeView))
+    { name: 'conversation.chat.node', key: 'steering', locale: NS, inject: () => restart }, UserMessageNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'context', locale: NS }, ContextMessageNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
@@ -76,7 +83,7 @@ export function registerChatNodeRenderers(
     name: 'conversation.chat.node',
     key: 'turn-tail',
     locale: NS,
-    inject: () => ({ hooks: { performanceUsage } }),
+    inject: () => ({ ...restart, hooks: { performanceUsage } }),
     children: {
       'conversation.chat.turnTail': { kind: 'list', scope: 'session' },
       'conversation.chat.assistant-actions': { kind: 'list', scope: 'session' },

@@ -57,6 +57,7 @@ type PreparedStep =
     kind: 'enter'
     messages: UserMessage[]
     startsRequestSeries?: true
+    replaceTail?: Extract<PreStepDecision, { kind: 'enter' }>['replaceTail']
     assembly: PromptAssembly
   }
 
@@ -408,6 +409,21 @@ export class ReactLoopAgent implements Agent {
     let firstAttempt = true
     while (true) {
       const { config, preparedCall } = await this.prepareRequest(turn, step, signal)
+      signal.throwIfAborted()
+      if (firstAttempt && decision.replaceTail !== undefined) {
+        const replacement = decision.replaceTail
+        const message = decision.messages.find(candidate => candidate.id === replacement.messageId)
+        const nodes = this.session.surface.nodes
+        const start = nodes.indexOf(replacement.fromSeq)
+        const endSeq = nodes.at(-1)
+        if (message === undefined || start < 0 || endSeq === undefined) {
+          throw new Error('Replacement input is no longer on the active surface')
+        }
+        this.session.append('user/message', message, {
+          surfaceOp: { op: 'replace', startSeq: replacement.fromSeq, endSeq },
+          sourceEventSeqs: nodes.slice(start),
+        })
+      }
       const currentContext = this.loopCtx.systemPrompt.refreshContext(assembly, assembleContextFor(this, signal))
       const sections = renderContextSections(currentContext)
       const context = this.runtimeContext.project(joinContextSections(sections), sections)
@@ -425,6 +441,7 @@ export class ReactLoopAgent implements Agent {
       let contextAdmitted = false
       if (firstAttempt) {
         for (const message of decision.messages) {
+          if (message.id === decision.replaceTail?.messageId) continue
           if (message.source.kind === 'runtime-context') {
             if (context !== undefined && !contextAdmitted) {
               this.session.append('user/message', context, { surfaceOp: 'append' })

@@ -68,6 +68,8 @@ Client 的首次 `follow`、重连首屏与 `loadOlder()` 至少请求 50 条以
 
 队列编辑仅允许用非空文本替换待处理内容。
 
+`session.restart` 在同一 Session 中编辑已接纳的人类消息，或重新生成最新已结束的人类轮次。它保留附件，并拒绝正在运行、有排队任务或输入已不在模型生效历史中的操作。持久意图与入队先于请求准备；仅在替换消息被接纳时改变模型历史。准备失败保留原历史，重新生成该失败重发时从持久队列领取记录恢复编辑后的输入。重复请求标识只确认已接纳，不再次执行，即使此前已取消；有意发起新尝试须使用新标识。接纳前取消不作变更；确认丢失意味着结果未知，须复用原标识。原始事件仍可查阅，但被替换的消息不进入后续请求。已经执行的工具和文件副作用不会撤销。
+
 附件授权读取内置 Session 事件声明的内容字段与已完成的 assistant 流块，包括扁平的 V4 tool 角色消息。未知事件载荷与无关字段不能授权附件读取。
 
 本控制器通过 `ctx.plugin` 组合 `ArchivedSessionGate`：在 Agent 注册表、Session store 与 Workspace 注册表就绪后加载，随控制器一起释放。它的 `agent/pre-step` 监听器会拒绝为已归档会话或其子代理子孙——从 Session header 的血缘字段读出，从不包括 fork——提出的步骤，因此迟到的唤醒投递会让该回合以 `blocked` 收口而不发出模型请求；取消归档即为整条血缘解除门禁。已归档会话仍在跑的工作由各自的 owner 通过 Workspace 注册表的归档准入（[接缝](../../workspace/workspace/README.zh.md)）报告与停止：运行中的回合由 [Agent 注册表](../../core/agent/README.zh.md)负责，所属任务由[任务注册表接缝](../../jobs/jobs/README.zh.md)负责，子代理子孙由 [Subagent](../../subagent/subagent/README.zh.md) runtime 负责，提醒由 [Schedule](../../schedule/schedule/README.zh.md) 插件负责；本控制器自己不报告任何内容。

@@ -332,6 +332,8 @@ type PreStepDecision =
     messages: UserMessage[]
     /** Start a distinct model-message series before this step's admitted messages. */
     startsRequestSeries?: true
+    /** Atomically replace the active suffix with this admitted message, after request preparation succeeds. */
+    replaceTail?: { readonly messageId: MessageId; readonly fromSeq: SessionSeq }
   }
 ```
 

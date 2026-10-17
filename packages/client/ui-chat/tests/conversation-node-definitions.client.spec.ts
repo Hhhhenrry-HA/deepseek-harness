@@ -26,6 +26,7 @@ import { developerMessageDefinition, messageDefinition } from '../src/client/con
 import { inspectRequestPrompt } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { requestPromptDefinition, systemMessageDefinition } from '../src/client/conversation-nodes/request-prompt.ts'
 import { retryDefinition } from '../src/client/conversation-nodes/retry.ts'
+import { restartDefinition } from '../src/client/conversation-nodes/restart.ts'
 import { toolDefinition } from '../src/client/conversation-nodes/tool.ts'
 import { turnErrorDefinition } from '../src/client/conversation-nodes/turn-error.ts'
 import { turnMaxTokensDefinition } from '../src/client/conversation-nodes/turn-max-tokens.ts'
@@ -48,6 +49,7 @@ const DEFINITIONS: readonly ConversationNodeDefinition[] = [
   commandDefinition,
   compactionDefinition,
   retryDefinition,
+  restartDefinition,
   turnErrorDefinition,
   turnMaxTokensDefinition,
   turnTailDefinition,
@@ -225,6 +227,87 @@ function toolResult(callId: string, text: string, isError = false) {
 }
 
 describe('built-in conversation node Definitions', () => {
+  it('retains retry eligibility when a restarted turn fails before input admission', () => {
+    const value = assembler([
+      at(0, 'turn/start', { turn: 1 }),
+      at(1, 'step/start', { turn: 1, step: 1 }),
+      at(2, 'user/message', textMessage('old', 'old input'), { surfaceOp: 'append' }),
+      at(3, 'step/end', { turn: 1, step: 1 }),
+      at(4, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      at(5, 'session/restart', { fromSeq: 2, throughSeq: 4 }),
+      at(6, 'turn/start', { turn: 2 }),
+      at(7, 'turn/end', { turn: 2, reason: { kind: 'error', error: { name: 'Error', message: 'prepare failed' } } }),
+    ])
+    expect(snapshot(value).unadmittedRestartTurn).toBe(2)
+    value.append(at(8, 'session/restart', { fromSeq: 2, throughSeq: 7 }))
+    value.append(at(9, 'turn/start', { turn: 3 }))
+    value.append(at(10, 'step/start', { turn: 3, step: 1 }))
+    value.append(at(11, 'user/message', { ...textMessage('retry', 'edited input'), source: { kind: 'user', restartSeq: 8 } },
+      { surfaceOp: { op: 'replace', startSeq: 2, endSeq: 2 }, sourceEventSeqs: [2] }))
+    value.flush()
+    expect(snapshot(value).unadmittedRestartTurn).toBeUndefined()
+  })
+
+  it.each(['replay', 'live', 'prepend'] as const)('retires replaced user, assistant and tail rows only after admission (%s)', (mode) => {
+    const old = [
+      at(0, 'turn/start', { turn: 1 }),
+      at(1, 'step/start', { turn: 1, step: 1 }),
+      at(2, 'user/message', textMessage('old', 'old input'), { surfaceOp: 'append' }),
+      at(3, 'assistant/message', { turn: 1, step: 1, message: assistantMessage('old-answer', 'old answer') }, { surfaceOp: 'append' }),
+      at(4, 'step/end', { turn: 1, step: 1 }),
+      at(5, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      at(6, 'session/restart', { fromSeq: 2, throughSeq: 5 }),
+    ]
+    const fresh = [
+      at(7, 'turn/start', { turn: 2 }),
+      at(8, 'step/start', { turn: 2, step: 1 }),
+      at(9, 'user/message', { ...textMessage('new', 'edited input'), source: { kind: 'user', restartSeq: 6 } },
+        { surfaceOp: { op: 'replace', startSeq: 2, endSeq: 3 }, sourceEventSeqs: [2, 3] }),
+    ]
+    const value = assembler(mode === 'replay' ? [...old, ...fresh] : mode === 'prepend' ? fresh : old)
+    if (mode === 'live') {
+      expect(snapshot(value).legacy.nodes.some(node => node.kind === 'assistant')).toBe(true)
+      for (const entry of fresh) { value.append(entry); value.flush() }
+    }
+    if (mode === 'prepend') value.prepend(old, false)
+    value.flush()
+    const current = snapshot(value)
+    const visible = current.order.map(key => current.nodes.get(key))
+    expect(visible.filter(node => node?.kind === 'user').map(node => node?.anchorSeq)).toEqual([9])
+    expect(visible.some(node => node?.kind === 'assistant-step' || node?.kind === 'turn-tail')).toBe(false)
+    expect(visible.some(node => node?.kind === 'turn-process'
+      && (node.location.kind === 'turn' || node.location.kind === 'step') && node.location.turn.turn === 1)).toBe(false)
+    expect(current.legacy.nodes.some(node => node.kind === 'assistant')).toBe(false)
+  })
+  it.each(['replay', 'live', 'prepend'] as const)('retires an empty failed process even when hidden context precedes its input (%s)', (mode) => {
+    const old = [
+      at(0, 'turn/start', { turn: 1 }),
+      at(1, 'step/start', { turn: 1, step: 1 }),
+      at(2, 'user/message', { ...textMessage('context', 'runtime context'), source: { kind: 'context' } }, { surfaceOp: 'append' }),
+      at(3, 'user/message', textMessage('old', 'old input'), { surfaceOp: 'append' }),
+      at(4, 'step/end', { turn: 1, step: 1 }),
+      at(5, 'turn/end', { turn: 1, reason: { kind: 'error', error: { name: 'Error', message: 'failed' } } }),
+      at(6, 'session/restart', { fromSeq: 3, throughSeq: 5 }),
+    ]
+    const fresh = [
+      at(7, 'turn/start', { turn: 2 }),
+      at(8, 'step/start', { turn: 2, step: 1 }),
+      at(9, 'user/message', { ...textMessage('new', 'retry input'), source: { kind: 'user', restartSeq: 6 } },
+        { surfaceOp: { op: 'replace', startSeq: 3, endSeq: 3 }, sourceEventSeqs: [3] }),
+    ]
+    const value = assembler(mode === 'replay' ? [...old, ...fresh] : mode === 'prepend' ? fresh : old)
+    if (mode === 'live') {
+      for (const entry of fresh) { value.append(entry); value.flush() }
+    }
+    if (mode === 'prepend') value.prepend(old, false)
+    value.flush()
+    const current = snapshot(value)
+    const visible = current.order.map(key => current.nodes.get(key))
+    expect(visible.filter(node => node?.kind === 'user').map(node => node?.anchorSeq)).toEqual([9])
+    expect(visible.some(node => node?.kind === 'turn-process'
+      && (node.location.kind === 'turn' || node.location.kind === 'step') && node.location.turn.turn === 1)).toBe(false)
+  })
+
   it.each(['replay', 'live', 'prepend'] as const)('keeps developer tool changes visible while hiding ordinary Context (%s)', (mode) => {
     const entries = [
       at(0, 'request/header', { reason: 'initial', header: {

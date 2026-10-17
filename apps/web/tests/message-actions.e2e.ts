@@ -255,7 +255,8 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
     await page.keyboard.press('Tab')
     await expect.poll(() => page.getByRole('tooltip').allTextContents(), { timeout: 5_000 })
       .toEqual(['Available only on the last message of a completed turn'])
-    await expect.poll(() => page.getByRole('button', { name: 'Edit' }).count(), { timeout: 5_000 }).toBe(0)
+    await expect.poll(() => page.getByRole('button', { name: 'Edit message', exact: true }).count(), { timeout: 5_000 }).toBe(3)
+    expect(await page.getByRole('button', { name: 'Regenerate', exact: true }).count()).toBe(1)
   }, 60_000)
 
   it.skipIf(MODE === 'record')('keeps an action tooltip above the sticky composer', async () => {

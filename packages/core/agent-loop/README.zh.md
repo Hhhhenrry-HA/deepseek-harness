@@ -79,6 +79,8 @@ const handle = await ctx.agents.create({
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
+已接纳的 pre-step 决策可为其中一条消息请求 `replaceTail`。请求准备成功后，循环先用该消息替换生效历史的后缀，再协调系统提示词、刷新运行时上下文或追加其他已接纳输入。准备失败不改变历史。所属插件校验所选输入并保留重发意图；循环只持有消息的原子接纳。
+
 <details>
 <summary>实现细节——点击展开</summary>
 

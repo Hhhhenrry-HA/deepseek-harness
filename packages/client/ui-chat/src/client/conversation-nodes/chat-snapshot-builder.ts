@@ -15,6 +15,7 @@ import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
 import { sessionRecallLabels, skillInvocationName } from './event-projection.ts'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
 import { ChatTurnProcessProjector } from './turn-process-presentation.ts'
+import { RestartHistoryProjector } from './restart.ts'
 
 const EMPTY_KEYS: readonly string[] = []
 const EMPTY_TURNS: readonly number[] = []
@@ -924,6 +925,7 @@ function sameContribution(left: LegacyContribution | undefined, right: LegacyCon
 
 /** Incremental compatibility projection for the composer stats pills and legacy top-level snapshot fields. */
 class LegacySliceBuilder {
+  constructor(private readonly retired: (node: ChatConversationViewNode) => boolean) {}
   private readonly contributions = new Map<string, LegacyContribution>()
   private readonly finalizedContributions = new Map<string, LegacyContribution>()
   private readonly runningContributions = new Map<string, LegacyContribution>()
@@ -944,7 +946,7 @@ class LegacySliceBuilder {
     this.runningContributions.clear()
     this.partialContributions.clear()
     for (const node of nodes) {
-      const contribution = legacyContribution(node)
+      const contribution = this.retired(node) ? EMPTY_CONTRIBUTION : legacyContribution(node)
       this.contributions.set(node.key, contribution)
       this.indexContribution(node.key, contribution)
     }
@@ -963,7 +965,7 @@ class LegacySliceBuilder {
     let runningChanged = false
     let partialChanged = false
     for (const node of upserts) {
-      const contribution = legacyContribution(node)
+      const contribution = this.retired(node) ? EMPTY_CONTRIBUTION : legacyContribution(node)
       const previous = this.contributions.get(node.key)
       if (sameContribution(previous, contribution)) continue
       finalizedChanged ||= finalizedContributionChanged(previous, contribution)
@@ -1081,7 +1083,8 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
   private readonly store = new MutableChatNodeStore()
   private readonly locations = new MutableChatLocationIndex()
   private readonly navigation = new MutableTurnNavigationIndex()
-  private readonly legacy = new LegacySliceBuilder()
+  private readonly restarted = new RestartHistoryProjector()
+  private readonly legacy = new LegacySliceBuilder(this.restarted.contains)
   private readonly referenceLabels = new ReferenceLabelProjector()
   private readonly skillNames = new SkillNameProjector()
   private order: readonly string[] = EMPTY_KEYS
@@ -1109,7 +1112,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly nodes: readonly ChatConversationViewNode[]
     readonly timeline: ConversationTimelineSnapshot
   }): ChatSnapshot {
-    const nodes = this.skillNames.replace(this.referenceLabels.replace(input.nodes))
+    const nodes = this.restarted.replace(this.skillNames.replace(this.referenceLabels.replace(input.nodes)))
     this.store.replace(nodes)
     this.order = orderedVisibleChatNodes(nodes).map(node => node.key)
     this.locations.rebuild(this.order, this.store)
@@ -1134,7 +1137,10 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly timeline: ConversationTimelineSnapshot
     readonly changedTurns?: readonly number[]
   }): ChatSnapshot {
-    const upserts = this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store)
+    const upserts = this.restarted.apply(
+      this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store),
+      () => this.store.values(),
+    )
     const processTurns = new Set<number>()
     let structural = false
     const contentOnly: ChatConversationViewNode[] = []
@@ -1199,7 +1205,9 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     timeline: ConversationTimelineSnapshot,
     legacy = this.legacy.replace(EMPTY_LIST, timeline),
   ): ChatSnapshot {
+    const unadmittedRestartTurn = this.restarted.unadmittedTurn(timeline)
     return {
+      ...unadmittedRestartTurn === undefined ? {} : { unadmittedRestartTurn },
       order: this.order,
       nodes: this.store,
       locations: this.locations,

@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   IconBranchOutlineRegular, IconCheckOutlineRegular, IconCopyOutlineRegular, Tooltip, writeClipboard,
+  IconEditOutlineRegular, IconRefreshOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { formatMessageClock } from './message-chrome.ts'
@@ -13,6 +14,8 @@ import css from './MessageIconActions.module.css'
 export interface MessageIconActionsProps {
   /** Plain text the copy action writes. */
   text: string
+  /** Failed turns have no answer to copy. */
+  hideCopy?: boolean
   /** Unix epoch ms for the clock label; omitted for transient messages. */
   time?: number | undefined
   /** Clock before icons (user) or after (assistant). */
@@ -21,6 +24,11 @@ export interface MessageIconActionsProps {
   onBranch?: (() => void) | undefined
   /** The message is not a completed transcript tail, so branch stays visible but unavailable. */
   branchUnavailable?: boolean | undefined
+  /** Edit the original user input, or regenerate the latest closed turn. */
+  onEdit?: (() => void) | undefined
+  onRetry?: (() => void) | undefined
+  /** A running request prevents conflicting history changes. */
+  restartUnavailable?: boolean | undefined
   /** Parent layout class composed onto the actions row. */
   className?: string | undefined
   /**
@@ -43,8 +51,8 @@ export interface MessageIconActionsProps {
  * @returns The actions row element.
  */
 export function MessageIconActions({
-  text, time, clock, onBranch, branchUnavailable = false, className,
-  extraActions, usageAction, t,
+  text, hideCopy = false, time, clock, onBranch, branchUnavailable = false, className,
+  extraActions, usageAction, onEdit, onRetry, restartUnavailable = false, t,
 }: MessageIconActionsProps) {
   const day = useCalendarDay()
   const reasonId = useId()
@@ -82,12 +90,26 @@ export function MessageIconActions({
   return (
     <div className={className === undefined ? css.actions : `${css.actions} ${className}`} data-clock={clock}>
       {clock === 'start' ? clockEl : null}
-      <Tooltip label={copied ? t('copied') : t('copy')} side="bottom">
+      {!hideCopy && <Tooltip label={copied ? t('copied') : t('copy')} side="bottom">
         <button type="button" className={css.action} aria-label={copied ? t('copied') : t('copy')} onClick={onCopy}>
           {copied ? <IconCheckOutlineRegular /> : <IconCopyOutlineRegular />}
         </button>
-      </Tooltip>
+      </Tooltip>}
       {extraActions}
+      {(onEdit !== undefined || onRetry !== undefined) && (
+        <Tooltip label={restartUnavailable ? t('message.restart.busy') : t(onEdit !== undefined ? 'message.edit' : 'message.regenerate')} side="bottom">
+          <button
+            type="button"
+            className={css.action}
+            aria-label={t(onEdit !== undefined ? 'message.edit' : 'message.regenerate')}
+            aria-disabled={restartUnavailable || undefined}
+            data-unavailable={restartUnavailable || undefined}
+            onClick={restartUnavailable ? undefined : onEdit ?? onRetry}
+          >
+            {onEdit !== undefined ? <IconEditOutlineRegular /> : <IconRefreshOutlineRegular />}
+          </button>
+        </Tooltip>
+      )}
       {onBranch !== undefined && (
         <Tooltip label={branchUnavailable ? t('message.branchUnavailable') : t('message.branch')} side="bottom">
           {/* Native disabled buttons do not deliver the hover/focus events Tooltip needs. */}

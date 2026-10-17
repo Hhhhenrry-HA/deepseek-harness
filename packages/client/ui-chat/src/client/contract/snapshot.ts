@@ -105,6 +105,8 @@ export interface LegacyConversationSlice {
 
 /** Incremental Chat publication with immutable order and stable live keyed readers. */
 export interface ChatSnapshot {
+  /** Latest closed turn whose queued restart failed before input admission. */
+  readonly unadmittedRestartTurn?: number
   readonly order: readonly string[]
   readonly nodes: ChatNodeStore
   readonly locations: ChatLocationNodeIndex

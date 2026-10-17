@@ -7,6 +7,33 @@
   gap: 6px;
 }
 
+.editor {
+  width: min(calc(var(--dsh-chat-content-width, 748px) * 0.702), 100%);
+  min-width: min(320px, 100%);
+  padding: 12px;
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-specific-bubble);
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.editor > textarea {
+  display: block;
+  width: 100%;
+}
+
+.editHint, .editError {
+  margin: 8px 0 0;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
 .userStack {
   display: flex;
   flex-direction: column;

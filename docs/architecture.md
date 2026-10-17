@@ -85,7 +85,7 @@ turn/start
   claim next-step input plus one queued message
   assemble prompt sections + tool schemas
   -> agent/pre-step; project runtime context at fallback
-                                     reject | enter(messages, startsRequestSeries?)
+                                     reject | enter(messages, startsRequestSeries?, replaceTail?)
      reject, or a first enter rewritten empty -> close the turn with no step
      step/start
      agent/request -> prepareCall (cancellation commits neither system nor users)

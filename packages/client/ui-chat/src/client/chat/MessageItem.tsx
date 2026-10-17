@@ -2,12 +2,14 @@ import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, InlineEditor, fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
 import { ContextInjectionRow } from './ContextInjectionRow.tsx'
 import { MessageIconActions } from './MessageIconActions.tsx'
+import { useMessageRestart, type MessageRestartInjected } from './use-message-restart.ts'
 import css from './MessageItem.module.css'
 
 type UserImage = Extract<UserMessageNode['content'][number], { type: 'image' }>
@@ -161,12 +163,14 @@ function TurnMaxTokensItem({ t }: {
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], skillNames = [],
-  previewAttachments, references, t,
+  previewAttachments, references, editor, t,
 }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   /** Optional IconActions (or similar) below the bubble; receives the joined text. */
   actions?: (text: string) => ReactNode
+  /** Message-local inline editing, retaining the same attachment row. */
+  editor?: ReactNode
   /** Whether this is the Host-authoritative pre-admission steering projection. */
   pending?: boolean
   /** Whether this is a local submission echo (invisible marker; the echo renders exactly like its durable replacement). */
@@ -218,10 +222,10 @@ function UserStyleBubble({
               ))}
           </div>
         )}
-        {showBubble && <div className={css.bubble}>
+        {editor ?? (showBubble && <div className={css.bubble}>
           {projectUserText(text, referenceLabels, skillNames, 'skill', references)}
           {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
-        </div>}
+        </div>)}
         {referenceLabels.length > 0 && (
           <div className={css.referenceSummary}>
             {t('message.referenceSummary', { labels: referenceLabels.join(t('message.referenceSeparator')) })}
@@ -318,9 +322,17 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderMessageImages, openFile, openSkill, t,
-}: ChatNodeViewProps<'user' | 'steering'>) {
+  node, renderMessageImages, openFile, openSkill, t, useSession, sessionId, restartMessage,
+}: ChatNodeViewProps<'user' | 'steering'> & InjectFace<MessageRestartInjected>) {
   const data = node.data
+  const [draft, setDraft] = useState<string | null>(null)
+  const running = useSession(snapshot => snapshot.running || snapshot.pendingSubmissions.length > 0)
+  const restart = useMessageRestart(restartMessage)
+  const disabled = running || restart.pending
+  const save = (): void => {
+    if (draft === null || disabled || (draft.trim() === '' && data.content.every(block => block.type === 'text'))) return
+    void restart.submit({ sessionId, seq: data.seq, action: { kind: 'edit', text: draft } })
+  }
   return (
     <UserStyleBubble
       content={data.content}
@@ -328,6 +340,18 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
       renderMessageImages={renderMessageImages}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}
       {...data.skillNames === undefined ? {} : { skillNames: data.skillNames }}
+      editor={draft === null ? undefined : (
+        <div className={css.editor}>
+          <InlineEditor value={draft} label={t('message.edit')} onChange={setDraft} onSave={save}
+            onCancel={() => { if (!restart.pending) setDraft(null) }} />
+          <p className={css.editHint}>{t('message.editHint')}</p>
+          {restart.error !== null && <p className={css.editError} role="alert">{t(restart.error)}</p>}
+          <div className={css.editActions}>
+            <Button variant="ghost" disabled={restart.pending} onClick={() => { setDraft(null) }}>{t('message.cancelEdit')}</Button>
+            <Button disabled={disabled || (draft.trim() === '' && data.content.every(block => block.type === 'text'))} onClick={save}>{t('message.resend')}</Button>
+          </div>
+        </div>
+      )}
       t={t}
       actions={text => (
         <MessageIconActions
@@ -335,6 +359,8 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
           time={data.time}
           clock="start"
           className={css.actions}
+          onEdit={draft === null ? () => { setDraft(text) } : undefined}
+          restartUnavailable={disabled}
           t={t}
         />
       )}
