@@ -27,7 +27,7 @@
   width: 100%;
 }
 
-.editHint, .editError {
+.editError {
   margin: 8px 0 0;
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: 20px;

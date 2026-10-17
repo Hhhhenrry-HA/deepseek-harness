@@ -344,7 +344,6 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
         <div className={css.editor}>
           <InlineEditor value={draft} label={t('message.edit')} onChange={setDraft} onSave={save}
             onCancel={() => { if (!restart.pending) setDraft(null) }} />
-          <p className={css.editHint}>{t('message.editHint')}</p>
           {restart.error !== null && <p className={css.editError} role="alert">{t(restart.error)}</p>}
           <div className={css.editActions}>
             <Button variant="ghost" disabled={restart.pending} onClick={() => { setDraft(null) }}>{t('message.cancelEdit')}</Button>
