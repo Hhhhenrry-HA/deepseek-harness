@@ -199,6 +199,30 @@ describe('ExaSearchProvider error handling', () => {
 })
 
 describe('web-search-exa plugin registration', () => {
+  it('uses newly saved and rotated credentials without remounting or falling back to another search provider', async () => {
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => jsonResponse({ results: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    let key: string | undefined
+    const resolve = vi.fn(async (_ref: string) => key === undefined ? undefined : { value: key, source: 'managed' })
+    const ctx = new Context()
+    ctx.provide('credentials', { resolve } as never)
+    await ctx.plugin(WebRuntime, { searchProvider: EXA_PROVIDER_ID })
+    const fiber = await ctx.plugin(exaPlugin, { apiKeyEnv: 'EXA_SEARCH_KEY' })
+    try {
+      await expect(ctx.web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_UNAVAILABLE' })
+      expect(fetchMock).not.toHaveBeenCalled()
+      key = 'saved-key'
+      await ctx.web.search({ query: 'q' })
+      key = 'rotated-key'
+      await ctx.web.search({ query: 'q' })
+      expect(resolve.mock.calls).toEqual([['EXA_SEARCH_KEY'], ['EXA_SEARCH_KEY'], ['EXA_SEARCH_KEY']])
+      expect(fetchMock.mock.calls.map(call => new Headers(call[1]?.headers).get('authorization')))
+        .toEqual(['Bearer saved-key', 'Bearer rotated-key'])
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
   it('registers the provider into ctx.web (HMR-safe)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ results: [] })))
     const ctx = new Context()
@@ -253,7 +277,7 @@ describe('web-search-exa plugin registration', () => {
       await ctx.plugin(WebRuntime, { searchProvider: EXA_PROVIDER_ID })
       await ctx.plugin(exaPlugin, {})
       await expect(ctx.web.search({ query: 'q' }))
-        .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE' }))
+        .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))
     } finally {
       if (prev !== undefined) process.env.EXA_API_KEY = prev
     }

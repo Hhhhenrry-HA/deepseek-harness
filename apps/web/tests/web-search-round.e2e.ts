@@ -1,6 +1,6 @@
 // Web e2e scenario for the shipped default search composition. A real browser
-// drives `web_search`; the model stream is replayed while the real DeepSeek
-// provider calls a deterministic local Anthropic-compatible endpoint through
+// drives `web_search`; the model stream is replayed while the real Exa
+// provider calls a deterministic local endpoint through
 // the real credentials service.
 import { readFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
@@ -77,7 +77,7 @@ interface CapturedSearchRequest {
   body: unknown
 }
 
-/** Start the deterministic DeepSeek Messages double used by the real provider. */
+/** Start the deterministic Exa HTTP double used by the shipped provider. */
 async function startSearchServer(captured: CapturedSearchRequest[]): Promise<{ server: Server; baseURL: string }> {
   const server = createServer((request, response) => {
     let body = ''
@@ -87,11 +87,11 @@ async function startSearchServer(captured: CapturedSearchRequest[]): Promise<{ s
       const parsedBody: unknown = JSON.parse(body)
       captured.push({
         path: request.url ?? '',
-        apiKey: typeof request.headers['x-api-key'] === 'string' ? request.headers['x-api-key'] : undefined,
+        apiKey: request.headers.authorization,
         body: parsedBody,
       })
       const serializedBody = JSON.stringify(parsedBody)
-      const queryIndex = QUERIES.findIndex(query => serializedBody.includes(`Perform a web search for the query: ${query}`))
+      const queryIndex = QUERIES.findIndex(query => serializedBody.includes(query))
       if (queryIndex < 0) {
         response.writeHead(400, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ error: 'unknown fixture query' }))
@@ -99,26 +99,12 @@ async function startSearchServer(captured: CapturedSearchRequest[]): Promise<{ s
       }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({
-        content: [
-          {
-            type: 'text',
-            text: `Found ${PROVIDER_RESULT_COUNT} sources.`,
-            citations: RESULT_ORDINALS.map(ordinal => ({
-              type: 'web_search_result_location',
-              url: resultUrl(queryIndex, ordinal),
-              cited_text: resultSnippet(queryIndex, ordinal),
-            })),
-          },
-          {
-            type: 'web_search_tool_result',
-            content: RESULT_ORDINALS.map(ordinal => ({
-              type: 'web_search_result',
-              url: resultUrl(queryIndex, ordinal),
-              title: resultTitle(queryIndex, ordinal),
-              page_age: resultPageAge(ordinal),
-            })),
-          },
-        ],
+        results: RESULT_ORDINALS.map(ordinal => ({
+          url: resultUrl(queryIndex, ordinal),
+          title: resultTitle(queryIndex, ordinal),
+          publishedDate: resultPageAge(ordinal),
+          highlights: [resultSnippet(queryIndex, ordinal)],
+        })),
       }))
     })
   })
@@ -138,7 +124,6 @@ describe('web e2e: shipped default web search', () => {
   let browser: Browser
   let page: Page
   let searchServer: Server | undefined
-  let searchBaseURL: string
   let tripwire: ReturnType<typeof watchConsole>
   const searchRequests: CapturedSearchRequest[] = []
   const sessionEvents: SessionEvent[] = []
@@ -146,10 +131,9 @@ describe('web e2e: shipped default web search', () => {
   beforeAll(async () => {
     const search = await startSearchServer(searchRequests)
     searchServer = search.server
-    searchBaseURL = search.baseURL
     scaffold = await launchWebScaffold({
       compareReplaySession: true,
-      deepSeekSearch: {
+      exaSearch: {
         baseURL: search.baseURL,
         apiKeyEnv: SEARCH_CREDENTIAL_REF,
       },
@@ -199,35 +183,19 @@ describe('web e2e: shipped default web search', () => {
     for (const query of QUERIES) {
       const request = searchRequests.find(candidate => JSON.stringify(candidate.body).includes(query))
       if (request === undefined) throw new Error(`missing provider request for query: ${query}`)
-      expect(request).toMatchObject({ path: '/messages', apiKey: SEARCH_CREDENTIAL })
+      expect(request).toMatchObject({ path: '/search', apiKey: `Bearer ${SEARCH_CREDENTIAL}` })
       expect(request.body).toMatchObject({
-        messages: [{
-          role: 'user',
-          content: [{ type: 'text', text: `Perform a web search for the query: ${query}` }],
-        }],
+        query,
+        type: 'auto',
+        contents: { highlights: { highlightsPerUrl: 1 } },
       })
-      const tools = (request.body as { tools?: unknown }).tools
-      expect(tools).toHaveLength(1)
-      expect((tools as unknown[])[0]).toMatchObject({ type: 'web_search_20250305', name: 'web_search' })
     }
 
     const auxiliaryRequests = sessionEvents.filter(
       (event): event is Extract<SessionEvent, { type: 'web/deepseek-search-llm-request' }> =>
         event.type === 'web/deepseek-search-llm-request',
     )
-    expect(auxiliaryRequests).toHaveLength(QUERIES.length)
-    for (const query of QUERIES) {
-      const request = searchRequests.find(candidate => JSON.stringify(candidate.body).includes(query))
-      const auxiliaryRequest = auxiliaryRequests.find(event => JSON.stringify(event.data.body).includes(query))
-      if (request === undefined || auxiliaryRequest === undefined) {
-        throw new Error(`missing paired provider request for query: ${query}`)
-      }
-      expect(auxiliaryRequest.data).toEqual({
-        endpoint: `${searchBaseURL}/messages`,
-        apiVersion: '2023-06-01',
-        body: request.body,
-      })
-    }
+    expect(auxiliaryRequests).toHaveLength(0)
 
     const searchCall = sessionEvents.find(
       (event): event is Extract<SessionEvent, { type: 'tool/call' }> =>

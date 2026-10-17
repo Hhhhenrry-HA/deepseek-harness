@@ -400,12 +400,12 @@ export interface LaunchOptions {
   /** Leave first-use Workspace initialization eligible; ordinary scenarios start after the default was removed. */
   firstUse?: boolean
   /**
-   * Patch the shipped DeepSeek search row to a deterministic endpoint and
+   * Patch the shipped Exa search row to a deterministic endpoint and
    * credential reference. Browser search scenarios keep the real provider and
    * credentials seam while avoiding external search traffic and ambient keys.
    */
-  deepSeekSearch?: {
-    /** Anthropic-compatible base URL; the provider appends `/messages`. */
+  exaSearch?: {
+    /** Exa base URL; the provider appends `/search`. */
     baseURL: string
     /** Credential reference resolved by the shipped search provider. */
     apiKeyEnv: string
@@ -667,13 +667,13 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       { insert: (options.agentPresets.definitions ?? []).map(config => ({ id: `preset-${config.id}`, name: '@deepseek-ai/dsh-agent-preset', config })) },
     ],
     ...options.toolsMode === undefined ? [] : [{ id: 'tools', config: { mode: options.toolsMode } }],
-    ...options.deepSeekSearch === undefined
+    ...options.exaSearch === undefined
       ? []
       : [{
-        id: 'web-search-deepseek',
+        id: 'web-search-exa',
         config: {
-          apiKeyEnv: options.deepSeekSearch.apiKeyEnv,
-          baseURL: options.deepSeekSearch.baseURL,
+          apiKeyEnv: options.exaSearch.apiKeyEnv,
+          baseURL: options.exaSearch.baseURL,
         },
       }],
     { id: 'llm-deepseek', disabled: mode !== 'record' && !maskDeepSeekCredential },
@@ -681,7 +681,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
 
   // Live fields use a shared deployment layer; process-specific ports and roots stay in CLI overlays.
   const formEntries = new Set(['agent-default-model', 'agent-preset-registry', 'llm-deepseek', 'llm-pi-ai',
-    'web-search-deepseek', 'agent-loop', 'subagent', 'bash-sandbox', 'pwsh-sandbox',
+    'web-search-exa', 'agent-loop', 'subagent', 'bash-sandbox', 'pwsh-sandbox',
     'session-log-deepseek', 'ui-theme', 'locale', 'ui-chat', 'ui-conversation', 'ui-settings', 'ui-settings-general', 'permission'])
   const formDefaults: PatchOptions[] = []
   const processOverlays = overlayPatches.map((patch) => {

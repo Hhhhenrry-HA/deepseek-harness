@@ -220,7 +220,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-session-controller`
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `fileUploads` · `fs` · `llm` · `sessions` · `sessionProjections` · `sessionQuery` · `typert` · `workspaceRegistry`
-- `source`: [`packages/api/session-controller/src/index.ts:80`](../packages/api/session-controller/src/index.ts)
+- `source`: [`packages/api/session-controller/src/index.ts:82`](../packages/api/session-controller/src/index.ts)
 
 ```ts config-catalog
 /** Session Controller deployment policy. */
@@ -2543,7 +2543,7 @@ export type Config = LocalConfig
 
 ## `@deepseek-ai/dsh-repeat-tool-reminder`
 
-- `source`: [`packages/guard/repeat-tool-reminder/src/index.ts:35`](../packages/guard/repeat-tool-reminder/src/index.ts)
+- `source`: [`packages/guard/repeat-tool-reminder/src/index.ts:34`](../packages/guard/repeat-tool-reminder/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -4154,7 +4154,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tools`
 
 - `inject`: `systemPrompt`
-- `source`: [`packages/core/tools/src/index.ts:675`](../packages/core/tools/src/index.ts)
+- `source`: [`packages/core/tools/src/index.ts:677`](../packages/core/tools/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: how the registered tools are presented to the model. */
@@ -4353,21 +4353,24 @@ export interface Config {
 ## `@deepseek-ai/dsh-web-search-exa`
 
 - `inject`: `web`
-- `source`: [`packages/web/web-search-exa/src/index.ts:35`](../packages/web/web-search-exa/src/index.ts)
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/web/web-search-exa/src/index.ts:38`](../packages/web/web-search-exa/src/index.ts)
 
 ```ts config-catalog
-/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+/** Live settings resolved for each search; literal keys stay out of settings responses. */
 export interface Config {
-  /** Exa API key. Falls back to `$EXA_API_KEY`. Empty → provider unavailable. */
-  apiKey?: string
+  /** Literal API key; prefer the credential reference. */
+  apiKey: Volatile<string | undefined>
+  /** Credential reference resolved per search; defaults to `EXA_API_KEY`. */
+  apiKeyEnv: Volatile<string>
   /** Endpoint base; `/search` is appended. Defaults to the public API. */
-  baseURL?: string
+  baseURL: Volatile<string>
   /** Retrieval mode sent as Exa's `type`. Defaults to `auto`. */
-  searchType?: 'auto' | 'keyword' | 'neural'
+  searchType: Volatile<'auto' | 'keyword' | 'neural'>
   /** Default result count when a request carries no `maxResults`. Omitted = none. */
-  numResults?: number
+  numResults: Volatile<number | undefined>
   /** Highlight sentences requested per result. Defaults to 1. */
-  highlightsPerResult?: number
+  highlightsPerResult: Volatile<number>
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-exa -->

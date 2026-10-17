@@ -88,13 +88,13 @@ describe('web e2e: plugin configuration pages', () => {
     const panel = await openPlugins()
 
     // Every page the shipped web composition exposes: the shell executor, the
-    // agent loop, subagent selection, and the DeepSeek search provider.
-    await panel.getByRole('button', { name: '查看 网页搜索', exact: true }).waitFor({ timeout: 20_000 })
+    // agent loop, subagent selection, and the Exa search provider.
+    await panel.getByRole('button', { name: '查看 EXA 网页搜索', exact: true }).waitFor({ timeout: 20_000 })
     const basic = panel.locator('[data-plugin-group="basic"]')
     expect(await basic.locator('[data-plugin-item]').count()).toBe(4)
     expect(await basic.locator(':scope > ul > li').evaluateAll(cards => cards.map(card => card.getAttribute('data-plugin-item'))))
       .toEqual(['subagent', 'web-search', 'agent-loop', 'shell'])
-    for (const title of ['子智能体', '网页搜索', 'Agent 循环', '终端']) {
+    for (const title of ['子智能体', 'EXA 网页搜索', 'Agent 循环', '终端']) {
       expect(await basic.getByRole('button', { name: `查看 ${title}`, exact: true }).count()).toBe(1)
     }
     // A card carries the one-liner; the fields wait for the page.

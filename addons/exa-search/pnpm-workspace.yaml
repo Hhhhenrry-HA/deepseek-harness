@@ -1,4 +1,0 @@
-# This installed-runtime addon does not participate in the newer SDK workspace.
-packages:
-  - .
-autoInstallPeers: false

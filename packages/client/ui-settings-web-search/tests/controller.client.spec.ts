@@ -41,7 +41,7 @@ function ctxWith(namespaces: object) {
 function credentialsApi(configured: boolean) {
   const describe = vi.fn(() => Promise.resolve({
     ok: true as const,
-    value: { DEEPSEEK_API_KEY: { configured, writable: true } },
+    value: { EXA_API_KEY: { configured, writable: true } },
   }))
   const set = vi.fn(() => Promise.resolve({ ok: true as const, value: undefined }))
   return { ctx: ctxWith({ credentials: { describe, set } }), describe, set }
@@ -77,12 +77,12 @@ describe('WebSearchCardController', () => {
 
     credentials.describe.mockImplementation(() => Promise.resolve({
       ok: true as const,
-      value: { DEEPSEEK_API_KEY: { configured: true, writable: true } },
+      value: { EXA_API_KEY: { configured: true, writable: true } },
     }))
     face.save()
     await vi.waitFor(() => { expect(credentials.set).toHaveBeenCalled() })
 
-    expect(credentials.set).toHaveBeenCalledWith('DEEPSEEK_API_KEY', 'ds-secret')
+    expect(credentials.set).toHaveBeenCalledWith('EXA_API_KEY', 'ds-secret')
     expect(host.set).not.toHaveBeenCalled()
     await vi.waitFor(() => {
       expect(face.hooks.webSearchCard.getSnapshot()).toMatchObject({ dirty: false, apiKeyConfigured: true })
@@ -119,9 +119,9 @@ describe('WebSearchCardController', () => {
     // A key written on another surface reaches this card only through this signal.
     credentials.describe.mockImplementation(() => Promise.resolve({
       ok: true as const,
-      value: { DEEPSEEK_API_KEY: { configured: true, writable: true } },
+      value: { EXA_API_KEY: { configured: true, writable: true } },
     }))
-    controller.refreshCredential('DEEPSEEK_API_KEY')
+    controller.refreshCredential('EXA_API_KEY')
 
     await vi.waitFor(() => {
       expect(controller.inject().hooks.webSearchCard.getSnapshot().apiKeyConfigured).toBe(true)
@@ -161,7 +161,7 @@ describe('WebSearchCardController', () => {
     const host = stubConfigForm<WebSearchSettings>()
     const refusal = () => Promise.resolve({
       ok: false as const,
-      error: new RemoteError('credential/rejected', 'offline', { ref: 'DEEPSEEK_API_KEY' }),
+      error: new RemoteError('credential/rejected', 'offline', { ref: 'EXA_API_KEY' }),
     })
     const describe = vi.fn(refusal)
     const set = vi.fn(refusal)
@@ -176,12 +176,14 @@ describe('WebSearchCardController', () => {
 
     expect(face.hooks.webSearchCard.getSnapshot()).toMatchObject({
       available: true,
+      keyStatus: 'error',
+      apiKeyWritable: false,
       apiKeyConfigured: false,
       baseURL: { text: 'https://search.test/v1' },
     })
   })
 
-  it('ignores a credential read the Host refused', async () => {
+  it('offers a retry when a credential metadata read is refused', async () => {
     const host = stubConfigForm<WebSearchSettings>()
     const describe = vi.fn(() => Promise.resolve({
       ok: false as const,
@@ -192,7 +194,11 @@ describe('WebSearchCardController', () => {
     }))
     await vi.waitFor(() => { expect(describe).toHaveBeenCalled() })
 
-    expect(controller.inject().hooks.webSearchCard.getSnapshot().apiKeyConfigured).toBe(false)
+    const face = controller.inject()
+    expect(face.hooks.webSearchCard.getSnapshot()).toMatchObject({ keyStatus: 'error', apiKeyConfigured: false })
+    describe.mockClear()
+    face.retryCredential()
+    await vi.waitFor(() => { expect(describe).toHaveBeenCalledOnce() })
   })
 
   it('saves the endpoint and the search budget together', async () => {
@@ -204,11 +210,11 @@ describe('WebSearchCardController', () => {
     const face = controller.inject()
 
     face.edit('baseURL', 'https://other.test')
-    face.edit('maxUses', '3')
+    face.edit('numResults', '3')
     face.save()
     await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
 
-    expect(host.mutate.mock.calls.map(([ops]) => ops)).toEqual([[['baseURL', 'https://other.test'], ['maxUses', 3]].map(([field, value]) => ({ op: 'set', path: [field], value }))])
+    expect(host.mutate.mock.calls.map(([ops]) => ops)).toEqual([[['baseURL', 'https://other.test'], ['numResults', 3]].map(([field, value]) => ({ op: 'set', path: [field], value }))])
     expect(credentials.set).not.toHaveBeenCalled()
   })
 })

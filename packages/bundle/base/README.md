@@ -25,7 +25,7 @@ Every base-backed `dsh --profile` surface runs on `dsh-base`, so those surfaces 
 <a id="use-this-package"></a>
 ## Use this package
 
-You get the dsh core automatically: the shipped `web`, `headless`, `sdk`, and `acp` profiles already include it, and a custom profile names it as its first bundle. After that, everything works with no further configuration.
+You get the dsh core automatically: the shipped `web`, `headless`, `sdk`, and `acp` profiles already include it, and a custom profile names it as its first bundle. The fork includes [Exa web search](../../web/web-search-exa/README.md) by default; configure its credential through the [search settings page](../../client/ui-settings-web-search/README.md).
 
 ### A minimal custom profile
 

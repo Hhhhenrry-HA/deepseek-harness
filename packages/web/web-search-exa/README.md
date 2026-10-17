@@ -29,23 +29,24 @@ Mount the provider in a composition that already loads the web service; it regis
 
 ### When to choose it
 
-Choose this backend when a deployment holds an Exa API key and wants Exa's keyword or neural search with per-result highlight snippets and publication dates. The provider is unavailable — and every search call fails with a structured error — when the key is empty or the endpoint base does not parse.
+The fork's base bundle includes this backend by default. Configure it under **Plugins > EXA Web Search**. Missing keys fail before any HTTP request with `WEB_PROVIDER_UNAVAILABLE`; search never falls back to DeepSeek.
 
 ### Minimal configuration
 
-Load the web service and the provider; the API key falls back to `$EXA_API_KEY` from the launch environment, and all other settings have safe defaults.
+Custom compositions load the web service and provider. Each search resolves `apiKeyEnv` through credentials, or through the launch environment when no credential service is mounted. Saving or rotating a key takes effect without remounting.
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
 - name: '@deepseek-ai/dsh-web-search-exa'
   config:
-    apiKey: !!js process.env.EXA_API_KEY
+    apiKeyEnv: EXA_API_KEY
 ```
 
 | Field | Default | Meaning |
 |---|---|---|
-| `apiKey` | `$EXA_API_KEY` | Exa API key; empty or absent makes the provider unavailable |
-| `baseURL` | `https://api.exa.ai` | Endpoint base; `/search` is appended. An unparseable value makes the provider unavailable |
+| `apiKey` | (unset) | Optional literal secret; prefer a credential reference |
+| `apiKeyEnv` | `EXA_API_KEY` | Credential reference resolved for each search |
+| `baseURL` | `https://api.exa.ai` | Endpoint base; `/search` is appended |
 | `searchType` | `auto` | Retrieval mode sent as Exa's `type`: `auto`, `keyword`, or `neural` |
 | `numResults` | (unset) | Default result count when a request carries no `maxResults`; must be a positive integer |
 | `highlightsPerResult` | `1` | Highlight sentences requested per result (Exa's `highlightsPerUrl`); must be a positive integer |

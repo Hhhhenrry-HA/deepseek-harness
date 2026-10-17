@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-alpha.2/exa-default/guide.md
+/:
+  en: 98b19db579ebdae8
+  zh: 73033afcbc6b2ad6
+/built-in-exa-web-search:
+  en: ee41ea69924137ac
+  zh: 3f449916c7527e8d
+/built-in-exa-web-search/change:
+  en: 8727af6bef7298df
+  zh: 2c0b87680712e6c1
+/built-in-exa-web-search/migration:
+  en: c839a670dfbac59f
+  zh: 9cf7fdd6c83323a8

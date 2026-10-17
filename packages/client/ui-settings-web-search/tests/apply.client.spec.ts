@@ -55,7 +55,7 @@ describe('ui-settings-web-search apply', () => {
   })
 
   it('registers the page while the Host serves the namespace, titled in the active locale', async () => {
-    const { ctx, slots } = await bench(['web-search-deepseek'])
+    const { ctx, slots } = await bench(['web-search-exa'])
     declareRoot(slots)
 
     await ctx.plugin({ inject: [...inject], apply }).await()
@@ -63,7 +63,7 @@ describe('ui-settings-web-search apply', () => {
     await vi.waitFor(() => { expect(slots.entries('plugins.item')).toHaveLength(1) })
     const entry = slots.entries('plugins.item')[0]!
     expect(entry.options).toMatchObject({ id: 'web-search', order: 20 })
-    expect(resolveSlotLabel(entry.options.label)).toBe('网页搜索')
+    expect(resolveSlotLabel(entry.options.label)).toBe('EXA 网页搜索')
     expect(entry.locale).toBe(NS)
     const face = (entry.inject as () => Pick<WebSearchCardFace, 'hooks'>)()
     expect(Object.keys(face.hooks)).toEqual(['webSearchCard'])
@@ -91,12 +91,12 @@ describe('ui-settings-web-search apply', () => {
 
     // A key written on another surface changes no settings section, so this
     // event is the only thing that reaches the page.
-    remote.emit('credentials/reference-updated', ['DEEPSEEK_API_KEY'])
+    remote.emit('credentials/reference-updated', ['EXA_API_KEY'])
     await vi.waitFor(() => { expect(describeCredentials).toHaveBeenCalledTimes(1) })
   })
 
   it('collapses the page on teardown', async () => {
-    const { ctx, slots } = await bench(['web-search-deepseek'])
+    const { ctx, slots } = await bench(['web-search-exa'])
     declareRoot(slots)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()

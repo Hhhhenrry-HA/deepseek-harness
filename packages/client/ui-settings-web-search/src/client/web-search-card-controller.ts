@@ -1,5 +1,5 @@
 /**
- * The web-search page's staged form over the `web-search-deepseek` settings
+ * The web-search page's staged form over the `web-search-exa` settings
  * namespace.
  *
  * The key is the one control that does not live in the section: its literal
@@ -19,13 +19,13 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
- * Namespace of the DeepSeek search provider. Spelled here rather than
+ * Namespace of the Exa search provider. Spelled here rather than
  * imported: a client package must not depend on a Host package.
  */
-export const WEB_SEARCH_NS = 'web-search-deepseek'
+export const WEB_SEARCH_NS = 'web-search-exa'
 
 /** Credential reference the provider resolves when the section names none. */
-const DEFAULT_API_KEY_REF = 'DEEPSEEK_API_KEY'
+const DEFAULT_API_KEY_REF = 'EXA_API_KEY'
 
 /** Form field the credential control stages under. */
 const API_KEY_FIELD = 'apiKey'
@@ -36,12 +36,13 @@ export interface WebSearchSettings {
   apiKeyEnv?: string
   /** Provider endpoint; blank inherits the provider default. */
   baseURL?: string
-  /** Maximum searches served within one request. */
-  maxUses?: number
+  /** Default results returned when a search omits its result count. */
+  numResults?: number
 }
 
 /** What the credentials domain last reported, and for which reference. */
 interface CredentialState {
+  status: 'loading' | 'ready' | 'error'
   /** Reference this answer describes; a stale response for another one is dropped. */
   ref: string
   /** Whether any layer supplies a value for it. */
@@ -54,33 +55,38 @@ interface CredentialState {
 export interface WebSearchCardState extends SettingsFormShell {
   /** Provider endpoint. */
   baseURL: SettingsFieldState
-  /** Searches allowed per request. */
-  maxUses: SettingsFieldState
+  /** Default search result count. */
+  numResults: SettingsFieldState
   /** The staged credential, which starts blank on every load. */
   apiKey: SettingsFieldState
   /** Whether the Host reports a credential configured for the referenced key. */
   apiKeyConfigured: boolean
   /** Whether the credentials domain accepts a write for it; false disables the control. */
   apiKeyWritable: boolean
+  /** Loading and failure are distinct from a confirmed missing key. */
+  keyStatus: CredentialState['status']
 }
 
 /** The registration-side face the web-search page's slot entry injects. */
 export interface WebSearchCardFace extends SettingsFormActions {
+  /** Retry a failed credential metadata read. */
+  retryCredential(): void
   hooks: {
     /** Page snapshot bound by the renderer as useWebSearchCard. */
     webSearchCard: SnapshotStore<WebSearchCardState>
   }
 }
 
-/** Bridges the `web-search-deepseek` scope and the credentials domain onto the page. */
+/** Bridges the `web-search-exa` scope and the credentials domain onto the page. */
 export class WebSearchCardController {
   private readonly form: SettingsFormModel<WebSearchSettings>
   private readonly store: SnapshotStore<WebSearchCardState>
   private readonly unsubscribe: () => void
-  private credential: CredentialState = { ref: '', configured: false, writable: true }
+  private credential: CredentialState = { status: 'loading', ref: '', configured: false, writable: false }
+  private credentialRead = 0
 
   /**
-   * @param scope - the bound settings scope for the `web-search-deepseek` namespace.
+   * @param scope - the bound settings scope for the `web-search-exa` namespace.
    * @param ctx - the page plugin's context, whose `remote.credentials` namespace
    * answers for the credential the section references.
    */
@@ -90,7 +96,7 @@ export class WebSearchCardController {
   ) {
     this.form = new SettingsFormModel(
       scope,
-      [settingsTextField('baseURL'), settingsNumberField('maxUses')],
+      [settingsTextField('baseURL'), settingsNumberField('numResults')],
       [{ field: API_KEY_FIELD, write: text => this.writeKey(text) }],
     )
     this.store = this.form.bind(() => this.projection())
@@ -102,10 +108,11 @@ export class WebSearchCardController {
     return {
       ...this.form.shell(),
       baseURL: this.form.field('baseURL'),
-      maxUses: this.form.field('maxUses'),
+      numResults: this.form.field('numResults'),
       apiKey: this.form.field(API_KEY_FIELD),
       apiKeyConfigured: this.credential.configured,
       apiKeyWritable: this.credential.writable,
+      keyStatus: this.credential.status,
     }
   }
 
@@ -117,27 +124,28 @@ export class WebSearchCardController {
    * of order, so a response is published only while it still answers for the
    * reference in force.
    */
-  private async readCredential(): Promise<void> {
+  private async readCredential(): Promise<boolean> {
+    const generation = ++this.credentialRead
     const ref = refOf(this.scope.getSnapshot())
-    if (ref !== this.credential.ref) {
-      // A new reference knows nothing yet; keeping the old answer would claim
-      // the key is configured under a name nobody has checked.
-      this.credential = { ref, configured: false, writable: true }
-      this.store.set(this.projection())
-    }
-    const response = await this.ctx.remote.credentials.describe([ref])
-    if (!response.ok || ref !== refOf(this.scope.getSnapshot())) return
-    const view = response.value[ref]
-    const next: CredentialState = {
-      ref,
-      configured: view?.configured ?? false,
-      // An unknown reference is treated as writable: the control stays usable
-      // and the Host is what refuses, rather than the page guessing a refusal.
-      writable: view?.writable ?? true,
-    }
-    if (next.configured === this.credential.configured && next.writable === this.credential.writable) return
-    this.credential = next
+    this.credential = { status: 'loading', ref, configured: false, writable: false }
     this.store.set(this.projection())
+    try {
+      const response = await this.ctx.remote.credentials.describe([ref])
+      if (generation !== this.credentialRead || ref !== refOf(this.scope.getSnapshot())) return false
+      const view = response.ok ? response.value[ref] : undefined
+      this.credential = view === undefined
+        ? { status: 'error', ref, configured: false, writable: false }
+        : { status: 'ready', ref, configured: view.configured, writable: view.writable }
+      this.store.set(this.projection())
+      return view?.configured === true
+    } catch (_error) {
+      // Failed metadata reads have a visible retry action; they never imply an absent key.
+      if (generation === this.credentialRead && ref === refOf(this.scope.getSnapshot())) {
+        this.credential = { status: 'error', ref, configured: false, writable: false }
+        this.store.set(this.projection())
+      }
+      return false
+    }
   }
 
   /**
@@ -158,7 +166,10 @@ export class WebSearchCardController {
    * @returns the page's snapshot and its form actions.
    */
   inject(): WebSearchCardFace {
-    return { hooks: { webSearchCard: this.store }, ...this.form.actions() }
+    return {
+      hooks: { webSearchCard: this.store }, ...this.form.actions(),
+      retryCredential: () => { void this.readCredential() },
+    }
   }
 
   /**
@@ -167,14 +178,12 @@ export class WebSearchCardController {
    * @returns whether the Host reports a configured credential afterwards.
    */
   private async writeKey(value: string): Promise<boolean> {
-    // Refusals surface through the re-read below: the Host is the only
-    // authority on whether the key now exists.
-    await this.ctx.remote.credentials.set(refOf(this.scope.getSnapshot()), value)
-    await this.readCredential()
-    return this.credential.configured
+    const response = await this.ctx.remote.credentials.set(refOf(this.scope.getSnapshot()), value)
+    if (!response.ok) return false
+    return this.readCredential()
   }
   /** Release configuration subscriptions. */
-  dispose(): void { this.unsubscribe(); this.form.dispose() }
+  dispose(): void { this.credentialRead += 1; this.unsubscribe(); this.form.dispose() }
 
 }
 

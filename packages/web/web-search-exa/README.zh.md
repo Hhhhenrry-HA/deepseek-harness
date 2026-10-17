@@ -29,23 +29,24 @@ kind: "package-reference"
 
 ### 何时选择
 
-当部署持有 Exa API 密钥，并希望使用 Exa 的关键词或神经搜索、获得每项结果的高亮 snippet 与发布日期时，选择此后端。密钥为空或端点基址无法解析时，提供方不可用——每次搜索调用都会以结构化错误失败。
+fork 的基础包默认包含此后端，可在**插件 > EXA 网页搜索**中配置。缺少密钥时，会在发起任何 HTTP 请求前以 `WEB_PROVIDER_UNAVAILABLE` 失败；搜索不会回退到 DeepSeek。
 
 ### 最小配置
 
-加载 web 服务与本提供方；API 密钥回退到启动环境中的 `$EXA_API_KEY`，其余设置都有安全默认值。
+自定义组合需加载 web 服务与提供方。每次搜索通过凭据服务解析 `apiKeyEnv`；未挂载凭据服务时读取启动环境。保存或轮换密钥后立即生效，无需重新挂载。
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
 - name: '@deepseek-ai/dsh-web-search-exa'
   config:
-    apiKey: !!js process.env.EXA_API_KEY
+    apiKeyEnv: EXA_API_KEY
 ```
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `apiKey` | `$EXA_API_KEY` | Exa API 密钥；为空或缺失时提供方不可用 |
-| `baseURL` | `https://api.exa.ai` | 端点基址；追加 `/search`。无法解析时提供方不可用 |
+| `apiKey` | （未设置） | 可选的明文密钥；建议使用凭据引用 |
+| `apiKeyEnv` | `EXA_API_KEY` | 每次搜索解析的凭据引用 |
+| `baseURL` | `https://api.exa.ai` | 端点基址；追加 `/search` |
 | `searchType` | `auto` | 以 Exa `type` 发送的检索模式：`auto`、`keyword` 或 `neural` |
 | `numResults` | （未设置） | 请求不含 `maxResults` 时使用的默认结果数；必须是正整数 |
 | `highlightsPerResult` | `1` | 每个结果请求的 highlight 句子数（Exa `highlightsPerUrl`）；必须是正整数 |

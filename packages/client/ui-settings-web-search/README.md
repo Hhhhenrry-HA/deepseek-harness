@@ -1,5 +1,5 @@
 ---
-description: "The DeepSeek web-search provider's settings page on the dsh web client's Plugins page: its API key, endpoint, and per-request search budget."
+description: "Exa web-search settings on the Plugins page: API key, endpoint, and default result count."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Open **Plugins** in the sidebar and select **Web search** in the Official group to set the provider's key, endpoint, and how many times one request may search. The page stages what is typed and writes it only on save; the key is written through the credentials domain rather than the settings document, so its literal never rides a response. The page exists while the Host serves the `web-search-deepseek` namespace.
+Open **Plugins** and select **EXA Web Search** to set its key, endpoint, and default result count. Changes take effect after **Save**, without restarting. Keys go through the credential store, never the settings document or a settings response. The page exists while the Host serves `web-search-exa`.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Open **Plugins** in the sidebar and select **Web search** in the Official group 
 <a id="use-this-package"></a>
 ## Use this package
 
-The **Web search** card in the Official group opens the page. **API key** starts blank on every load and reports only whether a key is configured; without one, it says that only conversations using a DeepSeek Account model can search, through the default endpoint, because those searches authenticate with the account sign-in; a blank draft keeps the stored key, and the control is disabled when the credential cannot be written from here, such as a key the process environment supplies. **Endpoint** and **Max searches per request** render the effective value, carry an **Overridden** badge with **Reset to default** once overridden, and save as a reset when emptied. Nothing is written until **Save**; leaving the page drops the drafts.
+**API key** starts blank and shows only its configured status; a blank draft keeps the stored key. Loading and failed metadata reads are distinct from an absent key; failures offer **Retry**. Read-only credentials cannot be edited. **Endpoint** and **Default result count** show effective values and offer **Reset to default** for overrides. Clearing either field resets it on save. Leaving the page discards unsaved drafts.
 
 -----
 
@@ -35,7 +35,7 @@ The **Web search** card in the Official group opens the page. **API key** starts
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The Host half is an empty `apply`, present only so the package holds a Loader row the client module system serves the browser half for. The browser half binds the `web-search-deepseek` namespace through `ctx.configForms.get` and keeps the staged form in `WebSearchCardController` over the shared `SettingsFormModel` of `ui-primitives`, with the key as the form's one secret control: its write goes to `remote.credentials.set` under the reference the section's `apiKeyEnv` names (`DEEPSEEK_API_KEY` when it names none), and success is read back from `remote.credentials.describe`. The controller re-reads the credential when the scope changes and when the Host reports `credentials/reference-updated` for the watched reference, since a key written on the Models page changes no settings section. The page registers `WebSearchCard` into the Plugins page's `plugins.item` slot through `ctx.configForms.whileServed`.
+The Host entry exposes the browser module. `WebSearchCardController` binds `web-search-exa` through `ctx.configForms`, staging non-secret settings in `SettingsFormModel`. It writes the key through `remote.credentials.set` under `apiKeyEnv` (`EXA_API_KEY` by default), then confirms metadata with `describe`. Scope changes and `credentials/reference-updated` refresh that metadata; stale replies and replies after disposal cannot replace current state. The page registers through `ctx.configForms.whileServed`.
 
 </details>
 
@@ -48,7 +48,7 @@ The Host half is an empty `apply`, present only so the package holds a Loader ro
 - [ui-settings](../ui-settings/README.md) — the settings scope and the served-namespace watch the page rides.
 - [ui-primitives](../ui-primitives/README.md) — the settings form model and fields the page renders.
 - [credentials](../../credentials/README.md) — the credential-reference seam the key writes through.
-- [web-search-deepseek](../../web/web-search-deepseek/README.md) — the provider that registers the namespace.
+- [web-search-exa](../../web/web-search-exa/README.md) — the provider that registers the namespace.
 
 -----
 
@@ -65,7 +65,7 @@ None; this package neither assembles nor sends a provider request.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Three fields of the namespace** — the provider's model, API version, and token budget stay at their composed values; the page edits the key, the endpoint, and the search budget only.
+- **Retrieval mode and highlights** remain composition settings; the page edits only the key, endpoint, and default result count.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -92,6 +92,30 @@ export function apply(ctx) {
   if (!(ctx instanceof Context)) throw new Error('desktop runtime: external plugin loaded another Cordis instance')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke',
     handler(_request, response) { response.end('plugin route ready') } }))
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-exa',
+    async handler(_request, response) {
+      const originalFetch = globalThis.fetch
+      const captured = []
+      try {
+        globalThis.fetch = async (url, init) => {
+          if (url !== 'https://api.exa.ai/search') throw new Error('Unexpected search destination')
+          captured.push({ url, authorization: init.headers.authorization, body: JSON.parse(init.body) })
+          return new Response(JSON.stringify({ results: [{ url: 'https://example.test', highlights: ['packaged Exa result'] }] }),
+            { headers: { 'content-type': 'application/json' } })
+        }
+        let missingCode
+        try { await ctx.web.search({ query: 'missing-key' }) } catch (error) { missingCode = error.code }
+        if (missingCode !== 'WEB_PROVIDER_UNAVAILABLE' || captured.length !== 0) throw new Error('Missing Exa key did not stop search')
+        await ctx.credentials.set('EXA_API_KEY', 'packaged-exa-test-key')
+        const result = await ctx.web.search({ query: 'packaged-search', maxResults: 2 })
+        response.end(JSON.stringify({ captured, result }))
+      } catch (error) {
+        response.statusCode = 500
+        response.end(inspect(error, { depth: 5 }))
+      } finally {
+        globalThis.fetch = originalFetch
+      }
+    } }))
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-install',
     async handler(_request, response) {
       try {
@@ -135,7 +159,7 @@ export function apply(ctx) {
   }
 }
 `)
-    writeFileSync(join(plugin, 'bundle.yml'), '- insert:\n    - id: desktop-runtime-smoke-plugin\n      name: desktop-runtime-smoke-plugin\n      inject: [webServer, officeToPdf, skills, pluginManager]\n')
+    writeFileSync(join(plugin, 'bundle.yml'), '- insert:\n    - id: desktop-runtime-smoke-plugin\n      name: desktop-runtime-smoke-plugin\n      inject: [webServer, officeToPdf, skills, pluginManager, web, credentials]\n')
     cpSync(plugin, join(profile, 'node_modules', pluginName), { recursive: true })
     const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
       dependencies?: Record<string, string>
@@ -157,6 +181,19 @@ export function apply(ctx) {
     }
     const pluginResponse = await fetch(new URL('/desktop-smoke', ready.url), { headers: { cookie } })
     if (await pluginResponse.text() !== 'plugin route ready') throw new Error('desktop runtime: plugin HTTP route failed')
+    const exa = await fetch(new URL('/desktop-smoke-exa', ready.url), { headers: { cookie } })
+    if (!exa.ok) throw new Error(`desktop runtime: integrated Exa failed: ${await exa.text()}`)
+    const exaResult = await exa.json() as {
+      captured: { url: string; authorization: string; body: { query: string; numResults: number } }[]
+      result: { sources: { snippet: string }[] }
+    }
+    if (exaResult.captured.length !== 1 || exaResult.captured[0]?.url !== 'https://api.exa.ai/search'
+      || exaResult.captured[0].authorization !== 'Bearer packaged-exa-test-key'
+      || exaResult.captured[0].body.query !== 'packaged-search' || exaResult.captured[0].body.numResults !== 2
+      || exaResult.result.sources[0]?.snippet !== 'packaged Exa result') {
+      throw new Error('desktop runtime: packaged Exa request or result differs')
+    }
+    console.log('desktop runtime: integrated Exa missing-key, credential save, request and result passed')
     const installation = await fetch(new URL('/desktop-smoke-install', ready.url), {
       headers: { cookie }, signal: AbortSignal.timeout(120_000),
     })

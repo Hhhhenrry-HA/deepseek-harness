@@ -8,6 +8,7 @@
     - tab "Trajectory"
 - text: Use web_search once with queries ["DeepSeek Harness snapshot search","DeepSeek Harness multi-query search"]. Then reply exactly SEARCH_DONE and stop. {{clock}}
 - button "Copy"
+- button "Edit message"
 - status: Completed
 - button "Completed in {{duration}}" [expanded]
 - button "Searched the web" [expanded]
@@ -16,6 +17,7 @@
 - button "Copy"
 - button "Good response"
 - button "Bad response"
+- button "Regenerate"
 - button "Branch into a new conversation"
 - text: {{clock}}
 - textbox "Message or run a task, / commands, @ files or sessions"

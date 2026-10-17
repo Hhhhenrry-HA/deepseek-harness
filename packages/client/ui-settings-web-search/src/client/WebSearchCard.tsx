@@ -1,6 +1,5 @@
 /**
- * The web-search provider's settings page: its endpoint, its per-request
- * search budget, and the key — which is written through the credentials
+ * Exa settings: endpoint, default result count, and the key written through the credentials
  * domain, never into the settings section, so the literal never rides a response.
  */
 
@@ -28,6 +27,12 @@ export function WebSearchCard(props: WebSearchCardProps) {
   const disabled = !state.writable
   return (
     <SettingsForm labels={formLabels(t)} state={state} onSave={props.save} onDiscard={props.discard}>
+      {state.keyStatus === 'error' && (
+        <div role="alert">
+          {t('keyReadFailed')}
+          <button type="button" onClick={props.retryCredential}>{t('retry')}</button>
+        </div>
+      )}
       <SettingsSecretField
         id="plugin-config-web-search-key"
         label={t('apiKey')}
@@ -39,7 +44,9 @@ export function WebSearchCard(props: WebSearchCardProps) {
         disabled={!state.apiKeyWritable}
         text={state.apiKey.text}
         configured={state.apiKeyConfigured}
-        stateLabel={state.apiKeyConfigured ? t('apiKeySet') : t('apiKeyUnset')}
+        stateLabel={state.keyStatus === 'loading' ? t('keyLoading')
+          : state.keyStatus === 'error' ? ''
+            : state.apiKeyConfigured ? t('apiKeySet') : t('apiKeyUnset')}
         onEdit={(text) => { props.edit('apiKey', text) }}
       />
       <SettingsValueField
@@ -55,17 +62,17 @@ export function WebSearchCard(props: WebSearchCardProps) {
         onReset={() => { props.resetField('baseURL') }}
       />
       <SettingsValueField
-        id="plugin-config-web-search-max-uses"
-        label={t('maxUses')}
-        hint={t('maxUsesHint')}
+        id="plugin-config-web-search-num-results"
+        label={t('numResults')}
+        hint={t('numResultsHint')}
         overriddenLabel={t('overridden')}
         resetLabel={t('reset')}
         invalidLabel={t('invalidNumber')}
         numeric
         disabled={disabled}
-        {...state.maxUses}
-        onEdit={(text) => { props.edit('maxUses', text) }}
-        onReset={() => { props.resetField('maxUses') }}
+        {...state.numResults}
+        onEdit={(text) => { props.edit('numResults', text) }}
+        onReset={() => { props.resetField('numResults') }}
       />
     </SettingsForm>
   )

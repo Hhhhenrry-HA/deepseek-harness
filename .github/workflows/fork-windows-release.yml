@@ -98,7 +98,7 @@ jobs:
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
-          此为 Hhhhenrry-HA 维护的 fork，包含用户消息编辑并重发、最后一轮 AI 回答重新生成（含失败轮次）。客户端的“检查更新”连接本仓库 Releases，下载校验后由用户确认安装；不连接官方更新或强制更新服务。
+          此为 Hhhhenrry-HA 维护的 fork，内置 Exa 网页搜索与密钥设置，支持自定义模型思考等级、用户消息编辑重发、最后一轮 AI 回答重新生成（含失败轮次）。Exa 密钥在“插件 → EXA 网页搜索”中设置，已有配置自动沿用，无需另装插件；安装包不内置私人密钥。客户端的“检查更新”连接本仓库 Releases，下载校验后由用户确认安装；不连接官方更新或强制更新服务。
 
           首次安装及尚未接入更新的旧版需要手动运行本安装程序，之后可在客户端内更新。安装程序未作代码签名，更新文件通过 HTTPS 获取并校验 SHA-512。
 
@@ -108,7 +108,8 @@ jobs:
           "@
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "DSH Fork $env:GITHUB_REF_NAME · Windows x64" --notes-file release-notes.md --draft
+          $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

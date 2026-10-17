@@ -1,6 +1,6 @@
 /**
  * The web-search provider's settings page, browser half: the key, the
- * endpoint, and the per-request search budget over the `web-search-deepseek`
+ * endpoint, and default result count over the `web-search-exa`
  * namespace the provider registers. The page registers into the Plugins
  * page's `plugins.item` slot while the Host serves that namespace, so a
  * deployment without the provider shows no trace of it.

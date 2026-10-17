@@ -1,0 +1,19 @@
+- button "返回插件": 插件
+- heading "EXA 网页搜索" [level=3]
+- paragraph: 设置 Exa 网页搜索。
+- text: API Key 已配置密钥。
+- textbox "API Key"
+- paragraph: 不写入设置文件。留空表示保持当前密钥。
+- text: 接口地址 已覆盖
+- button "恢复默认"
+- textbox "接口地址":
+  - /placeholder: ""
+  - text: {{exaEndpoint}}
+- paragraph: 留空则使用提供方默认地址。
+- text: 默认结果数量 已覆盖
+- button "恢复默认"
+- textbox "默认结果数量":
+  - /placeholder: ""
+  - text: "7"
+- paragraph: 搜索未指定数量时使用。
+- button "保存" [disabled]

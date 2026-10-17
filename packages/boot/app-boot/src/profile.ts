@@ -204,6 +204,8 @@ const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
  * {@link loadProfileDirectory} removes them from the profile's bundle list.
  */
 const RETIRED_BUNDLES: ReadonlySet<string> = new Set([
+  // The fork ships Exa directly and retains the same settings namespace and credential reference.
+  '@hhhhenrry-ha/dsh-exa-search',
   // The Web composition mounts Schedule itself
   // ([upgrade guide](../../../../docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.md)).
   '@deepseek-ai/dsh-experimental-schedule-bundle',

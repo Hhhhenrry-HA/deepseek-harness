@@ -37,7 +37,7 @@ async function main() {
   const server = await createUpdateServer()
   let serial = 0
   const fixtures = []
-  async function fixture(mode = 'healthy', timeoutMs = 60_000) {
+  async function fixture(mode = 'healthy', timeoutMs = 60_000, installedVersion = '1.0.0') {
     server.select(mode)
     const directory = join(root, String(++serial))
     await mkdir(directory, { recursive: true })
@@ -46,7 +46,7 @@ async function main() {
     await writeFile(config, `updaterCacheDirName: cache\n`)
     const forbidden = () => { throw new Error('Unexpected application quit or relaunch') }
     const updater = new NsisUpdater(undefined, {
-      version: '1.0.0', name: 'local-update-qualification', isPackaged: true,
+      version: installedVersion, name: 'local-update-qualification', isPackaged: true,
       appUpdateConfigPath: config, userDataPath: directory, baseCachePath: directory,
       whenReady: async () => {}, quit: forbidden, relaunch: forbidden, onQuit: forbidden,
     })
@@ -60,13 +60,22 @@ async function main() {
     let restart = async () => true
     updater.quitAndInstall = (...args) => { installations.push(args) }
     const coordinator = new DesktopUpdateCoordinator(state => { states.push(state); return state },
-      () => restart(), updater, () => true, () => '1.0.0')
+      () => restart(), updater, () => true, () => installedVersion)
     const result = { updater, coordinator, installations, states, directory, restart: handler => { restart = handler } }
     fixtures.push(result)
     return result
   }
   async function scenario(name, run) { await run(); cases.push(name); console.log(`local updater: ${name}`) }
   try {
+    await scenario('fork-build-number-to-simple-stable-version', async () => {
+      const f = await fixture('healthy', 60_000, '0.2.1-alpha.2.20261017.4')
+      server.select('healthy', '0.2.2')
+      const available = await f.coordinator.check(true)
+      assert.equal(available.phase, 'available')
+      assert.equal(available.version, '0.2.2')
+      assert.equal((await f.coordinator.download('0.2.2')).phase, 'ready')
+      assert.equal(f.installations.length, 0)
+    })
     await scenario('same-version-no-update', async () => {
       const f = await fixture()
       server.select('healthy', '1.0.0')

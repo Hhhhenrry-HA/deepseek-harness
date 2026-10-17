@@ -25,7 +25,7 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用本包
 
-你会自动获得 dsh 核心：随发行版交付的 `web`、`headless`、`sdk` 与 `acp` profile 已包含它，自定义 profile 则把它列为第一个组合包。之后一切无需任何额外配置即可工作。
+你会自动获得 dsh 核心：内置的 `web`、`headless`、`sdk` 与 `acp` profile 已包含它；自定义 profile 把它放在首个组合包即可。fork 默认包含 [Exa 网页搜索](../../web/web-search-exa/README.zh.md)，可通过[搜索设置页](../../client/ui-settings-web-search/README.zh.md)配置凭据。
 
 ### 最小自定义 profile
 
