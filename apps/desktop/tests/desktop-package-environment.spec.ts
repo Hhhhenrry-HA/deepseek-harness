@@ -72,6 +72,7 @@ describe('Desktop local packaging configuration', () => {
       await writeFile(join(directory, '.env.macos'), 'DSH_DESKTOP_APP_ID=com.example.mac\nAPPLE_KEYCHAIN_PROFILE=release\nCSC_LINK=keys/signing.p12\nCSC_KEY_PASSWORD=" # literal "\n')
       const parent = {
         PATH: 'build-tools', DSH_DESKTOP_APP_ID: 'com.stale.desktop',
+        DSH_DESKTOP_FORK_REPOSITORY: 'stale/fork', dsh_desktop_fork_repository: 'other/fork',
         DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: '{"origin":"https://stale.example.com"}',
         dsh_desktop_mandatory_update_config: 'stale-policy',
         DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://stale.example.com',

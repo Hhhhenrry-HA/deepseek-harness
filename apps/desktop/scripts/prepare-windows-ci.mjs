@@ -3,6 +3,7 @@ import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { desktopBuildVersionPrefix, validateDesktopBuildVersion } from './desktop-build-version.mjs'
 import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
+import { resolveForkUpdate } from './fork-update.mjs'
 
 /**
  * Validate manual inputs without reading local credentials or querying release storage.
@@ -12,17 +13,18 @@ import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mj
  * @returns {{ version: string, settings: string }} Validated version and public dotenv content.
  */
 export function windowsCiSettings(environment, productVersion, now = new Date()) {
-  const deployment = environment.PACKAGE_DEPLOYMENT
+  const fork = resolveForkUpdate({ DSH_DESKTOP_FORK_REPOSITORY: environment.PACKAGE_FORK_REPOSITORY }, 'win32', 'x64', true)
+  const deployment = fork === undefined ? environment.PACKAGE_DEPLOYMENT : 'production'
   if (deployment !== 'test' && deployment !== 'production') throw new Error('Select test or production deployment')
   const loginOrigins = (environment.PACKAGE_LOGIN_ORIGINS ?? '').split(',').map(value => value.trim()).filter(Boolean)
   if (deployment === 'production' && loginOrigins.length > 0) throw new Error('Production must not supply login origins')
   const originKey = deployment === 'test' ? 'DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN' : 'DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN'
   const config = deployment === 'test' ? { allowedAuthOrigins: loginOrigins } : {}
-  const policy = resolveDesktopPolicyEnvironment({
+  const policy = fork === undefined ? resolveDesktopPolicyEnvironment({
     DSH_DESKTOP_AUTO_UPDATE_ENV: deployment,
     [originKey]: environment.PACKAGE_POLICY_ORIGIN,
     DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify(config),
-  })
+  }) : undefined
   const requested = environment.PACKAGE_BUILD_VERSION?.trim()
   if (!requested) throw new Error('Build version is required; use auto or a full version')
   let candidate = requested
@@ -37,8 +39,10 @@ export function windowsCiSettings(environment, productVersion, now = new Date())
   const settings = [
     'DSH_DESKTOP_APP_ID=com.deepseek.harness',
     `DSH_DESKTOP_AUTO_UPDATE_ENV=${deployment}`,
-    `${originKey}=${policy.origin}`,
-    `DSH_DESKTOP_MANDATORY_UPDATE_CONFIG=${JSON.stringify(config)}`,
+    ...(fork === undefined ? [
+      `${originKey}=${policy.origin}`,
+      `DSH_DESKTOP_MANDATORY_UPDATE_CONFIG=${JSON.stringify(config)}`,
+    ] : [`DSH_DESKTOP_FORK_REPOSITORY=${fork.repository}`]),
   ].join('\n') + '\n'
   return { version, settings }
 }

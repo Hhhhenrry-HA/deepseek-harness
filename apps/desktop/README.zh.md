@@ -400,7 +400,11 @@ Windows 签名构建在编译或准备依赖前执行受监督的签名预检。
 
 Windows NSIS 上传要求安装包旁存在生成的非空 `.exe.blockmap`。blockmap 先于通道 YAML 上传；NSIS 安装包元数据不要求另一种 web-installer 格式使用的内嵌 `blockMapSize`。文件清单测试使用固定版本构建器的 blockmap 生成器，而不是手工编造内嵌映射字段。
 
-签名 Windows 配置从同一份公开证书的 `CN`、`O` 和 `C` 属性生成 updater 的 `publisherName`。每个属性都必须存在、非空且只有一个值。这些身份属性允许证书续期，无需固定叶证书指纹。已安装应用的 `app-update.yml` 保存预期发布者，下载的清单不能选择该身份。未签名测试构建省略 updater 配置。真实文件验证及其限制见[签名验收记录](tests/README.zh.md)。
+签名 Windows 配置从同一份公开证书的 `CN`、`O` 和 `C` 属性生成 updater 的 `publisherName`。每个属性都必须存在、非空且只有一个值。这些身份属性允许证书续期，无需固定叶证书指纹。已安装应用的 `app-update.yml` 保存预期发布者，下载的清单不能选择该身份。普通未签名测试构建省略 updater 配置；下述显式启用的 fork 分发使用自己的更新源。真实文件验证及其限制见[签名验收记录](tests/README.zh.md)。
+
+未签名 Windows x64 fork 安装包通过目标配置文件中的 `DSH_DESKTOP_FORK_REPOSITORY=owner/repository` 启用更新。这些安装包使用该仓库最新 GitHub Release 的 `nightly.yml`，不包含官方强制更新策略，沿用现有检查更新、用户授权下载和单独确认安装的流程。它们不声明签名发布者身份：传输通过 HTTPS 和清单中的 SHA-512 摘要校验，而非 Authenticode 签名。签名构建和其他目标拒绝此配置。尚未接入更新的旧版需要先手动安装一次已启用更新的版本。
+
+[fork 发布流程](../../.github/workflows/fork-windows-release.yml)处理 `fork-v<build-version>` 标签，校验组装后的运行时及真实 Electron updater，随后通过草稿发布一起上传安装程序、blockmap 和通道清单，最后标为最新版本。清单中的安装包 URL 指向固定版本标签，后续发布不会改变已经检查过的下载目标。fork 发布必须使用递增的构建版本。现有聊天和配置目录保持不变。
 
 本项目使用的 SafeNet Token 出现 `SignTool Error: No private key is available.` 时，说明 PIN（密码）错误。立即停止所有签名尝试，等待用户处理 PIN 后再继续。PIN 输错达到五次会锁定 Token。遇到该错误后，不得重试打包或签名探针。签名器串行执行 Token 操作，首次失败后拒绝所有排队任务。
 
