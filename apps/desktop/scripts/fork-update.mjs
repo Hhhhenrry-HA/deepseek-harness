@@ -6,7 +6,7 @@
  * @param {string} platform Target operating system.
  * @param {string} arch Target architecture.
  * @param {boolean} unsigned Whether this is an unsigned build.
- * @returns {{ repository: string, publicUrl: string } | undefined} Fork feed, or no override.
+ * @returns {{ repository: string, publicUrl: string, channel: 'nightly' } | undefined} Fork feed, or no override.
  */
 export function resolveForkUpdate(environment, platform, arch, unsigned) {
   const repository = environment.DSH_DESKTOP_FORK_REPOSITORY
@@ -17,5 +17,5 @@ export function resolveForkUpdate(environment, platform, arch, unsigned) {
   if (platform !== 'win32' || arch !== 'x64' || !unsigned) {
     throw new Error('desktop fork update: only unsigned Windows x64 packages are supported')
   }
-  return { repository, publicUrl: `https://github.com/${repository}/releases/latest/download/` }
+  return { repository, publicUrl: `https://github.com/${repository}/releases/latest/download/`, channel: 'nightly' }
 }

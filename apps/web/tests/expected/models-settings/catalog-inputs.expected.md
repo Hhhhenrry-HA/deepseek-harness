@@ -20,12 +20,14 @@
       - button "编辑 openai": 编辑
       - button "删除 openai": 删除
       - text: openai API 密钥
+      - button "认证说明": "?"
       - textbox "API 密钥":
-        - /placeholder: 输入 API 密钥，或留空使用环境认证
+        - /placeholder: 留空使用环境认证（OPENAI_API_KEY）
+      - paragraph: 已检测到环境变量（OPENAI_API_KEY）
       - group:
         - text: 自定义设置 API 地址
         - textbox "API 地址":
-          - /placeholder: 提供商默认
+          - /placeholder: https://api.openai.com/v1
         - region "模型目录":
           - text: 模型目录 已自定义模型目录
           - button "恢复默认模型"
@@ -52,12 +54,6 @@
             - text: 文本
             - checkbox "图片" [checked]
             - text: 图片
-          - text: 思考能力
-          - combobox "思考能力 1":
-            - option "使用模型默认值" [selected]
-            - option "不支持"
-            - option "支持（OpenAI）"
-            - option "支持（Claude）"
           - button "添加模型"
       - button "取消"
       - button "保存"

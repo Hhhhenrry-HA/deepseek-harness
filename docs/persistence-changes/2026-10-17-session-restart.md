@@ -27,24 +27,24 @@ id: 2026-10-17-session-restart
 baseline: false
 changes:
   - root: "event:agent/inbox/spliced"
-    previous: "2026-10-05-working-directory-attribution"
-    after: "19c67413c99d9c6e694a662b91ad389302b8b0a80ba6adb68989ece52098b599"
+    previous: "2026-10-13-user-rpc-principal"
+    after: "b08596252de8da01d294f13d52042316436059f88818ac940cdb9047f44ad554"
     decision: same-version
   - root: "event:developer/message"
-    previous: "2026-10-05-working-directory-attribution"
-    after: "fadf223fa364e6e0cefa3acf5db61870f0472cb1e3b60068bf6ab72ee0cb513b"
+    previous: "2026-10-13-user-rpc-principal"
+    after: "1424e2aa08b65e430647a9640678543f5f6c675ebe84850f4103ddf810d037a2"
     decision: same-version
   - root: "event:session/restart"
     previous: null
     after: "ed0b8c3643d857e08619f651ff06e4b9e55222ff44ac4652fe6cb4224fb47f03"
     decision: same-version
   - root: "event:session/title-llm-request"
-    previous: "2026-10-07-title-reasoning-effort"
-    after: "02ea0913d376cc6c262e8fb389d0a69b3b6cb339fc4f419c7c592f9ddd498dcf"
+    previous: "2026-10-13-user-rpc-principal"
+    after: "dee4f299f0300e89736777a0a9eee2f98fdc4e76d020fb9abd352e7c376f3f0e"
     decision: same-version
   - root: "event:user/message"
-    previous: "2026-10-05-working-directory-attribution"
-    after: "61924525bcb2ea851d89d0392df3e5e9c01c050858ed958dadbd8b63764bf2a0"
+    previous: "2026-10-13-user-rpc-principal"
+    after: "865710b26fe6bf8ff74705b7d8f8d20a7847f6f6a8851d2acc9e6853f817f313"
     decision: same-version
 ```
 

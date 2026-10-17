@@ -28,9 +28,11 @@ function lastContent(snapshot: ChatSnapshot, turn: number, skipWarning: boolean)
 
 /** Turn-local actions and feature tail over the Location index, independent of Assistant placement. */
 export const TurnTailNodeView = memo(function TurnTailNodeView({
-  node, openFile, forkAt, renderSlot, t, useChat, usePerformanceUsage, useSession, sessionId, restartMessage,
+  node, openFile, forkAt, renderSlot, t, useAccess, useChat, usePerformanceUsage, useSession, sessionId, restartMessage,
 }: TurnTailNodeViewProps) {
   const detailed = usePerformanceUsage(mode => mode) === 'detailed'
+  const forkAllowed = useAccess('session/fork')
+  const restartAllowed = useAccess('session/restart')
   const data = node.data
   const running = useSession(snapshot => snapshot.running || snapshot.pendingSubmissions.length > 0)
   const restart = useMessageRestart(restartMessage)
@@ -42,7 +44,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
     })) return true
     return snapshot.unadmittedRestartTurn === data.turn
   })
-  const onRetry = canRetry ? () => {
+  const onRetry = restartAllowed && canRetry ? () => {
     void restart.submit({ sessionId, seq: data.seq, action: { kind: 'retry' } })
   } : undefined
   const hasLaterChatNode = useChat(snapshot =>
@@ -88,7 +90,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
         clock="end"
         // The branch action owns boundary resolution: it sends the real
         // turn/end seq it already has, and the Host cuts exactly there.
-        onBranch={() => { forkAt(data.seq) }}
+        onBranch={forkAllowed ? () => { forkAt(data.seq) } : undefined}
         branchUnavailable={data.branchUnavailable || hasLaterChatNode}
         className={css.actions}
         extraActions={assistantActions}

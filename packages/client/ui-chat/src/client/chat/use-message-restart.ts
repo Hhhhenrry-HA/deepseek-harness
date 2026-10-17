@@ -16,7 +16,11 @@ export interface MessageRestartInjected {
  * @param restart - registration-owned Remote callback.
  * @returns local pending/error state and the guarded submission action.
  */
-export function useMessageRestart(restart: MessageRestartInjected['restartMessage']) {
+export function useMessageRestart(restart: MessageRestartInjected['restartMessage']): {
+  pending: boolean
+  error: ChatKey | null
+  submit: (request: Omit<SessionRestartRequest, 'requestId'>) => Promise<void>
+} {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<ChatKey | null>(null)
   const active = useRef(false)

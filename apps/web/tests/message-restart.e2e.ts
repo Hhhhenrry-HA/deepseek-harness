@@ -1,6 +1,7 @@
 /** Real UI admission and reload: wrong suffixes corrupt subsequent model requests. */
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
@@ -16,6 +17,7 @@ describe('web message edit and last-turn regeneration', () => {
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
+      extraOverlayPath: fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
       replayFixture: join(REPO_ROOT, 'snapshots/web/fresh-round-trip/session.v3.jsonl'),
       replayOverride: join(REPO_ROOT, 'apps/web/tests/fixtures/message-restart.override.json'),
       compareReplaySession: false,

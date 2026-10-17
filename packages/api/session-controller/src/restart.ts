@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { UserMessage } from '@deepseek-ai/dsh-llm'
+import type { MessageSource, UserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionRestartRequest, SessionPromptValue } from './types.ts'
@@ -29,10 +29,11 @@ function unadmittedRestart(events: readonly SessionEvent[], start: number, end: 
  * @param agent - resolved session writer.
  * @param request - original message or latest turn and replacement text.
  * @param signal - cancellation before durable admission.
+ * @param source - caller identity recorded by the Remote entry.
  * @returns acknowledgement after durable inbox admission.
  */
 export async function restartSession(
-  ctx: Context, agent: Agent, request: SessionRestartRequest, signal: AbortSignal,
+  ctx: Context, agent: Agent, request: SessionRestartRequest, signal: AbortSignal, source: Extract<MessageSource, { kind: 'user' }>,
 ): Promise<SessionPromptValue> {
   if (!Number.isSafeInteger(request.seq) || request.seq < 0) {
     throw new RemoteError('gateway/bad-request', 'seq must be a non-negative safe integer', {})
@@ -91,7 +92,7 @@ export async function restartSession(
       const restart = session.append('session/restart', { fromSeq: input.seq, throughSeq })
       agent.followup(createUserMessage({
         content,
-        source: { kind: 'user', rpcId: request.requestId, restartSeq: restart.seq,
+        source: { ...source, restartSeq: restart.seq,
           ...'clientTimeZone' in input.data.source ? { clientTimeZone: input.data.source.clientTimeZone } : {} },
       }))
       return { accepted: true }

@@ -4,4 +4,4 @@ export function resolveForkUpdate(
   platform: string,
   arch: string,
   unsigned: boolean,
-): { repository: string, publicUrl: string } | undefined
+): { repository: string, publicUrl: string, channel: 'nightly' } | undefined

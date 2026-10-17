@@ -39,7 +39,7 @@ jobs:
           PACKAGE_FORK_REPOSITORY: ${{ github.repository }}
         run: |
           $env:PACKAGE_BUILD_VERSION = $env:GITHUB_REF_NAME.Substring('fork-v'.Length)
-          node apps/desktop/scripts/prepare-windows-ci.mjs
+          node apps/desktop/scripts/prepare-fork-windows-ci.mjs
           exit $LASTEXITCODE
       - name: Verify real Electron check, download, checksum failure and installation authorization
         run: |
@@ -96,6 +96,8 @@ jobs:
           $notes = @"
           ## Windows x64 安装
 
+          同步官方 0.2.1-rc.2，包含 rc.1 及 DeepSeek-V4.1-Flash-1017 适配；保留本 fork 的 Exa 联网、消息编辑重试与自定义思考等级。
+
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
           此为 Hhhhenrry-HA 维护的 fork，内置 Exa 网页搜索与密钥设置，支持自定义模型思考等级、用户消息编辑重发、最后一轮 AI 回答重新生成（含失败轮次）。Exa 密钥在“插件 → EXA 网页搜索”中设置，已有配置自动沿用，无需另装插件；安装包不内置私人密钥。客户端的“检查更新”连接本仓库 Releases，下载校验后由用户确认安装；不连接官方更新或强制更新服务。
@@ -109,7 +111,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 同步官方新版" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

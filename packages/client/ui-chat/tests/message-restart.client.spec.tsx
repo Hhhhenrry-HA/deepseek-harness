@@ -10,7 +10,9 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import { zh } from '../src/client/locale.ts'
 import { UserMessageNodeView } from '../src/client/chat/MessageItem.tsx'
 import { TurnTailNodeView } from '../src/client/chat/TurnTailNodeView.tsx'
-import type { ChatNodeViewProps } from '../src/client/contract/slots.ts'
+import type { ChatNodeViewProps, UserContentInput } from '../src/client/contract/slots.ts'
+import { createUserContentFixture } from './user-content-component-fixture.tsx'
+import { unusedImageLoader } from './reasoning-component-fixture.tsx'
 import type { MessageRestartInjected } from '../src/client/chat/use-message-restart.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 import { ChatSnapshotBuilder } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
@@ -22,11 +24,17 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 function user(restartMessage: MessageRestartInjected['restartMessage'], running = false) {
+  const renderContent = createUserContentFixture()
+  const renderFactorySlot: ChatNodeViewProps['renderFactorySlot'] = (name, input) => {
+    if (name !== 'conversation.chat.user.content') throw new Error('Unexpected user content factory')
+    return renderContent(input as UserContentInput, () => null, t)
+  }
   const props: Partial<ChatNodeViewProps<'user'>> = {
     node: { key: 'user:2', id: '2', kind: 'user', target: 'chat', anchorSeq: 2,
       visibility: 'visible', location: { kind: 'session' },
       data: { kind: 'user', seq: 2, time: 0, content: [{ type: 'text', text: 'original' }], source: { kind: 'user' } } },
-    sessionId: SessionId('test'), renderMessageImages: () => null, openFile: vi.fn(), openSkill: vi.fn(), t,
+    sessionId: SessionId('test'), renderFactorySlot, loadImage: unusedImageLoader, openFile: vi.fn(), t,
+    useAccess: () => true,
     useSession: select => select({ running, pendingSubmissions: [] } as never),
   }
   return <UserMessageNodeView {...props as ChatNodeViewProps<'user'>} restartMessage={restartMessage} />
@@ -81,6 +89,7 @@ describe('message restart actions', () => {
     const props: Partial<ComponentProps<typeof TurnTailNodeView>> = {
       t, sessionId: SessionId('test'), renderSlot: () => null, forkAt: vi.fn(), openFile: vi.fn(),
       usePerformanceUsage: select => select('compact'),
+      useAccess: () => true,
       useSession: select => select({ running: false, pendingSubmissions: [] } as never),
       useChat: select => select(snapshot),
     }

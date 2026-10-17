@@ -53,6 +53,9 @@
 /deepseek-ai-dsh-repeat-tool-reminder/model-experience/inline-repeated-failure-warning/what-the-model-sees:
   en: 729c80cefc7670ea
   zh: 507bc32768918557
+/deepseek-ai-dsh-repeat-tool-reminder/model-experience/inline-repeated-failure-warning/what-the-model-sees/inline-failure-warning:
+  en: 51c5cb85fddb28ba
+  zh: 1c0d6d57379af795
 /deepseek-ai-dsh-repeat-tool-reminder/model-experience/inline-repeated-failure-warning/token-effect:
   en: d322d39d920db286
   zh: 288692a324073340

@@ -124,6 +124,8 @@ Read these pages when the package-level contract is not enough. They move from t
 
 From the second identical failure, the original error result is followed by this text block:
 
+##### Inline failure warning
+
 ```markdown
 提醒：相同报错已连续出现至少 2 次，请勿用相同参数反复重试；应先检查工具出错原因、向用户汇报，或采用不绕过权限与安全限制的其他方法。
 ```

@@ -4,7 +4,7 @@ import yaml from 'js-yaml'
 import { parseUpdateInfo, resolveFiles } from 'electron-updater/out/providers/Provider.js'
 import { resolveForkUpdate } from '../scripts/fork-update.mjs'
 import { forkUpdateMetadata } from '../scripts/prepare-fork-release.mjs'
-import { windowsCiSettings } from '../scripts/prepare-windows-ci.mjs'
+import { windowsCiSettings } from '../scripts/prepare-fork-windows-ci.mjs'
 import { createElectronBuilderConfig } from '../scripts/electron-builder-config.mjs'
 import { validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
 
