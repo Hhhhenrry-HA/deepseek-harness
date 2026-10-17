@@ -41,15 +41,17 @@ jobs:
           $env:PACKAGE_BUILD_VERSION = $env:GITHUB_REF_NAME.Substring('fork-v'.Length)
           node apps/desktop/scripts/prepare-windows-ci.mjs
           exit $LASTEXITCODE
+      - name: Verify real Electron check, download, checksum failure and installation authorization
+        run: |
+          pnpm run build:lib:host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node apps/desktop/scripts/test-local-updater.mjs
+          exit $LASTEXITCODE
       - name: Build installer and verify packaged runtime
         env:
           PACKAGE_VERSION: ${{ steps.settings.outputs.version }}
         run: |
           pnpm run package:desktop:win:x64:unsigned --build-version "$env:PACKAGE_VERSION"
-          exit $LASTEXITCODE
-      - name: Verify real Electron check, download, checksum failure and installation authorization
-        run: |
-          node apps/desktop/scripts/test-local-updater.mjs
           exit $LASTEXITCODE
       - name: Collect verified installer and checksums
         env:
