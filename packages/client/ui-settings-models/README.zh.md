@@ -47,7 +47,9 @@ API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求
 
 ### 编辑提供商
 
-收起的「自定义设置」折叠区承载精选的额外字段：两个家族都有 `baseURL`（deepseek 的占位符显示公共端点）、各适配器自己的模型目录，以及适配器未提供的 pi-ai 路由的**显示名称**与 **API 协议**。Profile `headers` 仍是 `cordis.patch.yml` 或 Cordis 配置中的部署配置，Models 页面不提供编辑器。Provider ID 保持固定：它是 settings 的键、其他每个 namespace 与每一条已记录会话引用的名字，也是页面读不回、因而搬不走的凭据引用词干。推理等级刻意不在可编辑字段之列：它是按模型的能力，提供商级的控件只可能被设成某些模型会拒绝的值。每个模型行可编辑 `id`、可选显示 `name`、可选 `contextWindow`/`maxTokens` 和输入类型；无关的模型字段在编辑后仍会保留。
+收起的「自定义设置」折叠区承载精选的额外字段：两个家族都有 `baseURL`（deepseek 的占位符显示公共端点）、各适配器自己的模型目录，以及适配器未提供的 pi-ai 路由的**显示名称**与 **API 协议**。Profile `headers` 仍是 `cordis.patch.yml` 或 Cordis 配置中的部署配置，Models 页面不提供编辑器。Provider ID 保持固定：它是 settings 的键、其他每个 namespace 与每一条已记录会话引用的名字，也是页面读不回、因而搬不走的凭据引用词干。每个模型行可编辑 `id`、可选显示 `name`、可选 `contextWindow`/`maxTokens` 和输入类型；无关的模型字段在编辑后仍会保留。
+
+每个 pi-ai 模型的**思考能力**选择框可使用模型默认值、不支持思考，或声明支持的等级。OpenAI 声明 Low / Medium / High / Xhigh / Max；Claude 声明 Low / Medium / High / Max，并启用自适应思考，使选中的等级实际传入 API。提供商协议决定可用的预设；未显式指定协议时提供两种。已有的自定义请求映射在用户修改前保持不变。恢复默认值会移除 `reasoningEfforts` 和该模型的自适应思考覆盖；不支持思考会保存 `reasoningEfforts: false`。其他兼容字段保留。新增和编辑卡片保存后，聊天输入栏会提供对应等级。端点可能拒绝某个等级，用户可在聊天输入栏改选其他等级。
 
 `llm-deepseek` 的 DeepSeek 卡片编辑端点、凭据和模型目录。它使用 Messages，默认端点占位符为 `https://api.deepseek.com/anthropic`。
 

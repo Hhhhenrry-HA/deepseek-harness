@@ -59,6 +59,11 @@
             - text: 文本
             - checkbox "图片" [checked] [disabled]
             - text: 图片
+          - text: 思考能力
+          - combobox "思考能力 1":
+            - option "使用模型默认值"
+            - option "不支持"
+            - option "支持（Claude）" [selected]
           - button "添加模型"
       - button "取消"
       - button "保存"
