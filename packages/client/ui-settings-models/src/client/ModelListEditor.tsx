@@ -73,6 +73,8 @@ export interface ModelListEditorProps {
    * reasoning control, leaving a catalog model's levels to the catalog.
    */
   reasoningLevels?: readonly string[] | undefined
+  /** Tool modes declared by the adapter schema. */
+  toolModes?: readonly string[] | undefined
   /** Route input types for models absent from the installed catalog. */
   defaultInput?: readonly string[] | undefined
   /** Whether the user layer currently owns the whole array; absent on a create. */
@@ -173,6 +175,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   }, [catalogProvider, operations, probe.settingsNs])
   const catalog = inheritedCatalog?.provider === catalogProvider ? inheritedCatalog?.models : undefined
   const inputDefaults = useMemo(() => new Map(catalog?.map(model => [model.id, model.inputModalities])), [catalog])
+  const catalogApis = useMemo(() => new Map(catalog?.map(model => [model.id, model.api])), [catalog])
   const [candidates, setCandidates] = useState<readonly LlmDiscoveredModel[] | undefined>(undefined)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [candidateQuery, setCandidateQuery] = useState('')
@@ -366,7 +369,8 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             model={model}
             position={index + 1}
             inputField="input"
-            api={probe.api}
+            api={textOf(model, 'api') || probe.api || catalogApis.get(textOf(model, 'id'))}
+            toolModes={props.toolModes}
             inputFallback={inputDefaults.get(textOf(model, 'id')) ?? props.defaultInput}
             inputLoading={catalogProvider !== undefined && catalog === undefined}
             reasoningLevels={props.reasoningLevels}

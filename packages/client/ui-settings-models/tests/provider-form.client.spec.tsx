@@ -38,6 +38,7 @@ const PiAiConfig = Schema.object({
       name: Schema.string(),
       contextWindow: Schema.number(),
       maxTokens: Schema.number(),
+      toolMode: Schema.union(['native', 'tagged-json']),
       reasoningEfforts: Schema.union([
         Schema.const(false),
         Schema.dict(Schema.union([Schema.string(), Schema.const(null)]), Schema.union(LEVELS)),
@@ -697,7 +698,7 @@ describe('endpoint interrogation', () => {
     const scripted = scriptedFace()
     render(
       <CustomProviderCard
-        taken={[]} protocols={PROTOCOLS} reasoningLevels={LEVELS} revision={7} operations={operationsWith(scripted.face)}
+        taken={[]} protocols={PROTOCOLS} reasoningLevels={LEVELS} toolModes={['native', 'tagged-json']} revision={7} operations={operationsWith(scripted.face)}
         t={t} readOnly={false} onClose={vi.fn()}
       />,
     )
@@ -873,6 +874,7 @@ describe('hand-declared providers', () => {
         taken={['openai']}
         protocols={PROTOCOLS}
         reasoningLevels={LEVELS}
+        toolModes={['native', 'tagged-json']}
         revision={7}
         operations={operationsWith(scripted.face)}
         t={t}
@@ -910,6 +912,7 @@ describe('hand-declared providers', () => {
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'acme-large' } })
     expandModel(1)
     fireEvent.change(screen.getByLabelText(`${en.contextWindow} 1`), { target: { value: '65536' } })
+    fireEvent.change(screen.getByLabelText(`${en.modelToolMode} 1`), { target: { value: 'tagged-json' } })
     fireEvent.click(screen.getByText(en.create))
 
     await waitFor(() => { expect(onClose).toHaveBeenCalledWith(true) })
@@ -923,7 +926,7 @@ describe('hand-declared providers', () => {
           apiKeyEnv: 'ACME_GATEWAY_API_KEY',
           api: 'openai-completions',
           baseURL: 'https://gateway.acme.example/v1',
-          models: [{ id: 'acme-large', contextWindow: 65_536 }],
+          models: [{ id: 'acme-large', contextWindow: 65_536, toolMode: 'tagged-json' }],
         },
       }],
       // The section this card was drafted over: a route another tab declared

@@ -308,6 +308,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     await custom.getByRole('button', { name: '添加模型', exact: true }).click()
     await custom.getByLabel('模型 ID 1').fill('acme-large')
     await custom.getByRole('button', { name: '模型选项 1' }).click()
+    await custom.getByLabel('工具调用 1').selectOption('tagged-json')
     expect(await custom.getByRole('group', { name: '输入类型 1' }).getByRole('checkbox', { name: '图片' }).isChecked()).toBe(false)
     await custom.getByRole('group', { name: '输入类型 1' }).getByRole('checkbox', { name: '图片' }).check()
     // This route offers only low and high.
@@ -323,9 +324,11 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     const document = await readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8')
     expect(document).toContain('acme-gateway:')
     expect(document).toContain('reasoningEfforts:')
+    expect(document).toContain('toolMode: tagged-json')
     await expect(scaffold.ctx.llm.resolveModelInfo('acme-gateway', 'acme-large')).resolves.toMatchObject({
       inputModalities: ['text', 'image'],
       reasoning: { efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }] },
+      requestFormat: { id: 'tagged-json', version: 1 },
     })
 
     // The tag follows the adapter's installed catalog: this route is in no
@@ -359,10 +362,12 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(await reasoning.getByRole('combobox').evaluateAll(selects => selects.map(select => (select as HTMLSelectElement).value)))
       .toEqual(['low', 'high'])
     expect(await reasoning.getByLabel('high API 参数值').inputValue()).toBe('high')
+    expect(await dialog.getByLabel('工具调用 1').inputValue()).toBe('tagged-json')
     await assertModelInputLayout(page, dialog)
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(DECLARED_EDIT_EXPECTED, snapshot, MODE)
 
+    await dialog.getByLabel('工具调用 1').selectOption('native')
     await protocol.selectOption('anthropic-messages')
     await name.fill('Acme 网关')
     await dialog.getByRole('group', { name: '输入类型 1' }).getByRole('checkbox', { name: '图片' }).uncheck()
@@ -382,6 +387,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(document).toContain('api: anthropic-messages')
     expect(document).toContain('displayName: Acme 网关')
     expect(document).toContain('high: deep')
+    expect(document).not.toContain('toolMode:')
     // The level keeps its id and name; only its wire spelling changed.
     await expect(scaffold.ctx.llm.resolveModelInfo('acme-gateway', 'acme-large')).resolves.toMatchObject({
       inputModalities: ['text'],

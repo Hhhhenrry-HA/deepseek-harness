@@ -98,6 +98,7 @@ pi-ai 提供登录的提供方可以通过 harness 授权 seam 登录：流程�
 
 profile 的 `models` 列表会替换而非扩展路由的已安装目录；每个条目从同 id 已安装模型取未设置字段的默认值，因此把路由收窄到两个模型、修正一个容量或添加比已安装目录更新的模型都是一行编辑。`modelOverrides` 无需该代价即可重塑个别已安装目录模型——修正一个模型，保留其余三十七个——当它与 `models` 列表并存、位于手工声明路由上、或点名目录未描述的模型时会被拒绝，因为静默不变的模型会成为别人日后寻找的拼写错误。
 
+<a id="reasoning-and-tool-protocols"></a>
 ### 带推理（reasoning）与协议兼容运行
 
 `reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。
@@ -105,6 +106,10 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 确切模型元数据将 `reasoning.efforts` 按可选强度从低到高排列。配置函数可从该列表中选择，再由 `prepareCall()` 校验具体强度。适配器只接收解析后的控制项。选择 `off` 不保证禁用推理：以省略推理字段表达该值的协议会沿用网关默认行为。所选等级下产生的推理 token 都计入该请求的输出上限。
 
 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
+
+对于 `openai-completions` 模型，`toolMode: tagged-json` 将工具定义、调用和结果作为带标签的 JSON 文本发送，不使用原生工具字段。可在 `models` 条目或 `modelOverrides` 中设置；省略或 `native` 保持原生调用。其他协议拒绝该模式。普通正文即时流式显示；整条回复成功结束且校验通过后，才会统一提交工具调用。无效 JSON 以 `TOOL_PROTOCOL_INVALID` 失败，取消、截断或提供方故障都不会执行该回复中的调用。调用仍经过现有工具校验、权限和错误结果流程。API 重试沿用路由现有策略；适配器不自动切换模式，也不额外重试。
+
+请求头会连同工具定义记录带版本的格式指令。工具文本会增加输入和输出 token；缓存用量仍由提供方报告，切换模式会改变请求前缀。
 
 ### 运行时更改配置
 

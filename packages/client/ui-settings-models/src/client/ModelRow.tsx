@@ -27,6 +27,8 @@ interface ModelRowProps {
   inputLoading?: boolean
   /** Levels the row's `reasoningEfforts` may declare; absent or empty shows no reasoning control. */
   reasoningLevels?: readonly string[] | undefined
+  /** Modes read from the adapter schema, shown only for its supported protocol. */
+  toolModes?: readonly string[] | undefined
   expanded: boolean
   disabled: boolean
   t: (key: ModelsKey) => string
@@ -110,6 +112,32 @@ export function ModelRow(props: ModelRowProps): ReactNode {
               model={model} field={props.inputField} position={position}
               fallback={props.inputFallback} disabled={disabled || props.inputLoading === true} t={t} onChange={props.onChange}
             />
+            {props.toolModes !== undefined && props.toolModes.length > 0
+              && (props.api === 'openai-completions' || model['toolMode'] === 'tagged-json')
+              ? (
+                <label className={styles['modelField']}>
+                  <span className={styles['modelFieldLabel']}>{t('modelToolMode')}</span>
+                  <select
+                    className={`${styles['input']} ${styles['selectInput']}`}
+                    aria-label={`${t('modelToolMode')} ${String(position)}`}
+                    value={typeof model['toolMode'] === 'string' ? model['toolMode'] : 'native'}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      const next = { ...model }
+                      if (event.target.value === 'native') Reflect.deleteProperty(next, 'toolMode')
+                      else next['toolMode'] = event.target.value
+                      props.onChange(next)
+                    }}
+                  >
+                    {props.toolModes.map(mode => (
+                      <option key={mode} value={mode} disabled={mode === 'tagged-json' && props.api !== 'openai-completions'}>
+                        {mode === 'native' ? t('modelToolNative') : t('modelToolJson')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )
+              : null}
             {props.reasoningLevels !== undefined && props.reasoningLevels.length > 0
               ? (
                 <ModelReasoningEfforts

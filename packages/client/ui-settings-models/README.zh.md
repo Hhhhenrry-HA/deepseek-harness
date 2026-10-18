@@ -39,6 +39,8 @@ kind: "package-reference"
 
 Host 配置 `credentialOnboarding` 默认为 `true`。Electron preload 标记会抑制自动凭证引导和 Web 欢迎须知；模型设置页与显式 API Key 编辑仍然可用。[账号插件](../ui-settings-account/README.zh.md#desktop-onboarding)负责 Desktop 引导。其他原生壳可以通过 `credentialOnboarding: false` 仅禁用凭证步骤。Host 通过 `webserver/index-inject` 发布这个公开的布尔值，Client 在注册弹窗前校验它。它是页面初始化数据，不是持久化的完成标记。
 
+在每个 OpenAI Chat Completions 模型的选项中，**工具调用**可选**原生**或 **JSON 兼容**。应用后只保存该模型的模式；选择原生会移除覆盖值。其他协议不提供 JSON 模式。[适配器](../../llm/llm-pi-ai/README.zh.md#reasoning-and-tool-protocols)负责协议和失败处理。
+
 ### API 密钥
 
 API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求浏览器不要自动填入已保存的登录密码。输入非空时，显示与会话密钥遮罩一致的眼睛按钮：**显示密钥**展示当前输入，**隐藏密钥**重新遮住输入。修改或清空输入后会重新遮住密钥。已保存凭据从不读入输入框。

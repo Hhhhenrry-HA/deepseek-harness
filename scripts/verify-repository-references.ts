@@ -31,12 +31,25 @@ function isMaintained(file: string): boolean {
   return !excludedPrefixes.some(prefix => file.startsWith(prefix))
 }
 
+function withoutLockfileSizes(file: string, source: string): string {
+  if (file !== 'uv.lock' && !file.endsWith('/uv.lock')) return source
+  // Keep TOML strings and comments intact; only bare decimal size fields are byte counts.
+  const tokens = new RegExp([
+    String.raw`"""(?:\\[\s\S]|"(?!"")|[^"\\])*"""|'''[\s\S]*?'''`,
+    String.raw`"(?:\\.|[^"\\])*"|'[^']*'|#[^\n]*`,
+    String.raw`(?<![\w.-])size[ \t]*=[ \t]*(\d+)(?=[ \t]*(?:[,}#\r\n]|$))`,
+  ].join('|'), 'gu')
+  return source.replace(tokens, (token: string, size: string | undefined) =>
+    size === undefined ? token : token.slice(0, -size.length) + ' '.repeat(size.length))
+}
+
 /**
  * Inspect a maintained source file against known commit identifiers.
  * @param file - Repository-relative path used in diagnostics and exclusions.
  * @param source - File text or a symlink's stored target.
  * @param commits - Lowercase, unambiguous full or abbreviated commit identifiers.
- * @returns One finding per line and reference kind; digests and other Git object types are accepted.
+ * @returns One finding per line and reference kind; digests, other Git object types,
+ * and uv.lock's bare decimal artifact sizes are accepted. Strings and comments remain checked.
  */
 export function findRepositoryReferences(
   file: string,
@@ -45,7 +58,7 @@ export function findRepositoryReferences(
 ): RepositoryReference[] {
   if (!isMaintained(file)) return []
   const references: RepositoryReference[] = []
-  for (const [index, line] of source.split('\n').entries()) {
+  for (const [index, line] of withoutLockfileSizes(file, source).split('\n').entries()) {
     if (organizationUrl.test(canonicalReferenceText(line).replace(kitRepositoryUrl, ''))) {
       references.push({ file, line: index + 1, kind: 'organization-url' })
     }

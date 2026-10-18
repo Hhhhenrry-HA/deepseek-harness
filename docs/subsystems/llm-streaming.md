@@ -586,6 +586,8 @@ interface LlmModelReasoningInfo {
 ```ts type-equiv
 /** Exact-route model metadata resolved by its owning adapter. */
 interface LlmResolvedModelInfo extends LlmModelInfo {
+  /** Adapter-owned serialization instructions materialized into the logged call configuration. */
+  requestFormat?: import('./call-config.ts').LlmRequestFormat
   /** Provider-owned context capacity when known. */
   context?: LlmModelContext
   /** Adapter-configured per-request output cap materialized when callers omit one. */
@@ -619,6 +621,8 @@ type RequestMessage = Message | RequestUserInput
 ```ts type-equiv
 /** A single model request, fully assembled. */
 interface GenerateOptions {
+  /** Captured serialization instructions; absent selects the adapter's native representation. */
+  requestFormat?: import('./call-config.ts').LlmRequestFormat
   /** Registered provider route selecting the adapter instance. */
   provider: string
   model: string
@@ -743,6 +747,8 @@ interface LlmModelDiscoveryRequest {
  * a surface adopting one of these still owes the capacities its adapter needs.
  */
 interface LlmDiscoveredModel {
+  /** Adapter protocol known from the installed catalog or the explicitly requested endpoint protocol. */
+  api?: string
   /** Model id the endpoint accepts. */
   id: string
   /** Human-readable name when the endpoint supplies one. */
@@ -786,6 +792,19 @@ interface LlmCallControls {
 interface LlmCallConfig extends LlmCallControls {
   provider: string
   model: string
+  /** Adapter-owned serialization instructions captured with the request header. */
+  requestFormat?: LlmRequestFormat
+}
+```
+
+`requestFormat` records the selected adapter's serialization instructions in the request header. Preparation replaces any previous header's format with the captured model's current format, including clearing it for native calling; a prepared call retains that choice across configuration changes.
+
+```ts type-equiv
+/** Versioned, logged instructions for an adapter's text-based tool protocol. */
+interface LlmRequestFormat {
+  id: string
+  version: number
+  instructions: string
 }
 ```
 

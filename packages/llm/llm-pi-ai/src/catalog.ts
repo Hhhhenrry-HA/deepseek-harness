@@ -601,6 +601,8 @@ function assertOfferedCompatFields(
 
 /** One configured model entry: an id plus the catalog fields it overrides. */
 export interface PiAiModelProfile {
+  /** Native tool declarations by default; tagged-json carries calls through ordinary Chat Completions text. */
+  toolMode?: 'native' | 'tagged-json'
   /** Model id sent to the provider and accepted by {@link GenerateOptions.model}. */
   id: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
@@ -828,6 +830,8 @@ function resolveModelCompat(
 
 /** One route's materialized catalog, plus the request caps its profile chose. */
 export interface RouteCatalog {
+  /** Explicit text-tool modes for models whose resolved protocol supports them. */
+  toolModes: ReadonlyMap<string, 'tagged-json'>
   /** The materialized models in configuration order. */
   models: readonly Model<Api>[]
   /** Models that cannot be resolved, retained as diagnostics during stored-config reads. */
@@ -908,6 +912,7 @@ export function resolveRouteModels(
   assertOfferedCompatFields(provider, 'route', request.compat)
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
+  const toolModes = new Map<string, 'tagged-json'>()
   const resolveEntry = (entry: PiAiModelProfile): Model<Api> => {
     assertOfferedCompatFields(provider, `model "${entry.id}"`, entry.compat)
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
@@ -918,6 +923,10 @@ export function resolveRouteModels(
     if (api === undefined) {
       invalid(provider, `model "${entry.id}" needs an api; the installed catalog does not describe it, so set the`
         + ' route\'s api to the wire protocol its endpoint speaks')
+    }
+    if (entry.toolMode === 'tagged-json') {
+      if (api !== 'openai-completions') invalid(provider, `model "${entry.id}" toolMode tagged-json requires openai-completions`)
+      toolModes.set(entry.id, 'tagged-json')
     }
     const baseUrl = request.baseURL ?? base?.baseUrl ?? providerBaseUrl
     if (baseUrl === undefined) {
@@ -982,5 +991,5 @@ export function resolveRouteModels(
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }
-  return { models: serviceableModels, configuredMaxTokens, modelErrors }
+  return { models: serviceableModels, configuredMaxTokens, modelErrors, toolModes }
 }

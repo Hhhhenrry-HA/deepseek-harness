@@ -29,7 +29,7 @@ import type { LlmNativeAuth, SettingsNamespaceView } from '@deepseek-ai/dsh-api-
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
-import { deriveKeyRef, protocolChoices, providerUsable, reasoningLevelChoices } from './store.ts'
+import { deriveKeyRef, protocolChoices, providerUsable, reasoningLevelChoices, toolModeChoices } from './store.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
@@ -377,6 +377,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const piAi = state.namespaces.get('llm-pi-ai')
   const protocols = protocolChoices(piAi, schema)
   const reasoningLevels = reasoningLevelChoices(piAi, schema)
+  const toolModes = toolModeChoices(piAi, schema)
   // Each mode is offered while its namespace is mounted and enabled while it
   // has something to offer; the card shows the chosen mode where both are
   // offered, else the only one there is. A mode's panel is mounted while it is
@@ -675,6 +676,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       taken={state.rows.map(row => row.entry.provider)}
                       protocols={protocols}
                       reasoningLevels={reasoningLevels}
+                      toolModes={toolModes}
                       revision={piAi.revision}
                       operations={operations}
                       t={t}

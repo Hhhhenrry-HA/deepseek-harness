@@ -279,6 +279,7 @@ export async function discoverModels(
         id: model.id,
         name: model.name,
         contextWindow: model.contextWindow,
+        api: model.api,
         maxTokens: model.maxTokens,
         inputModalities: [...model.input],
       }))

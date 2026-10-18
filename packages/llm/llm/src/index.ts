@@ -31,7 +31,7 @@ import { freezeMessage } from './message.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
-import { callConfigEquals } from './call-config.ts'
+import { callConfigEquals, isLlmRequestFormat } from './call-config.ts'
 import type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
@@ -51,8 +51,8 @@ export * from './assistant-stream.ts'
 export * from './message.ts'
 export * from './retry-policy.ts'
 export { BlockAssembler } from './assembler.ts'
-export { callConfigEquals, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
-export type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults, LlmCallControls } from './call-config.ts'
+export { callConfigEquals, isAgentLoopRequest, isLlmRequestFormat, markAgentLoopRequest } from './call-config.ts'
+export type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults, LlmCallControls, LlmRequestFormat } from './call-config.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -622,6 +622,7 @@ export class LlmRuntime extends TypertRemoteService {
       seen.add(model.id)
       models.push({
         id: model.id,
+        ...model.api === undefined ? {} : { api: model.api },
         ...model.name === undefined ? {} : { name: model.name },
         ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
         ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
@@ -818,6 +819,9 @@ export class LlmRuntime extends TypertRemoteService {
       )
     }
     const defaultMaxTokens = resolved.defaultMaxTokens
+    if (resolved.requestFormat !== undefined && !isLlmRequestFormat(resolved.requestFormat)) {
+      throw new LlmError(`adapter returned invalid request serialization for provider "${provider}" model "${model}"`, 'INVALID_MODEL_INFO')
+    }
     if (defaultMaxTokens !== undefined
       && (!Number.isSafeInteger(defaultMaxTokens) || defaultMaxTokens <= 0)) {
       throw new LlmError(
@@ -833,6 +837,7 @@ export class LlmRuntime extends TypertRemoteService {
       ...inputModalities === undefined ? {} : { inputModalities },
       ...context === undefined ? {} : { context: { contextWindow: context.contextWindow } },
       ...defaultMaxTokens === undefined ? {} : { defaultMaxTokens },
+      ...resolved.requestFormat === undefined ? {} : { requestFormat: { ...resolved.requestFormat } },
       ...resolved.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: resolved.systemPromptUpdate },
       ...resolved.toolUpdate === undefined ? {} : { toolUpdate: resolved.toolUpdate },
     }
@@ -909,9 +914,13 @@ export class LlmRuntime extends TypertRemoteService {
     config: LlmCallConfig,
     info: LlmResolvedModelInfo,
   ): { config: LlmCallConfig; context?: LlmModelContext; modelInfo: LlmResolvedModelInfo } {
-    const defaulted = config.maxTokens === undefined && info.defaultMaxTokens !== undefined
-      ? { ...config, maxTokens: info.defaultMaxTokens }
-      : config
+    // Serialization is owned by the captured route, never by an older header.
+    const { requestFormat: previousFormat, ...controls } = config
+    const formatted = previousFormat === info.requestFormat ? config
+      : { ...controls, ...info.requestFormat === undefined ? {} : { requestFormat: info.requestFormat } }
+    const defaulted = formatted.maxTokens === undefined && info.defaultMaxTokens !== undefined
+      ? { ...formatted, maxTokens: info.defaultMaxTokens }
+      : formatted
     const reasoning = info.reasoning
     const requested = defaulted.reasoningEffort
     let resolvedConfig = defaulted
@@ -1088,11 +1097,12 @@ export class LlmRuntime extends TypertRemoteService {
           'INVALID_PREPARED_CALL',
         )
       }
-      const resolvedOptions = callConfigEquals(options, resolvedConfig)
-        ? options
-        : Object.isFrozen(options)
-          ? deepFreeze({ ...options, ...resolvedConfig })
-          : { ...options, ...resolvedConfig }
+      let resolvedOptions = options
+      if (!callConfigEquals(options, resolvedConfig)) {
+        const { requestFormat: _previousFormat, ...requestOptions } = options
+        resolvedOptions = { ...requestOptions, ...resolvedConfig }
+        if (Object.isFrozen(options)) deepFreeze(resolvedOptions)
+      }
       // Files are never dispatched natively: every route receives handle text.
       let projectedMessages: readonly RequestMessage[] = resolvedOptions.messages
       if (projectedMessages.some(message => contentHasFile(message.content))) {

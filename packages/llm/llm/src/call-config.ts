@@ -31,6 +31,28 @@ export interface LlmCallControls {
 export interface LlmCallConfig extends LlmCallControls {
   provider: string
   model: string
+  /** Adapter-owned serialization instructions captured with the request header. */
+  requestFormat?: LlmRequestFormat
+}
+
+/** Versioned, logged instructions for an adapter's text-based tool protocol. */
+export interface LlmRequestFormat {
+  id: string
+  version: number
+  instructions: string
+}
+
+/**
+ * Validate serialization metadata received from adapters or durable request headers.
+ * @param value - adapter metadata or a decoded request-header field.
+ * @returns whether the value contains usable versioned instructions.
+ */
+export function isLlmRequestFormat(value: unknown): value is LlmRequestFormat {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const format = value as Record<string, unknown>
+  return typeof format['id'] === 'string' && format['id'].length > 0
+    && typeof format['version'] === 'number' && Number.isSafeInteger(format['version']) && format['version'] > 0
+    && typeof format['instructions'] === 'string' && format['instructions'].length > 0
 }
 
 /**
@@ -71,6 +93,9 @@ export function callConfigEquals(a: LlmCallConfig, b: LlmCallConfig): boolean {
     || a.reasoningEffort !== b.reasoningEffort
     || a.temperature !== b.temperature
     || a.maxTokens !== b.maxTokens
+    || a.requestFormat?.id !== b.requestFormat?.id
+    || a.requestFormat?.version !== b.requestFormat?.version
+    || a.requestFormat?.instructions !== b.requestFormat?.instructions
   ) return false
   if (a.stop === undefined || b.stop === undefined) return a.stop === b.stop
   return a.stop.length === b.stop.length && a.stop.every((s, i) => s === b.stop?.[i])

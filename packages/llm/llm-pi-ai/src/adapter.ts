@@ -61,6 +61,9 @@ import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { requestImageTarget, toPiContext } from './context.ts'
 import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
+import { TAGGED_JSON_FORMAT } from './tagged-json-protocol.ts'
+import { taggedJsonContext } from './tagged-json-context.ts'
+import { taggedJsonStream } from './tagged-json-stream.ts'
 import { toStreamChunks } from './stream.ts'
 
 /**
@@ -337,7 +340,9 @@ export class PiAiAdapter extends LlmAdapter {
       context: { contextWindow: resolvedModel.contextWindow },
       ...configuredMaxTokens === undefined ? {} : { defaultMaxTokens: configuredMaxTokens },
       ...reasoningInfo(resolvedModel, defaultLevel),
-      ...conversationUpdates(resolvedModel),
+      ...profile.toolModes.get(model) === 'tagged-json'
+        ? { requestFormat: TAGGED_JSON_FORMAT }
+        : conversationUpdates(resolvedModel),
     }
   }
 
@@ -413,7 +418,9 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade)
-      const events = snapshot.models.streamSimple(model, context, {
+      const format = options.requestFormat ?? (profile.toolModes.get(model.id) === 'tagged-json' ? TAGGED_JSON_FORMAT : undefined)
+      const wireContext = format === undefined ? context : taggedJsonContext(context, format)
+      const events = snapshot.models.streamSimple(model, wireContext, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
@@ -423,7 +430,15 @@ export class PiAiAdapter extends LlmAdapter {
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),
       })
-      const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
+      // Buffered JSON remains upstream activity even when it emits no harness chunks.
+      const activeEvents = async function* () {
+        for await (const event of events) {
+          watchdog.pulse()
+          yield event
+        }
+      }
+      const chunks = toStreamChunks(format === undefined ? events : activeEvents(), model.contextWindow, options.signal, model.id)
+      const iterator = (format === undefined ? chunks : taggedJsonStream(chunks, options.tools ?? []))[Symbol.asyncIterator]()
       let exhausted = false
       try {
         while (true) {

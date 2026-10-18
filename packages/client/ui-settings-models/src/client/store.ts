@@ -168,6 +168,19 @@ export function reasoningLevelChoices(
   return (keys?.list ?? []).map(entry => entry.value).filter((value): value is string => typeof value === 'string')
 }
 
+/**
+ * Read model tool modes from the owning adapter's schema.
+ * @param namespace - current provider settings namespace.
+ * @param schema - injected settings-schema reader.
+ * @returns supported mode identifiers, or none when this schema has no selector.
+ */
+export function toolModeChoices(namespace: SettingsNamespaceView | undefined, schema: SettingsSchemaOperations): string[] {
+  if (namespace === undefined) return []
+  const node = schema.nodeAtPath(schema.rehydrate(namespace.schema), ['providers', PROBE_ROUTE, 'models', '0', 'toolMode'])
+  const choices = (node as { list?: readonly { value?: unknown }[] } | undefined)?.list ?? []
+  return choices.map(choice => choice.value).filter((value): value is string => typeof value === 'string')
+}
+
 /** The credential reference a resolved profile names (its `apiKeyEnv` field). */
 function apiKeyEnvOf(
   namespace: SettingsNamespaceView | undefined,

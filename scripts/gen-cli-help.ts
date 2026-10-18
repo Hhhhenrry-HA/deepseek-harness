@@ -194,7 +194,8 @@ async function collectHelp(): Promise<HelpPage[]> {
     const help = execFileAsync(process.execPath, [
       '--import', 'tsx/esm', 'apps/cli/src/bin.ts', ...args, '--help',
     ], {
-      cwd: root, env: environment, encoding: 'utf8', timeout: 30_000,
+      // Concurrent source-profile boots include module loading, not only help rendering.
+      cwd: root, env: environment, encoding: 'utf8', timeout: 60_000,
       killSignal: 'SIGKILL', maxBuffer: 2 * 1024 * 1024,
     })
     // Killing directly, not through execFile's signal option, settles the read only after the child closes.

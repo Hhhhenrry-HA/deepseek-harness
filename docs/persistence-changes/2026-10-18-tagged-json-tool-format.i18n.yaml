@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-18-tagged-json-tool-format.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-18-tagged-json-tool-format.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-18-tagged-json-tool-format:
+  en: 8926137fa541d44a
+  zh: 8c36151f3d607cef
+/2026-10-18-tagged-json-tool-format/summary:
+  en: 442bea5011a53b42
+  zh: 38e34edecef76a41
+/2026-10-18-tagged-json-tool-format/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-18-tagged-json-tool-format/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-18-tagged-json-tool-format/compatibility:
+  en: c90e255b37cd4bec
+  zh: aef11b5f46fe0e26
+/2026-10-18-tagged-json-tool-format/verification:
+  en: 42fa3d59a4de4430
+  zh: 6e559e4fedf232dd
+/2026-10-18-tagged-json-tool-format/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

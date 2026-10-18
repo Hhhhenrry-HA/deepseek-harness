@@ -98,6 +98,7 @@ A provider pi-ai ships a login for can be signed into through the harness author
 
 A profile's `models` list replaces the route's installed catalog rather than extending it; each entry defaults its unset fields from the installed model of the same id, so narrowing a route to two models, correcting one capacity, or adding a model newer than the installed catalog are one-line edits. `modelOverrides` reshapes individual installed-catalog models without that cost — correct one model, keep the other thirty-seven — and is refused when set beside a `models` list, on a hand-declared route, or naming a model the catalog does not describe, because a silently unchanged model would be a typo someone hunts for later.
 
+<a id="reasoning-and-tool-protocols"></a>
 ### Run with reasoning and wire compatibility
 
 `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `max: ultra` renames a level for a gateway with its own vocabulary. Omitting the field keeps the installed catalog entry's capability; `false` declares a non-reasoning model. `compat` switches reshape the request for endpoints pi-ai cannot recognize — which role carries the system prompt, which field caps output, how a thinking level travels — configurable per route and per model. A model neither the entry nor the installed catalog sizes takes the route's `defaultContextWindow` and `defaultMaxTokens` fallbacks.
@@ -105,6 +106,10 @@ A profile's `models` list replaces the route's installed catalog rather than ext
 Exact-model metadata lists `reasoning.efforts` from least to greatest selectable effort. A configuration function can select from that list before `prepareCall()` validates the concrete effort. The adapter receives only the resolved controls. Selecting `off` does not guarantee disabled reasoning: a protocol that expresses it by omitting the reasoning field leaves the gateway's default in effect. Reasoning tokens at any selected level count toward the request's output cap.
 
 For self-hosted Chat Completions endpoints, `thinkingTokenBudgetField` selects the reasoning-budget parameter, and `vllmPriority` sets an integer scheduler priority when the server enables priority scheduling. Template arguments accept `$var: thinking.budget`. `openai-responses` gateways can set `supportsMaxOutputTokens: false` to omit `max_output_tokens`; Azure and Codex transports ignore this shared compatibility field. These controls are opt-in; catalog-owned Anthropic effort and fallback capabilities are not configurable switches.
+
+For `openai-completions` models, `toolMode: tagged-json` sends tool definitions, calls, and results as tagged JSON text rather than native tool fields. Set it in a `models` entry or `modelOverrides`; omission or `native` keeps native calling. Other protocols reject this mode. Normal prose streams immediately; calls are submitted together only after a successful, complete response validates. Invalid JSON fails with `TOOL_PROTOCOL_INVALID`, and cancellation, truncation, or provider failure executes no calls from that response. Calls use the existing tool validation, permissions, and error results. API retries retain the route's existing retry policy; the adapter never switches modes or adds its own retries.
+
+The request header records the versioned formatting instructions alongside the tool definitions. Tool text adds input/output tokens; cache accounting remains provider-reported, and changing modes changes the request prefix.
 
 ### Change configuration at runtime
 

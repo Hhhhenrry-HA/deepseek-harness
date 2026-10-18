@@ -59,6 +59,10 @@
             - text: 文本
             - checkbox "图片" [checked]
             - text: 图片
+          - text: 工具调用
+          - combobox "工具调用 1":
+            - option "原生"
+            - option "JSON 兼容" [selected]
           - group "推理等级 1":
             - text: 推理等级
             - button "推理等级说明": "?"

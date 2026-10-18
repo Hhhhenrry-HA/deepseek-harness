@@ -67,6 +67,8 @@ export interface CustomProviderCardProps {
   protocols: readonly string[]
   /** Reasoning levels the adapter's schema accepts, in escalation order; empty shows no reasoning control. */
   reasoningLevels: readonly string[]
+  /** Tool modes declared by the adapter's model schema. */
+  toolModes: readonly string[]
   /**
    * Revision of the `llm-pi-ai` user section this card opened at, sent with
    * the create so a route another tab declared meanwhile is a refusal rather
@@ -289,6 +291,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         models={models}
         onChange={setModels}
         reasoningLevels={reasoningLevels}
+        toolModes={props.toolModes}
         probe={{
           settingsNs: NS,
           baseURL: normalizedBaseURL,

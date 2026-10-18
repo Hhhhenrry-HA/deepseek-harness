@@ -30,6 +30,20 @@ export const textEvents = [
   '[DONE]',
 ]
 
+/** Ordinary-text protocol output fragmented across real SDK SSE frames. */
+export function taggedEvents(text: string, finish = 'stop', fragment = 7): string[] {
+  const pieces = Array.from({ length: Math.ceil(text.length / fragment) },
+    (_, index) => text.slice(index * fragment, (index + 1) * fragment))
+  return [
+    ...pieces.map(content => JSON.stringify({ choices: [{ delta: { content }, index: 0, finish_reason: null }] })),
+    JSON.stringify({
+      choices: [{ delta: {}, index: 0, finish_reason: finish }],
+      usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 50 } },
+    }),
+    '[DONE]',
+  ]
+}
+
 /**
  * One Anthropic Messages SSE frame, named by its own `type`.
  * @param data - the frame payload.

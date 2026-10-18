@@ -332,6 +332,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
  * a surface adopting one of these still owes the capacities its adapter needs.
  */
 export interface LlmDiscoveredModel {
+  /** Adapter protocol known from the installed catalog or the explicitly requested endpoint protocol. */
+  api?: string
   /** Model id the endpoint accepts. */
   id: string
   /** Human-readable name when the endpoint supplies one. */
@@ -426,6 +428,8 @@ export type ToolUpdate = 'in-history' | 'addition-only'
 
 /** Exact-route model metadata resolved by its owning adapter. */
 export interface LlmResolvedModelInfo extends LlmModelInfo {
+  /** Adapter-owned serialization instructions materialized into the logged call configuration. */
+  requestFormat?: import('./call-config.ts').LlmRequestFormat
   /** Provider-owned context capacity when known. */
   context?: LlmModelContext
   /** Adapter-configured per-request output cap materialized when callers omit one. */
@@ -527,6 +531,8 @@ export interface ToolHistory {
 
 /** A single model request, fully assembled. */
 export interface GenerateOptions {
+  /** Captured serialization instructions; absent selects the adapter's native representation. */
+  requestFormat?: import('./call-config.ts').LlmRequestFormat
   /** Registered provider route selecting the adapter instance. */
   provider: string
   model: string

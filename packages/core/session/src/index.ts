@@ -13,6 +13,7 @@ import { assertNever, deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-uti
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
+import { isLlmRequestFormat } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, EpochHeader, PluginRecord, PluginRecordMap, PluginRecordType, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SessionSeedEventState, SurfaceIntent, SurfaceEventType } from './types.ts'
@@ -256,6 +257,9 @@ function assertCurrentLlmShape(event: Record<string, unknown>, index: number): v
     if (reasoningEffort !== undefined
       && (typeof reasoningEffort !== 'string' || reasoningEffort.length === 0)) {
       throw new Error(`seed request/header at index ${index} has an invalid reasoningEffort`)
+    }
+    if (configRecord['requestFormat'] !== undefined && !isLlmRequestFormat(configRecord['requestFormat'])) {
+      throw new Error(`seed request/header at index ${index} has invalid requestFormat`)
     }
     assertAdapterDefaults(headerRecord['adapterDefaults'], configRecord, index)
     const reason = record?.['reason']

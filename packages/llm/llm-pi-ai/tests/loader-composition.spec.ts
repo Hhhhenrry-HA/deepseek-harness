@@ -10,11 +10,18 @@ import Loader, { type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import LlmRuntime, { createMessage, createUserMessage, userAgent } from '@deepseek-ai/dsh-llm'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture, type PreToolDecision } from '@deepseek-ai/dsh-tools'
+import * as LlmRetry from '@deepseek-ai/dsh-llm-retry'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import { profileComposition } from '../../../settings/settings/tests/profile-composition.ts'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { assemble } from './assemble.ts'
-import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
+import { closeMockServers, mockServer, taggedEvents, textEvents } from './mock-server.ts'
 
 /** One text block, then a tool call truncated by the output-token ceiling. */
 const truncatedToolCallEvents = [
@@ -38,7 +45,7 @@ afterEach(async () => {
 })
 
 /** Boot the dormant composition: a bare `llm-pi-ai` row with no config at all. */
-async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }> {
+async function loadComposition(withLoop = false): Promise<{ ctx: Context; settingsPath: string }> {
   root = await mkdtemp(join(tmpdir(), 'dsh-pi-composition-'))
   await writeFile(join(root, '.credentials.yaml'), 'version: 1\nrefs:\n  PI_COMPOSITION_KEY: key-from-store\n', { mode: 0o600 })
 
@@ -55,6 +62,17 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
     "  name: '@deepseek-ai/dsh-authorization'",
     '- id: llm-pi-ai',
     "  name: '@deepseek-ai/dsh-llm-pi-ai'",
+    ...withLoop ? [
+      "- name: '@deepseek-ai/dsh-session'",
+      "- name: '@deepseek-ai/dsh-session-projection'",
+      "- name: '@deepseek-ai/dsh-system-prompt'",
+      '  config:',
+      "    personaPrefix: ''",
+      "- name: '@deepseek-ai/dsh-tools'",
+      "- name: '@deepseek-ai/dsh-agent'",
+      "- name: '@deepseek-ai/dsh-llm-retry'",
+      "- name: '@deepseek-ai/dsh-agent-loop'",
+    ] : [],
     '',
   ].join('\n'))
 
@@ -68,6 +86,13 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
     ['@deepseek-ai/dsh-credentials-local', LocalCredentialProvider],
     ['@deepseek-ai/dsh-authorization', AuthorizationService],
     ['@deepseek-ai/dsh-llm-pi-ai', LlmPiAi],
+    ['@deepseek-ai/dsh-session', SessionStore],
+    ['@deepseek-ai/dsh-session-projection', SessionProjectionRegistry],
+    ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
+    ['@deepseek-ai/dsh-tools', ToolRuntime],
+    ['@deepseek-ai/dsh-agent', AgentRegistry],
+    ['@deepseek-ai/dsh-llm-retry', LlmRetry],
+    ['@deepseek-ai/dsh-agent-loop', AgentLoop],
   ])
   const internal: ModuleLoaderV2 = {
     version: 'v2',
@@ -87,6 +112,86 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
 }
 
 describe('llm-pi-ai real dormant composition', () => {
+  it('runs text tool calls through policy and transient retries, retaining the request format in Session history', { timeout: 60_000 }, async () => {
+    const calls = ['allowed', 'denied', 'tool-error'].map(text => `<tool_call>${JSON.stringify({ name: 'echo', arguments: { text } })}</tool_call>`).join('\n')
+    const server = await mockServer([
+      { status: 503, body: '{"error":{"message":"temporary outage"}}' },
+      { events: taggedEvents(calls) },
+      { events: textEvents },
+      { events: textEvents },
+      { events: taggedEvents('Discard this failed attempt\n<tool_call>{') },
+      { events: textEvents },
+    ])
+    const { ctx, settingsPath } = await loadComposition(true)
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai', '  config:', '    providers:', '      gateway:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY', '        api: openai-completions',
+      `        baseURL: ${server.url}`, '        retryPolicy:', '          mode: normal',
+      '          maxRetries: 1', '          backoff:', '            initialDelayMs: 1',
+      '            maxDelayMs: 1', '            jitterRatio: 0', '        models:',
+      '          - id: m', '            toolMode: tagged-json', '',
+    ].join('\n'))
+    await vi.waitFor(() => { expect(ctx.llm.listProviders().map(row => row.id)).toEqual(['gateway']) }, { timeout: 5000 })
+    const executed: string[] = []
+    ctx.tools.register(defineContentToolFixture({
+      name: 'echo', description: 'Return text.', parameters: { text: { type: 'string', required: true } },
+      async execute(args) {
+        executed.push(args.text)
+        if (args.text === 'tool-error') throw new Error('scripted tool failure')
+        return [{ type: 'text', text: args.text }]
+      },
+    }))
+    ctx.on('tools/pre-execute', async (exec, next): Promise<PreToolDecision> => {
+      if ((exec.arguments as { text: string }).text === 'denied') return { kind: 'deny', reason: 'not authorized' }
+      return next()
+    })
+    const agent = await ctx.agentLoop.create(SessionId('text-tools'), { provider: 'gateway', model: 'm' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Use echo' }], source: { kind: 'user' } }))
+    await agent.whenIdle()
+    expect(executed).toEqual(['allowed', 'tool-error'])
+    const events = agent.session.snapshotEvents()
+    expect(events.filter(event => event.type === 'llm/retry')).toHaveLength(1)
+    expect(events.filter(event => event.type === 'tool/call')).toHaveLength(3)
+    expect(events.filter(event => event.type === 'tool/result').map(event => event.data.message.isError ?? false)).toEqual([false, true, true])
+    expect(agent.session.requestHeader()?.config.requestFormat).toMatchObject({ id: 'tagged-json', version: 1 })
+    expect(agent.session.deriveMessages().at(-1)?.content).toEqual([{ type: 'text', text: 'hello' }])
+    const wire = server.requests[2] as { tools?: unknown; messages: { role: string; content: unknown; tool_calls?: unknown }[] }
+    expect(wire.tools).toBeUndefined()
+    expect(wire.messages.every(message => message.role !== 'tool' && message.tool_calls === undefined)).toBe(true)
+    // Pin the actual provider input rather than source-code string fragments.
+    expect((server.requests[1] as { messages: unknown[] }).messages[0]).toMatchSnapshot()
+    const seed = JSON.parse(JSON.stringify(events)) as typeof events
+    const restored = await ctx.agents.create({
+      sessionId: SessionId('restored-text-tools'), seed,
+      agentOptions: { provider: 'gateway', model: 'm' },
+    })
+    try {
+      expect(restored.agent.session.requestHeader()?.config.requestFormat).toEqual(agent.session.requestHeader()?.config.requestFormat)
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue without more calls' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(executed).toEqual(['allowed', 'tool-error'])
+      expect(server.requests).toHaveLength(4)
+      expect((server.requests[3] as { messages: unknown[] }).messages).toEqual([
+        ...wire.messages,
+        { role: 'assistant', content: 'hello' },
+        { role: 'user', content: 'Continue without more calls' },
+      ])
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Malformed response' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(5)
+      expect(restored.agent.session.snapshotEvents().filter(event => event.type === 'assistant/attempt')).toHaveLength(2)
+      expect(restored.agent.session.snapshotEvents().filter(event => event.type === 'tool/call')).toHaveLength(3)
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Try again' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(6)
+      expect(executed).toEqual(['allowed', 'tool-error'])
+      expect(JSON.stringify(server.requests[5])).not.toContain('Discard this failed attempt')
+      expect(restored.agent.session.deriveMessages().at(-1)?.content).toEqual([{ type: 'text', text: 'hello' }])
+    } finally {
+      await restored.dispose()
+    }
+  })
+
   it('boots with zero routes and registers one the moment settings supply a profile', async () => {
     vi.stubEnv('PI_COMPOSITION_KEY', '')
     const server = await mockServer([{ events: textEvents }])

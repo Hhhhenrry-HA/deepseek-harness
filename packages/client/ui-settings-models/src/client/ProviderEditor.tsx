@@ -33,7 +33,7 @@ import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import { validateReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import type { ReasoningEffortsFailure } from './ModelReasoningEfforts.tsx'
-import { deriveKeyRef, protocolChoices, reasoningLevelChoices } from './store.ts'
+import { deriveKeyRef, protocolChoices, reasoningLevelChoices, toolModeChoices } from './store.ts'
 import { protocolLabel } from './protocol-label.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
@@ -230,6 +230,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     [layout, props.declared, namespace, schema],
   )
   const editsReasoning = reasoningLevels.length > 0
+  const toolModes = useMemo(() => layout === 'pi-ai' ? toolModeChoices(namespace, schema) : [], [layout, namespace, schema])
   const validateModels = (value: unknown): DeepSeekModelsValidationFailure | ReasoningEffortsFailure | undefined =>
     validateDeepSeekModels(value) ?? (editsReasoning ? validateReasoningEfforts(value) : undefined)
   const modelFailure = validateModels(schema.getPath(draft, ['models']))
@@ -527,6 +528,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                   {...catalogProps}
                   catalogProvider={props.declared === true ? undefined : props.provider}
                   reasoningLevels={reasoningLevels}
+                  toolModes={toolModes}
                   defaultInput={Array.isArray(defaultInput) ? defaultInput : undefined}
                   probe={probe}
                   probeBlocked={keyFailure}

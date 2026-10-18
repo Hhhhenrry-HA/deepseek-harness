@@ -592,6 +592,8 @@ interface LlmModelReasoningInfo {
 ```ts type-equiv
 /** Exact-route model metadata resolved by its owning adapter. */
 interface LlmResolvedModelInfo extends LlmModelInfo {
+  /** Adapter-owned serialization instructions materialized into the logged call configuration. */
+  requestFormat?: import('./call-config.ts').LlmRequestFormat
   /** Provider-owned context capacity when known. */
   context?: LlmModelContext
   /** Adapter-configured per-request output cap materialized when callers omit one. */
@@ -625,6 +627,8 @@ type RequestMessage = Message | RequestUserInput
 ```ts type-equiv
 /** A single model request, fully assembled. */
 interface GenerateOptions {
+  /** Captured serialization instructions; absent selects the adapter's native representation. */
+  requestFormat?: import('./call-config.ts').LlmRequestFormat
   /** Registered provider route selecting the adapter instance. */
   provider: string
   model: string
@@ -749,6 +753,8 @@ interface LlmModelDiscoveryRequest {
  * a surface adopting one of these still owes the capacities its adapter needs.
  */
 interface LlmDiscoveredModel {
+  /** Adapter protocol known from the installed catalog or the explicitly requested endpoint protocol. */
+  api?: string
   /** Model id the endpoint accepts. */
   id: string
   /** Human-readable name when the endpoint supplies one. */
@@ -792,6 +798,19 @@ interface LlmCallControls {
 interface LlmCallConfig extends LlmCallControls {
   provider: string
   model: string
+  /** Adapter-owned serialization instructions captured with the request header. */
+  requestFormat?: LlmRequestFormat
+}
+```
+
+`requestFormat` 在请求头记录所选适配器的序列化指令。准备请求时，用捕获模型的当前格式替换旧请求头中的格式，原生调用则清除此字段；已准备的调用不受后续配置变化影响。
+
+```ts type-equiv
+/** Versioned, logged instructions for an adapter's text-based tool protocol. */
+interface LlmRequestFormat {
+  id: string
+  version: number
+  instructions: string
 }
 ```
 
