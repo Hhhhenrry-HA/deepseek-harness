@@ -96,9 +96,9 @@ jobs:
           $notes = @"
           ## Windows x64 安装
 
-          新增模型级 JSON 工具兼容模式：在“设置 → 模型 → 模型选项 → 工具调用”选择“JSON 兼容”，让不支持原生工具调用的 Chat Completions 接口也能使用工具。默认仍为原生模式。
+          Exa 联网作为 fork 内置功能统一提供。升级时自动清理旧独立 Exa 插件的安装记录与本地文件，并清理没有其他插件依赖的旧版 Exa 底层包；已有搜索设置与密钥保持不变，不再需要单独安装 Exa 插件。
 
-          沿用现有工具权限和 API 重试机制；无效或未完成的 JSON 不执行工具。保留 Exa 联网、消息编辑重发、最后一轮重新生成和自定义思考等级。
+          编辑重发与重新生成仅限最后一轮，不再允许从更早的消息重发并删除后续对话。保留模型级 JSON 工具兼容模式、自定义思考等级及现有工具权限与 API 重试机制。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -113,7 +113,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · JSON 工具兼容模式" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 内置 Exa 清理与最后一轮重发" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

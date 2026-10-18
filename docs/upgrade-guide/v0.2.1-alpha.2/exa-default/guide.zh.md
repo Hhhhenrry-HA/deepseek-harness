@@ -9,7 +9,7 @@ description: "fork 以内置 Exa 搜索替换 DeepSeek 搜索提供方和独立 
 
 ## 变更
 
-fork 中基于基础包的配置使用 Exa 联网搜索。加载配置时会自动退役旧独立包 `@hhhhenrry-ha/dsh-exa-search`：只移除其已选包条目，不删除已安装文件。现有 `web-search-exa` 设置与 `EXA_API_KEY` 凭据沿用原有标识。DeepSeek 聊天密钥不能启用 Exa 搜索。
+fork 中基于基础包的配置使用 Exa 联网搜索。加载配置时会自动清理旧独立包 `@hhhhenrry-ha/dsh-exa-search` 的选中条目、依赖、包管理记录和本地插件文件，早已取消选中的安装也会清理。其他包与外部源码目录保持不变。现有 `web-search-exa` 设置与 `EXA_API_KEY` 凭据沿用原有标识。DeepSeek 聊天密钥不能启用 Exa 搜索。
 
 ## 迁移
 

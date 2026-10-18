@@ -32,6 +32,7 @@ import { evaluatePluginCompatibility, pluginCompatibilityWarning } from './plugi
 import { readProfileVersionExemptions } from './profile-compatibility.ts'
 import { loadOverlayPatches } from './index.ts'
 import { realModuleDirectory } from './profile-resolution/legacy-links.ts'
+import { RETIRED_EXA_ADDON, retireExaAddon } from './profile-retired-exa.ts'
 
 /** Directory under the Harness home holding every profile. */
 export const PROFILES_DIR = 'profiles'
@@ -205,7 +206,7 @@ const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
  */
 const RETIRED_BUNDLES: ReadonlySet<string> = new Set([
   // The fork ships Exa directly and retains the same settings namespace and credential reference.
-  '@hhhhenrry-ha/dsh-exa-search',
+  RETIRED_EXA_ADDON,
   // The Web composition mounts Schedule itself
   // ([upgrade guide](../../../../docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.md)).
   '@deepseek-ai/dsh-experimental-schedule-bundle',
@@ -671,14 +672,14 @@ function normalizeShippedProfile(name: string, dir: string, manifest: ProfileMan
 }
 
 /**
- * Remove {@link RETIRED_BUNDLES} from a profile's bundle list, writing the
- * manifest back only when it listed one.
+ * Remove retired bundle selections and the standalone Exa installation, preserving user settings and credentials.
  */
 function dropRetiredBundles(dir: string, manifest: ProfileManifest): ProfileManifest {
   const bundles = manifest.dsh?.profile?.bundles ?? []
   const kept = bundles.filter(bundle => !RETIRED_BUNDLES.has(bundle))
-  if (kept.length === bundles.length) return manifest
-  const normalized = withBundles(manifest, kept)
+  const migrated = retireExaAddon(dir, manifest)
+  if (kept.length === bundles.length && migrated === manifest) return manifest
+  const normalized = kept.length === bundles.length ? migrated : withBundles(migrated, kept)
   writeProfileManifest(dir, normalized)
   return normalized
 }
@@ -730,8 +731,9 @@ export function resolveBundleDir(
  * Load an already initialized profile directory without resolving it through
  * the shared Harness home. This is used by application-owned profiles whose
  * package project and lifecycle belong to that application.
- * Retired bundles are removed from the stored bundle list first, rewriting the
- * manifest when it listed one. Unreadable bundles, and bundles whose own dsh requirements the profile does not exempt, are skipped
+ * Retired bundles are removed first, including the standalone Exa dependency and its local installation.
+ * User settings and credentials are unchanged; cleanup errors propagate for retry.
+ * Unreadable bundles, and bundles whose own dsh requirements the profile does not exempt, are skipped
  * without changing the manifest and listed in `skippedBundles`; nothing is printed.
  * @param binName - the diagnostic prefix on thrown errors.
  * @param dir - absolute profile package directory.

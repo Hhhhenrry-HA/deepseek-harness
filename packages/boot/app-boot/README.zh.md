@@ -49,7 +49,7 @@ Profile 与组合包的声明类型从 [`@deepseek-ai/dsh-package-manifest`](../
 
 profile 是同一套 dsh 安装提供不同应用界面的方式：`web`、`headless`、`acp`、`sdk` 与 `sdk-minimal` 从同一 launcher 启动不同组合。profile 位于 `$DSH_HOME/profiles/<name>`，由可安装组合包和自身 `cordis.patch.yml` 组成。组合包的 `dsh.bundle.patch` 指定一个 patch 文件或一个有序的文件列表；`bundlePatchFiles` 校验该声明，`bundlePatchPaths` 把它解析为绝对路径；该层按此顺序拼接各文件的 patch 列表。YAML 组合决定是否启用 HMR。随产品交付的 `web` 模板实时重载，其他随附模板只在启动时应用 patch。`sdk-minimal` 只列出自身的独立组合包，其他模板保留 base 加模式的组合包栈。`dsh --profile <name> --from-default-profile <template>` 从一个随附模板，在非内置名称处创建或替换自定义 profile；`dsh plugin` 则初始化以 base 为基础的 profile，并管理其中安装的组合包。组合包解析、manifest 读取或 patch 加载失败时会跳过该组合包，不改变其选择状态；加载结果在 `skippedBundles` 中列出每个被跳过的组合包，启动器每次启动时通过 `reportSkippedBundles` 输出一次。其余组合包保持原顺序；profile 和用户 patch 错误仍会导致启动失败。跳过组合包不保证剩余组合能够提供所需服务。由应用持有的 npm 项目（例如 Electron 保留的 Desktop profile）通过 `loadProfileDirectory` 加载已经初始化的目录，而不会将它暴露给 CLI profile 查找。
 
-加载 profile 时会移除已退役组合包的选中条目，不改变用户补丁、凭据或已安装的包文件。fork 的基础包已经提供 Exa 搜索与设置页，因此会退役独立 Exa 插件；详见 [Exa 升级说明](../../../docs/upgrade-guide/v0.2.1-alpha.2/exa-default/guide.zh.md)。
+加载 profile 时会移除已退役组合包的选中条目。fork 还会清理独立 Exa 插件的依赖、包管理记录、安装条目及其 `addons/exa-search` 本地源码，即使它早已取消选中。仅在没有其他包依赖时才会清理其旧版搜索提供方，避免孤立副本遮蔽内置 Exa。其他包、用户补丁和凭据保持不变，外部源码目录不会被删除。清理无需联网，错误会向上抛出以供重试。基础包直接提供 Exa 及其设置页；详见 [Exa 升级说明](../../../docs/upgrade-guide/v0.2.1-alpha.2/exa-default/guide.zh.md)。
 
 profile 导入插件前，DSH 会检查其 `peerDependencies` 中对 `@deepseek-ai/dsh` 和 `@deepseek-ai/dsh-*` 的依赖，与 `getDshRuntimeVersion()` 返回的唯一运行时版本比较。每个声明的版本范围都必须匹配；预发布版本参与范围匹配。源码工作区的 `workspace:^`、`workspace:~` 和 `workspace:*` 指向同一个运行时。未声明 DSH peer 时不施加版本约束；无效范围视为不兼容。这些检查使用 peer 声明，而不是 `engines.dsh`，也不是防范恶意包代码的沙箱。
 

@@ -33,6 +33,8 @@ import {
   type RuntimeResolution,
 } from '../src/index.ts'
 import { installRuntimeInterception } from '../src/profile-resolution/resolver.ts'
+import { readProfilePlugins } from '../src/profile-plugins.ts'
+import { dump, load } from 'js-yaml'
 
 const tempRoots: string[] = []
 afterAll(() => {
@@ -397,7 +399,11 @@ describe('loadProfile', () => {
       const patchPath = join(dir, 'cordis.patch.yml')
       const patch = '- id: web-search-exa\n  config:\n    apiKeyEnv: USER_EXA_KEY\n    baseURL: https://search.example.test\n'
       writeFileSync(patchPath, patch)
-      writeProfileManifest(dir, { ...readProfileManifest('t', dir), dependencies: { 'custom-bundle': '^1.0.0' } })
+      writeProfileManifest(dir, {
+        ...readProfileManifest('t', dir),
+        dependencies: { 'custom-bundle': '^1.0.0',
+          ...retired === '@hhhhenrry-ha/dsh-exa-search' ? { [retired]: 'file:addons/exa-search' } : {} },
+      })
       const profile = loadProfileDirectory('t', dir, anchor)
       expect(profile.skippedBundles).toEqual([])
       expect(profile.layers.map(layer => layer.packageName)).toEqual(['@deepseek-ai/dsh-base', 'custom-bundle'])
@@ -410,6 +416,109 @@ describe('loadProfile', () => {
       loadProfileDirectory('t', dir, anchor)
       expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(migrated)
     })
+
+  it('cleans an already deselected Exa addon without losing settings, credentials or unrelated packages', () => {
+    const retired = '@hhhhenrry-ha/dsh-exa-search'
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-base': { patch: '[]\n' } })
+    const dir = join(tmp(), 'desktop')
+    initProfile(dir, ['@deepseek-ai/dsh-base'])
+    writeProfileManifest(dir, { ...readProfileManifest('t', dir), dependencies: {
+      [retired]: 'file:addons\\exa-search', 'custom-plugin': '^1.0.0',
+    } })
+    const source = join(dir, 'addons', 'exa-search')
+    const installed = join(dir, 'node_modules', retired)
+    const oldProvider = '@deepseek-ai/dsh-web-search-exa'
+    const providerPath = join(dir, 'node_modules', oldProvider)
+    const virtual = join(dir, 'node_modules', '.pnpm', '@hhhhenrry-ha+dsh-exa-search@file+addons+exa-search')
+    const custom = join(dir, 'node_modules', 'custom-plugin')
+    for (const path of [source, installed, virtual, custom, providerPath]) mkdirSync(path, { recursive: true })
+    writeFileSync(join(providerPath, 'package.json'), JSON.stringify({ name: oldProvider, version: '0.2.0-rc.2' }))
+    writeFileSync(join(source, 'package.json'), JSON.stringify({ name: retired }))
+    writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: retired, version: '0.1.0' }))
+    writeFileSync(join(custom, 'package.json'), JSON.stringify({ name: 'custom-plugin', version: '1.0.0' }))
+    const patchPath = join(dir, 'cordis.patch.yml')
+    const patch = '- id: web-search-exa\n  config:\n    apiKeyEnv: USER_EXA_KEY\n'
+    const credentials = join(dir, '.credentials.yaml')
+    writeFileSync(patchPath, patch)
+    writeFileSync(credentials, 'USER_EXA_KEY: test-only-key\n')
+    const oldKey = `${retired}@file:addons/exa-search`
+    const retained = { 'custom-plugin@1.0.0': { resolution: { integrity: 'test-integrity' } } }
+    const lock = {
+      lockfileVersion: '9.0',
+      importers: { '.': { dependencies: { [retired]: { specifier: 'file:addons\\exa-search' },
+        'custom-plugin': { specifier: '^1.0.0', version: '1.0.0' } } } },
+      packages: { [oldKey]: {}, [`${oldProvider}@0.2.0-rc.2`]: {}, ...retained },
+      snapshots: { [oldKey]: { dependencies: { [oldProvider]: '0.2.0-rc.2' } },
+        [`${oldProvider}@0.2.0-rc.2`]: {}, ...retained },
+    }
+    const lockPaths = [join(dir, 'pnpm-lock.yaml'), join(dir, 'node_modules', '.pnpm', 'lock.yaml')]
+    for (const path of lockPaths) writeFileSync(path, dump(lock))
+    const metadataPath = join(dir, 'node_modules', '.modules.yaml')
+    writeFileSync(metadataPath, dump({ nodeLinker: 'hoisted', hoistedLocations: { [oldKey]: [installed], ...retained } }))
+
+    loadProfileDirectory('t', dir, anchor)
+
+    const inventory = readProfilePlugins({ binName: 't', profileDir: dir, installAnchor: anchor })
+    expect(inventory.manifest.dependencies).toEqual({ 'custom-plugin': '^1.0.0' })
+    expect(inventory.dependencies.map(plugin => plugin.name)).toEqual(['custom-plugin'])
+    for (const path of [source, installed, virtual, providerPath]) expect(existsSync(path)).toBe(false)
+    expect(existsSync(custom)).toBe(true)
+    expect(readFileSync(patchPath, 'utf8')).toBe(patch)
+    expect(readFileSync(credentials, 'utf8')).toBe('USER_EXA_KEY: test-only-key\n')
+    for (const path of lockPaths) {
+      expect(load(readFileSync(path, 'utf8'))).toEqual({ ...lock,
+        importers: { '.': { dependencies: { 'custom-plugin': { specifier: '^1.0.0', version: '1.0.0' } } } },
+        packages: retained, snapshots: retained,
+      })
+    }
+    expect(load(readFileSync(metadataPath, 'utf8'))).toEqual({ nodeLinker: 'hoisted', hoistedLocations: retained })
+    const files = [join(dir, 'package.json'), ...lockPaths, metadataPath]
+    const saved = files.map(path => readFileSync(path, 'utf8'))
+    loadProfileDirectory('t', dir, anchor)
+    expect(files.map(path => readFileSync(path, 'utf8'))).toEqual(saved)
+  })
+
+  it('preserves an old Exa provider still required by another installed plugin', () => {
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-base': { patch: '[]\n' } })
+    const dir = join(tmp(), 'desktop')
+    initProfile(dir, ['@deepseek-ai/dsh-base', '@hhhhenrry-ha/dsh-exa-search'])
+    const name = '@deepseek-ai/dsh-web-search-exa'
+    const provider = join(dir, 'node_modules', name)
+    mkdirSync(provider, { recursive: true })
+    writeFileSync(join(provider, 'package.json'), JSON.stringify({ name, version: '0.2.0-rc.2' }))
+    const lockPath = join(dir, 'pnpm-lock.yaml')
+    const lock = dump({ snapshots: { 'custom-plugin@1.0.0': { dependencies: { [name]: '0.2.0-rc.2' } } } })
+    writeFileSync(lockPath, lock)
+    loadProfileDirectory('t', dir, anchor)
+    expect(existsSync(join(provider, 'package.json'))).toBe(true)
+    expect(readFileSync(lockPath, 'utf8')).toBe(lock)
+    expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base'])
+  })
+
+  it('unlinks an external Exa source without deleting it or modifying external package-manager files', () => {
+    const retired = '@hhhhenrry-ha/dsh-exa-search'
+    const anchor = stageInstallation({ '@deepseek-ai/dsh-base': { patch: '[]\n' } })
+    const dir = join(tmp(), 'desktop')
+    initProfile(dir, ['@deepseek-ai/dsh-base', retired])
+    const outside = tmp()
+    const source = join(outside, 'exa-search')
+    const modules = join(outside, 'node_modules')
+    mkdirSync(source)
+    mkdirSync(modules)
+    writeFileSync(join(source, 'package.json'), JSON.stringify({ name: retired }))
+    const metadata = join(modules, '.modules.yaml')
+    const content = dump({ hoistedLocations: { [`${retired}@0.1.0`]: [] } })
+    writeFileSync(metadata, content)
+    mkdirSync(join(dir, 'addons'))
+    symlinkSync(source, join(dir, 'addons', 'exa-search'), 'junction')
+    symlinkSync(modules, join(dir, 'node_modules'), 'junction')
+
+    loadProfileDirectory('t', dir, anchor)
+
+    expect(existsSync(join(dir, 'addons', 'exa-search'))).toBe(false)
+    expect(existsSync(join(source, 'package.json'))).toBe(true)
+    expect(readFileSync(metadata, 'utf8')).toBe(content)
+  })
 
   it.each(['missing package', 'invalid manifest', 'not a bundle', 'missing patch', 'invalid patch'])(
     'skips a bundle with %s, retains selections, and retries it on reread', async (failure) => {

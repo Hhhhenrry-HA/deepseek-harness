@@ -9,7 +9,7 @@ English | [中文](guide.zh.md)
 
 ## Change
 
-The fork's base-backed profiles use Exa for web search. The old standalone `@hhhhenrry-ha/dsh-exa-search` bundle is retired automatically when a profile loads. Its installed files are left untouched; its selected bundle entry is removed. Existing `web-search-exa` settings and `EXA_API_KEY` credentials retain their identities. DeepSeek chat credentials do not enable Exa search.
+The fork's base-backed profiles use Exa for web search. When a profile loads, it automatically removes the old standalone `@hhhhenrry-ha/dsh-exa-search` bundle selection, dependency, package-manager records and local addon files, including already deselected installations. Unrelated packages and external source directories remain untouched. Existing `web-search-exa` settings and `EXA_API_KEY` credentials retain their identities. DeepSeek chat credentials do not enable Exa search.
 
 ## Migration
 
