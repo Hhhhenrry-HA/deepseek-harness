@@ -321,14 +321,22 @@ export function PendingSubmissionBubble({ submission, loadImage, renderFactorySl
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderFactorySlot, loadImage, t, useAccess, useSession, sessionId, restartMessage,
+  node, renderFactorySlot, loadImage, t, useAccess, useSession, useChat, sessionId, restartMessage,
 }: ChatNodeViewProps<'user' | 'steering'> & InjectFace<MessageRestartInjected>) {
   const data = node.data
   const [draft, setDraft] = useState<string | null>(null)
   const running = useSession(snapshot => snapshot.running || snapshot.pendingSubmissions.length > 0)
   const restart = useMessageRestart(restartMessage)
   const allowed = useAccess('session/restart')
-  const disabled = !allowed || running || restart.pending
+  const latestInput = useChat((snapshot) => {
+    const turn = snapshot.timeline.turnOrder.at(-1)
+    if ((node.location.kind !== 'turn' && node.location.kind !== 'step') || node.location.turn.turn !== turn) return false
+    return turn !== undefined && snapshot.locations.getTurn(turn).findLast((key) => {
+      const candidate = snapshot.nodes.get(key)
+      return candidate?.kind === 'user' || candidate?.kind === 'steering'
+    }) === node.key
+  })
+  const disabled = !allowed || !latestInput || running || restart.pending
   const save = (): void => {
     if (draft === null || disabled || (draft.trim() === '' && data.content.every(block => block.type === 'text'))) return
     void restart.submit({ sessionId, seq: data.seq, action: { kind: 'edit', text: draft } })
@@ -354,7 +362,7 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
           time={data.time}
           clock="start"
           className={css.actions}
-          onEdit={allowed && draft === null ? () => { setDraft(text) } : undefined}
+          onEdit={allowed && latestInput && draft === null ? () => { setDraft(text) } : undefined}
           restartUnavailable={disabled}
           t={t}
         />

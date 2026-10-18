@@ -23,19 +23,27 @@ beforeEach(() => {
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
-function user(restartMessage: MessageRestartInjected['restartMessage'], running = false) {
+function user(restartMessage: MessageRestartInjected['restartMessage'], running = false, latest = true) {
   const renderContent = createUserContentFixture()
   const renderFactorySlot: ChatNodeViewProps['renderFactorySlot'] = (name, input) => {
     if (name !== 'conversation.chat.user.content') throw new Error('Unexpected user content factory')
     return renderContent(input as UserContentInput, () => null, t)
   }
+  const { timeline } = chatSnapshotFixture({ nodes: [], turnEnds: new Map([[1, 6]]) })
+  const node: ChatNodeViewProps<'user'>['node'] = {
+    key: 'user:2', id: '2', kind: 'user', target: 'chat', anchorSeq: 2,
+    visibility: 'visible', location: { kind: 'turn', turn: timeline.turns.get(1)! },
+    data: { kind: 'user', seq: 2, time: 0, content: [{ type: 'text', text: 'original' }], source: { kind: 'user' } },
+  }
+  const snapshot = new ChatSnapshotBuilder().replace({ timeline, nodes: latest ? [node] : [node, {
+    ...node, key: 'user:4', id: '4', anchorSeq: 4, data: { ...node.data, seq: 4 },
+  }] })
   const props: Partial<ChatNodeViewProps<'user'>> = {
-    node: { key: 'user:2', id: '2', kind: 'user', target: 'chat', anchorSeq: 2,
-      visibility: 'visible', location: { kind: 'session' },
-      data: { kind: 'user', seq: 2, time: 0, content: [{ type: 'text', text: 'original' }], source: { kind: 'user' } } },
+    node,
     sessionId: SessionId('test'), renderFactorySlot, loadImage: unusedImageLoader, openFile: vi.fn(), t,
     useAccess: () => true,
     useSession: select => select({ running, pendingSubmissions: [] } as never),
+    useChat: select => select(snapshot),
   }
   return <UserMessageNodeView {...props as ChatNodeViewProps<'user'>} restartMessage={restartMessage} />
 }
@@ -70,6 +78,19 @@ describe('message restart actions', () => {
     render(user(vi.fn(async () => null), true))
     fireEvent.click(screen.getByRole('button', { name: t('message.edit') }))
     expect(screen.queryByRole('textbox')).toBeNull()
+  })
+
+  it('removes editing and disables an open draft when a newer user message arrives', () => {
+    const restart = vi.fn(async () => null)
+    const view = render(user(restart))
+    fireEvent.click(screen.getByRole('button', { name: t('message.edit') }))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'draft' } })
+    view.rerender(user(restart, false, false))
+    fireEvent.click(screen.getByRole('button', { name: t('message.resend') }))
+    expect(restart).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: t('message.cancelEdit') }))
+    expect(screen.queryByRole('button', { name: t('message.edit') })).toBeNull()
+    expect(screen.getByText('original')).toBeTruthy()
   })
 
   it('offers regeneration only for the latest closed human turn, including one without an answer', async () => {

@@ -82,6 +82,12 @@ export async function restartSession(
       || !session.surface.nodes.includes(input.seq)) {
         throw new RemoteError('session/restart-unavailable', 'This message is no longer in the active conversation.', {})
       }
+      if (request.action.kind === 'edit' && session.surface.nodes.findLast((seq) => {
+        const event = current.events[seq]
+        return event?.type === 'user/message' && event.data.source.kind === 'user'
+      }) !== input.seq) {
+        throw new RemoteError('session/restart-unavailable', 'Only the latest human message can be edited.', {})
+      }
       const content: UserMessage['content'] = request.action.kind === 'retry'
         ? [...(unadmitted ?? input.data).content]
         : [{ type: 'text', text: request.action.text }, ...input.data.content.filter(block => block.type !== 'text')]

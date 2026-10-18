@@ -343,11 +343,11 @@ export interface SessionForkValue {
   readonly sessionId: SessionId
 }
 
-/** Edit one active human input, or regenerate only the latest closed turn. */
+/** Edit only the latest active human input, or regenerate only the latest closed turn. */
 export interface SessionRestartRequest {
   readonly sessionId: SessionId
   readonly requestId: SessionRequestId
-  /** User-message sequence for edits; turn/end sequence for regeneration. */
+  /** Latest human user-message sequence for edits; latest turn/end sequence for regeneration. */
   readonly seq: number
   readonly action: { readonly kind: 'edit'; readonly text: string } | { readonly kind: 'retry' }
 }

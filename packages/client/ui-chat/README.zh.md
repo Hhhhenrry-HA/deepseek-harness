@@ -77,7 +77,7 @@ Assistant 尝试结束且没有可见消息时，Chat 隐藏已发布的 Node，
 <a id="completed-turn-footer"></a>
 ## 已完成轮次的页脚
 
-人类消息支持行内编辑，提供取消与保存并重发，原附件保留。只有最新已结束的人类轮次提供重新生成，包括回答失败与重发准备失败。运行期间禁用这两项操作。提交失败保留草稿，并在旁边显示恢复提示。Chat 仅在替换输入被接纳后隐藏被替换的后续内容；Trajectory 保留原始事件。[Session Controller](../../api/session-controller/README.zh.md#use-this-package) 持有接纳、去重与失败语义。
+只有最新轮次中的最后一条人类消息支持行内编辑，提供取消与保存并重发，原附件与更早的问答保持不变。只有最新已结束的人类轮次提供重新生成，包括回答失败与重发准备失败。运行期间禁用这两项操作。提交失败保留草稿，并在旁边显示恢复提示。Chat 仅在替换输入被接纳后隐藏被替换的后续内容；Trajectory 保留原始事件。[Session Controller](../../api/session-controller/README.zh.md#use-this-package) 持有接纳、去重与失败语义。
 
 产物扩展可通过 `ChatNodeStore.turnDataSource` 订阅一个 Turn 中指定类型的节点数据。来源包含隐藏节点，并按锚点顺序提供其业务数据。成员关系增量更新；只有被订阅的集合才生成有序数组，其他 Turn 或类型的更新不通知该集合。
 

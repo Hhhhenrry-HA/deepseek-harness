@@ -48,7 +48,7 @@ async function harness() {
   let serial = 0
   const restart = (seq: number, action: SessionRestartRequest['action'], id = `restart-${++serial}`) =>
     controller.restart({ sessionId: agent.id, requestId: id as SessionRequestId, seq, action }, new AbortController().signal)
-  const userSeq = () => agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'user')!.seq
+  const userSeq = () => agent.session.snapshotEvents().findLast(event => event.type === 'user/message' && event.data.source.kind === 'user')!.seq
   const endSeq = () => agent.session.snapshotEvents().findLast(event => event.type === 'turn/end')!.seq
   return { ctx, agent, adapter, send, restart, userSeq, endSeq }
 }
@@ -91,7 +91,7 @@ describe('same-session restart', () => {
     expect(adapter.requests).toHaveLength(2)
   })
 
-  it('editing replaces the old suffix only at request admission and replay derives the same branch', async () => {
+  it('editing the latest input preserves earlier exchanges and replay derives the same branch', async () => {
     const { agent, adapter, send, restart, userSeq } = await harness()
     await send('original')
     await send('later prompt')
@@ -99,9 +99,10 @@ describe('same-session restart', () => {
     await agent.whenIdle()
     const payload = JSON.stringify(adapter.requests.at(-1)?.messages)
     expect(payload).toContain('edited')
-    expect(payload).not.toContain('original')
+    expect(payload).toContain('original')
     expect(payload).not.toContain('later prompt')
-    expect(payload).not.toContain('reply-')
+    expect(payload).toContain('reply-1')
+    expect(payload).not.toContain('reply-2')
     expect(agent.session.snapshotEvents().some(event => event.type === 'user/message'
       && JSON.stringify(event.data.content).includes('original'))).toBe(true)
     const restored = Session.create(agent.id, agent.session.snapshotEvents(), agent.session.header)
@@ -123,16 +124,23 @@ describe('same-session restart', () => {
   })
 
   it('rejects old tails, retired inputs, queued work and malformed coordinates without recording a restart', async () => {
-    const { agent, send, restart, userSeq, endSeq } = await harness()
+    const { agent, adapter, send, restart, userSeq, endSeq } = await harness()
     await send('first')
     const oldEnd = endSeq()
     const oldUser = userSeq()
     await send('second')
+    const before = agent.session.snapshotEvents()
+    const messages = agent.session.deriveMessages()
     await expect(restart(oldEnd, { kind: 'retry' })).rejects.toMatchObject({ code: 'session/restart-unavailable' })
+    await expect(restart(oldUser, { kind: 'edit', text: 'replacement' })).rejects.toMatchObject({ code: 'session/restart-unavailable' })
     await expect(restart(-1, { kind: 'retry' })).rejects.toMatchObject({ code: 'gateway/bad-request' })
-    await restart(oldUser, { kind: 'edit', text: 'replacement' })
+    expect(agent.session.snapshotEvents()).toEqual(before)
+    expect(agent.session.deriveMessages()).toEqual(messages)
+    expect(adapter.requests).toHaveLength(2)
+    const latestUser = userSeq()
+    await restart(latestUser, { kind: 'edit', text: 'replacement' })
     await agent.whenIdle()
-    await expect(restart(oldUser, { kind: 'edit', text: 'again' })).rejects.toMatchObject({ code: 'session/restart-unavailable' })
+    await expect(restart(latestUser, { kind: 'edit', text: 'again' })).rejects.toMatchObject({ code: 'session/restart-unavailable' })
     agent.inject(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'pending' }] }))
     const count = agent.session.snapshotEvents().length
     await expect(restart(endSeq(), { kind: 'retry' })).rejects.toMatchObject({ code: 'session/agent-busy' })

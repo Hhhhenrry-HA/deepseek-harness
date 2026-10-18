@@ -38,7 +38,7 @@ describe('web message edit and last-turn regeneration', () => {
     await scaffold?.close()
   })
 
-  it('edits an earlier input, retries only the last response, and keeps the branch after reload', async () => {
+  it('edits only the latest input, retries only the last response, and preserves earlier exchanges after reload', async () => {
     const send = async (text: string) => {
       const settled = scaffold.whenTurnSettled()
       await page.locator('[data-composer-input]').first().fill(text)
@@ -47,7 +47,7 @@ describe('web message edit and last-turn regeneration', () => {
     }
     await send('original question')
     await send('later question')
-    await expect.poll(() => page.getByRole('button', { name: 'Edit message', exact: true }).count()).toBe(2)
+    await expect.poll(() => page.getByRole('button', { name: 'Edit message', exact: true }).count()).toBe(1)
     expect(await page.getByRole('button', { name: 'Regenerate', exact: true }).count()).toBe(1)
     await page.getByRole('button', { name: 'Edit message', exact: true }).first().click()
     await page.getByRole('textbox', { name: 'Edit message', exact: true }).fill('edited question')
@@ -61,7 +61,9 @@ describe('web message edit and last-turn regeneration', () => {
     await expect.poll(() => page.getByRole('button', { name: 'Edit message', exact: true }).count()).toBe(1)
     await expect.poll(() => page.getByText('EDITED_REPLY', { exact: true }).isVisible()).toBe(true)
     expect(JSON.stringify(requests[2]?.messages)).toContain('edited question')
-    expect(JSON.stringify(requests[2]?.messages)).not.toMatch(/original question|later question|FIRST_REPLY|LATER_REPLY/)
+    expect(JSON.stringify(requests[2]?.messages)).toMatch(/original question/)
+    expect(JSON.stringify(requests[2]?.messages)).toMatch(/FIRST_REPLY/)
+    expect(JSON.stringify(requests[2]?.messages)).not.toMatch(/later question|LATER_REPLY/)
 
     settled = scaffold.whenTurnSettled()
     await page.getByRole('button', { name: 'Regenerate', exact: true }).click()
@@ -80,7 +82,7 @@ describe('web message edit and last-turn regeneration', () => {
     expect(await page.getByRole('button', { name: 'Regenerate', exact: true }).count()).toBe(1)
     expect(scaffold.ctx.agents.get(sessionId)?.session.deriveMessages().filter(message => message.role !== 'system')
       .flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : []))
-      .filter(text => /question|_REPLY/.test(text))).toEqual(['edited question', 'RECOVERED_REPLY'])
+      .filter(text => /question|_REPLY/.test(text))).toEqual(['original question', 'FIRST_REPLY', 'edited question', 'RECOVERED_REPLY'])
     await page.screenshot({ path: join(shots, 'recovered-dark.png') })
   })
 })

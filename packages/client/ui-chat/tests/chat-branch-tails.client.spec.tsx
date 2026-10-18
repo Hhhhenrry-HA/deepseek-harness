@@ -24,6 +24,7 @@ import { useSearchableHidden } from '../src/client/chat/searchable-hidden.ts'
 import { ActivityPill, UsagePill, type StatPillProps } from '../src/client/chat/StatsPills.tsx'
 import { zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
+import { ChatSnapshotBuilder } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
 
 afterEach(() => {
   cleanup()
@@ -37,12 +38,6 @@ let renderUserContent: ReturnType<typeof createUserContentFixture>
 beforeEach(() => { renderUserContent = createUserContentFixture() })
 const RETRY_ID = 'retry-fixture' as Extract<ConversationNode, { kind: 'model-retry' }>['retryId']
 
-// Recency scans the whole transcript; a detached fixture is its own latest row.
-const useDetachedChat: ChatNodeViewProps['useChat'] = bindSnapshotSelector({
-  subscribe: () => () => {},
-  getSnapshot: () => ({ order: [], nodes: new Map() }),
-} as never)
-
 interface MessageItemProps {
   readonly node: ConversationNode
   readonly t: ChatNodeViewProps['t']
@@ -53,13 +48,14 @@ interface MessageItemProps {
 /** Legacy-node fixture adapter for the independently registered renderers. */
 function MessageItem({ node, t: translate, referenceLabels, skillNames }: MessageItemProps) {
   const kind = node.kind === 'assistant' ? 'assistant-step' : node.kind
+  const { timeline } = chatSnapshotFixture({ nodes: [], turnEnds: new Map([[1, node.seq + 1]]) })
   const viewNode: ChatConversationViewNode = {
     key: `fixture:${node.kind}:${node.seq}`,
     kind,
     id: String(node.seq),
     target: 'chat',
     anchorSeq: node.seq,
-    location: { kind: 'session' },
+    location: { kind: 'turn', turn: timeline.turns.get(1)! },
     visibility: 'visible',
     data: node.kind === 'model-retry'
       ? { attempts: [node], current: node }
@@ -75,9 +71,10 @@ function MessageItem({ node, t: translate, referenceLabels, skillNames }: Messag
     if (name !== 'conversation.chat.user.content') throw new Error(`Unexpected user Factory: ${name}`)
     return renderUserContent(input as UserContentInput, renderUserImages, translate)
   }
+  const snapshot = new ChatSnapshotBuilder().replace({ nodes: [viewNode], timeline })
   const props: Partial<Omit<ChatNodeViewProps, 'node'>> & { node: ChatConversationViewNode } = {
     node: viewNode, t: translate, loadImage: unusedImageLoader, renderFactorySlot: renderUserFactory,
-    openFile: vi.fn(), useChat: useDetachedChat,
+    openFile: vi.fn(), useChat: select => select(snapshot),
   }
   switch (node.kind) {
     case 'user':
