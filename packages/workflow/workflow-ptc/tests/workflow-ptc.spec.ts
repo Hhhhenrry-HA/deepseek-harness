@@ -234,7 +234,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         reply: () => ({ output: [], structured: { files: ['x.ts', 'y.ts'] }, stopReason: 'completed' }),
       })
       const result = await run(ctx, parent, scripted(`
-        const found = await agent('list files', { model: 'deepseek-v4-pro', schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' } } }, required: ['files'] } })
+        const found = await agent('list files', { model_tier: 'high', model: 'deepseek-v4-pro', schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' } } }, required: ['files'] } })
         return { first: found.files[0], count: found.files.length }
       `))
       expect(result.stopReason, result.error?.split('\n')[0]).toBe('completed')
@@ -245,6 +245,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         required: ['files'],
       })
       expect(provider.runs[0]!.request.agentOptions).toEqual({ model: 'deepseek-v4-pro' })
+      expect(provider.runs[0]!.request.modelTier).toBe('high')
       expect(provider.runs[0]!.request.parent).toBeDefined()
     })
 

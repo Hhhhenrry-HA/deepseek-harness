@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-19-subagent-model-tiers.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-19-subagent-model-tiers.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-19-subagent-model-tiers:
+  en: 50a7739d149287ed
+  zh: 2d30103a058da621
+/2026-10-19-subagent-model-tiers/summary:
+  en: 8a0cc92ecceaf7e6
+  zh: 80a792282f823a5a
+/2026-10-19-subagent-model-tiers/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-19-subagent-model-tiers/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-19-subagent-model-tiers/compatibility:
+  en: 4acb6a9926977196
+  zh: cc4786002a39652a
+/2026-10-19-subagent-model-tiers/verification:
+  en: 1572d42550783453
+  zh: a11c4f7e7d23619d
+/2026-10-19-subagent-model-tiers/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

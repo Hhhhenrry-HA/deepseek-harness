@@ -135,6 +135,16 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
+     * Resolve start-time policy before any child is created or billed.
+     * @param spec - requested child and its parent.
+     * @param next - delegates to the next policy and returns the resolved start.
+     * @mode waterfall
+     */
+    'subagent/prepare-start'(
+      this: Scoped<SubagentRuntime>, spec: SubagentActivationSpec,
+      next: () => Promise<SubagentActivationSpec>,
+    ): Promise<SubagentActivationSpec>
+    /**
      * A provider became resolvable in the registry.
      * @param provider - the registered provider.
      * @mode emit
@@ -211,6 +221,17 @@ export class SubagentRuntime extends TypertRemoteService {
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentManager(childCtx, {
+        prepareStart: async (spec) => {
+          const provider = this.expectProvider(spec.provider)
+          const resolved = await this.ctx.waterfall(
+            scopeTarget(this, spec.request.parent), 'subagent/prepare-start', spec, () => Promise.resolve(spec),
+          )
+          if (this.expectProvider(resolved.provider) !== provider) {
+            throw new SubagentError(`subagent provider "${resolved.provider}" changed while resolving the child LLM route; retry the delegation`, 'PROVIDER_CHANGED')
+          }
+          this.assertCapabilities(provider, { ...resolved.request, signal: resolved.signal })
+          return resolved
+        },
         startExternal: (name, request) => {
           const provider = this.expectProvider(name) as SubagentProvider & Required<Pick<SubagentProvider, 'start'>>
           return provider.start(request)

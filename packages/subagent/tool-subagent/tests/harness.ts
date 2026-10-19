@@ -37,14 +37,6 @@ type SetupConfig = tool.Config & {
   parentAgentOptions?: AgentOptions
 }
 
-const TEST_ALLOWED_MODELS = [
-  'allowed-model', 'child-model', 'configured-model', 'current-model', 'fast-model',
-  'other-model', 'parent-model', 'selected-model', 'unlisted-model',
-].flatMap(model => [
-  { provider: 'alpha', model },
-  { provider: 'current-provider', model },
-  { provider: 'missing', model },
-])
 
 export async function setup(toolConfig: SetupConfig, mockConfig: Partial<mock.Config> = {}): Promise<Context> {
   const ctx = ownContext(new Context())
@@ -52,7 +44,8 @@ export async function setup(toolConfig: SetupConfig, mockConfig: Partial<mock.Co
   if (withModelSelection === true) {
     await ctx.plugin(SubagentModelSelectionConfig, {
       enabled: true,
-      allowedModels: TEST_ALLOWED_MODELS,
+      mediumModel: { provider: 'alpha', model: 'child-model' },
+      reasoningEffort: null,
     })
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })

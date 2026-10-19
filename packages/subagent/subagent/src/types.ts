@@ -167,6 +167,10 @@ export interface SubagentStartRequest {
    * before initializing the separate child runtime.
    */
   readonly agentOptions?: AgentOptions
+  /** User-configured medium route by default; high explicitly follows the main Agent. */
+  readonly modelTier?: 'medium' | 'high'
+  /** Whether an omitted effort inherits a compatible parent effort; defaults to true. */
+  readonly inheritReasoningEffort?: boolean
   /**
    * Object-rooted JSON Schema within `assertObjectJsonSchema`'s enforced subset. Start rejects
    * unsupported schemas or providers without the capability. Data must be plain host-realm JSON;

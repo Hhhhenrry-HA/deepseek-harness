@@ -3,8 +3,8 @@
 // through the real wire down to `$DSH_HOME/cordis.patch.yml`, the override badge
 // and reset that layering produces, and a community bundle's row configuration
 // registered by its own browser half. Zero model calls: everything is client
-// state plus the settings document and the profile on a blank frame, so there
-// is no fixture and a stray stream would fail loud on the open llm seam.
+// state, the settings document, and a catalog-only replay fixture.
+// The fixture supplies reasoning metadata without model calls.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Locator, Page } from 'playwright'
@@ -37,6 +37,9 @@ describe('web e2e: plugin configuration pages', () => {
     scaffold = await launchWebScaffold({
       extraOverlayPath: fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
       exaSearch: { baseURL: 'https://unused.invalid', apiKeyEnv: 'DSH_PLUGIN_CONFIG_E2E_UNUSED_KEY' },
+      replayFixture: fileURLToPath(new URL('./fixtures/deepseek-model-label-1017/session.v4.jsonl', import.meta.url)),
+      replayProvidersOnly: true,
+      compareReplaySession: 'read-only',
       profile: { packages: [{ dir: join(FIXTURE_PLUGINS, 'fixture-live-client') }] },
     })
     browser = await chromium.launch()
@@ -207,18 +210,22 @@ describe('web e2e: plugin configuration pages', () => {
     expect(await depth.inputValue()).toBe('1')
   })
 
-  it('saves limits and the model allowlist together from the shared card', async () => {
+  it('saves limits and one medium model together from the shared card', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-subagent-model-selection'))
     const panel = await openPlugins()
     await openPage(panel, '子智能体')
-    const toggle = panel.getByRole('switch', { name: '允许 Agent 为子智能体选择模型' })
+    const toggle = panel.getByRole('switch', { name: '启用子智能体分级模型' })
 
     await panel.getByLabel('最大递归深度', { exact: true }).fill('2')
     await toggle.click()
-    const models = panel.getByRole('group', { name: 'Agent 可选择的模型' })
+    const models = panel.getByRole('group', { name: '中级 · 默认' })
     await models.waitFor({ timeout: 10_000 })
-    const firstModel = models.getByRole('checkbox').first()
+    const firstModel = models.getByRole('radio').first()
     await firstModel.check()
+    const secondModel = models.getByRole('radio').nth(1)
+    await secondModel.check()
+    expect(await models.getByRole('radio', { checked: true }).count()).toBe(1)
+    await panel.getByLabel('思考强度', { exact: true }).selectOption('low')
     const save = panel.getByRole('button', { name: '保存', exact: true })
     await save.click()
 
@@ -228,9 +235,16 @@ describe('web e2e: plugin configuration pages', () => {
     expect(saved).toContain('id: subagent-model-selection-settings')
     expect(saved).toContain('maxDepth: 2')
     expect(saved).toContain('enabled: true')
-    expect(saved).toContain('allowedModels:')
+    expect(saved).toContain('mediumModel:')
+    expect(saved).not.toContain('allowedModels:')
     expect(saved).toContain('provider:')
     expect(saved).toContain('model:')
+    expect(saved).toContain('reasoningEffort: low')
+    await openPlugins()
+    await openPage(panel, '子智能体')
+    expect(await models.getByRole('radio', { checked: true }).count()).toBe(1)
+    expect(await secondModel.isChecked()).toBe(true)
+    expect(await panel.getByLabel('思考强度', { exact: true }).inputValue()).toBe('low')
     await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: 5_000 }).toBe('true')
 
     await toggle.click()

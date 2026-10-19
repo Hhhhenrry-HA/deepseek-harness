@@ -48,6 +48,8 @@ An owning consumer may set `WorkflowStartRequest.subagentProvider` and lower `Wo
 
 The Node PTC provider's `maxPendingCalls` also limits workflow concurrency: child startup, result waits and disposal use those slots. Progress batches use at most one additional slot. Leave headroom when setting `maxConcurrentAgents`.
 
+The `agent()` hook accepts `model_tier: 'medium' | 'high'`. Omitted or null uses medium when [tiered subagent models](../../subagent/tool-subagent/README.md#selecting-a-child-llm) are enabled. The shared start policy also governs explicit provider/model options.
+
 ### Results and failures
 
 The script runs with top-level `await`; `meta` and `args` arrive as JSON data. Every `agent()` call starts a managed subagent Activation under the run's fixed parent and waits for its text or structured result. The workflow records its own members and collects their results without adding them to the parent's subagent catalog or sending child settlement notices to the parent model. The final lossless-JSON return value becomes the run result; an ordinary child failure resolves `agent()` to `null`.

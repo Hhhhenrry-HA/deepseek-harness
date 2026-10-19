@@ -100,6 +100,7 @@
                 config:
                   provider: fork
                   toolName: subagent_fork
+                  modelSelectionSettings: true
               - id: workflow-ptc
                 name: '@deepseek-ai/dsh-workflow-ptc'
                 config:

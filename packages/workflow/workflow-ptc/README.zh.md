@@ -48,6 +48,8 @@ kind: "package-reference"
 
 Node PTC 提供方的 `maxPendingCalls` 也限制工作流并发：子 agent 启动、结果等待与资源释放会占用这些名额。进度批次至多再占用一个名额。设置 `maxConcurrentAgents` 时应预留余量。
 
+`agent()` 支持 `model_tier: 'medium' | 'high'`。[子智能体分级模型](../../subagent/tool-subagent/README.zh.md#selecting-a-child-llm)启用时，省略或 null 使用中级。共享启动策略同样约束显式 provider/model 选项。
+
 ### 结果与失败
 
 脚本支持顶层 `await`；`meta` 和 `args` 作为 JSON 数据传入。每次 `agent()` 调用都会在本次运行的固定父 agent 下启动受管理的 subagent Activation，并等待其文本或结构化结果。工作流记录自己的成员并收集其结果，不向父级子代理目录添加条目，也不向父模型发送子 agent 结算通知。最终的无损 JSON 返回值成为运行结果；普通子 agent 失败使 `agent()` 以 `null` 兑现。

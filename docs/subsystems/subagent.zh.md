@@ -101,6 +101,10 @@ interface SubagentStartRequest {
    * before initializing the separate child runtime.
    */
   readonly agentOptions?: AgentOptions
+  /** User-configured medium route by default; high explicitly follows the main Agent. */
+  readonly modelTier?: 'medium' | 'high'
+  /** Whether an omitted effort inherits a compatible parent effort; defaults to true. */
+  readonly inheritReasoningEffort?: boolean
   /**
    * Object-rooted JSON Schema within `assertObjectJsonSchema`'s enforced subset. Start rejects
    * unsupported schemas or providers without the capability. Data must be plain host-realm JSON;
@@ -406,15 +410,24 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.subagentModelSelection` — `SubagentModelSelectionConfig`
 
-Singleton settings owner read when delegation tools are composed for a Session.
+Owns saved model settings, session snapshots, and pre-start route enforcement.
 
 ```ts cordis-catalog
 /**
- * Read a detached selection preference for the next eligible Session composition.
- * @returns the enabled state and exact allowed routes.
+ * Read the current configuration, converting a released single-entry allowlist at this boundary.
+ * @returns The enabled state, single medium route, and optional reasoning effort.
  */
 current(): SubagentModelSelectionSettings
+
+/**
+ * Read or capture one Session's policy; children inherit it and restored sessions keep it.
+ * @param session - target Session before its delegation definition is published.
+ * @returns the pinned medium model, effort, and enabled state.
+ */
+forSession(session: Session): SubagentModelTierPolicy
 ```
+
+Types: [Session](session.zh.md)
 
 Source: [`packages/subagent/tool-subagent/src/model-selection-settings.ts`](../../packages/subagent/tool-subagent/src/model-selection-settings.ts)
 
@@ -623,6 +636,26 @@ A published child settled. Scope-filtered dispatch uses the same delegating pare
  * @mode emit
  */
 'subagent/end'(this: Scoped<SubagentRuntime>, info: SubagentRunEndInfo): void
+```
+
+Types: [Scoped](scope.zh.md)
+
+Source: [`packages/subagent/subagent/src/index.ts`](../../packages/subagent/subagent/src/index.ts)
+
+<a id="subagentprepare-start--waterfall"></a>
+
+#### `subagent/prepare-start` — waterfall
+
+Resolve start-time policy before any child is created or billed.
+
+```ts cordis-catalog
+/**
+ * Resolve start-time policy before any child is created or billed.
+ * @param spec - requested child and its parent.
+ * @param next - delegates to the next policy and returns the resolved start.
+ * @mode waterfall
+ */
+'subagent/prepare-start'( this: Scoped<SubagentRuntime>, spec: SubagentActivationSpec, next: () => Promise<SubagentActivationSpec>, ): Promise<SubagentActivationSpec>
 ```
 
 Types: [Scoped](scope.zh.md)

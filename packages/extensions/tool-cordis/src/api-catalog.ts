@@ -3007,14 +3007,20 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'subagentModelSelection',
-    summary: 'Singleton settings owner read when delegation tools are composed for a Session.',
-    description: 'Singleton settings owner read when delegation tools are composed for a Session.',
+    summary: 'Owns saved model settings, session snapshots, and pre-start route enforcement.',
+    description: 'Owns saved model settings, session snapshots, and pre-start route enforcement.',
     methods: [
       {
         signature: 'current(): SubagentModelSelectionSettings',
-        description: 'Read a detached selection preference for the next eligible Session composition.',
+        description: 'Read the current configuration, converting a released single-entry allowlist at this boundary.',
         parameters: [],
-        returns: 'the enabled state and exact allowed routes.',
+        returns: 'The enabled state, single medium route, and optional reasoning effort.',
+      },
+      {
+        signature: 'forSession(session: Session): SubagentModelTierPolicy',
+        description: 'Read or capture one Session\'s policy; children inherit it and restored sessions keep it.',
+        parameters: [{ name: 'session', description: 'target Session before its delegation definition is published.' }],
+        returns: 'the pinned medium model, effort, and enabled state.',
       },
     ],
   },
@@ -4492,6 +4498,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'info', description: 'the run identity and terminal outcome.' }],
   },
   {
+    name: 'subagent/prepare-start',
+    mode: 'waterfall',
+    signature: '\'subagent/prepare-start\'( this: Scoped<SubagentRuntime>, spec: SubagentActivationSpec, next: () => Promise<SubagentActivationSpec>, ): Promise<SubagentActivationSpec>',
+    summary: 'Resolve start-time policy before any child is created or billed.',
+    description: 'Resolve start-time policy before any child is created or billed.',
+    parameters: [{ name: 'spec', description: 'requested child and its parent.' }, { name: 'next', description: 'delegates to the next policy and returns the resolved start.' }],
+  },
+  {
     name: 'subagent/provider-added',
     mode: 'emit',
     signature: '\'subagent/provider-added\'(provider: SubagentProvider): void',
@@ -4774,6 +4788,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'AgentStatus',
     declaration: 'export type AgentStatus = \'idle\' | \'running\';',
+  },
+  {
+    name: 'AllowedModelRoute',
+    declaration: 'export interface AllowedModelRoute {\n    readonly provider: string;\n    readonly model: string;\n}',
   },
   {
     name: 'AnonymousTranslationProvider',
@@ -7868,6 +7886,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SubagentListEntry = SubagentCatalogRow & {\n    readonly kind: \'child\';\n    readonly hasChildren: boolean;\n} | {\n    readonly kind: \'diagnostic\';\n    readonly id: SessionId;\n    readonly reason: \'corrupt\' | \'unsupported\' | \'unavailable\';\n};',
   },
   {
+    name: 'SubagentModelTierPolicy',
+    declaration: 'export interface SubagentModelTierPolicy {\n    enabled: boolean;\n    mediumModel: AllowedModelRoute | null;\n    reasoningEffort: string | null;\n}',
+  },
+  {
     name: 'SubagentPromptReceipt',
     declaration: 'export interface SubagentPromptReceipt {\n    readonly messageId: MessageId;\n}',
   },
@@ -7917,7 +7939,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubagentStartRequest',
-    declaration: 'export interface SubagentStartRequest {\n    readonly cwd?: string;\n    readonly agentPreset?: string;\n    readonly label?: string;\n    readonly prompt: ContentBlock[];\n    readonly parent: Agent;\n    readonly signal: AbortSignal;\n    readonly agentOptions?: AgentOptions;\n    readonly outputSchema?: ObjectJsonSchema;\n    readonly maxDepth?: number;\n}',
+    declaration: 'export interface SubagentStartRequest {\n    readonly cwd?: string;\n    readonly agentPreset?: string;\n    readonly label?: string;\n    readonly prompt: ContentBlock[];\n    readonly parent: Agent;\n    readonly signal: AbortSignal;\n    readonly agentOptions?: AgentOptions;\n    readonly modelTier?: \'medium\' | \'high\';\n    readonly inheritReasoningEffort?: boolean;\n    readonly outputSchema?: ObjectJsonSchema;\n    readonly maxDepth?: number;\n}',
   },
   {
     name: 'SubagentStopReason',

@@ -48,7 +48,7 @@ function modelsApi(options: {
   groups?: readonly {
     id: string
     name: string
-    models: readonly { id: string; name: string }[]
+    models: readonly { id: string; name: string; reasoning?: { efforts: readonly { id: string; name: string }[] } }[]
   }[]
   failures?: readonly { id: string; name: string; message: string }[]
   error?: string
@@ -82,39 +82,57 @@ describe('SubagentModelSelectionCardController', () => {
     expect(candidates).toEqual([
       {
         key: 'alpha\0fast', provider: 'alpha', model: 'fast', providerName: 'Alpha API',
-        modelName: 'Fast', available: true, selected: false,
+        modelName: 'Fast', available: true, selected: false, efforts: [],
       },
       {
         key: 'legacy\0old', provider: 'legacy', model: 'old', providerName: 'legacy',
-        modelName: 'old', available: false, selected: true,
+        modelName: 'old', available: false, selected: true, efforts: [],
       },
     ])
   })
 
-  it('loads adapter models and saves the switch and routes atomically', async () => {
+  it('requires one choice after a multi-model upgrade and saves its effort atomically', async () => {
     const host = stubConfigForm<SubagentModelSelectionSettings>()
     acceptWrites(host)
     const models = modelsApi({
-      groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
+      groups: [{ id: 'alpha', name: 'Alpha API', models: [
+        { id: 'fast', name: 'Fast', reasoning: { efforts: [{ id: 'low', name: 'Low' }] } },
+        { id: 'steady', name: 'Steady', reasoning: { efforts: [{ id: 'medium', name: 'Medium' }] } },
+      ] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
     host.publish({
       status: 'ready', writable: true, revision: 3,
-      value: { enabled: false, allowedModels: [] }, user: {},
+      value: {
+        enabled: true, mediumModel: null, reasoningEffort: null,
+        allowedModels: [{ provider: 'alpha', model: 'fast' }, { provider: 'alpha', model: 'steady' }],
+      }, user: {},
     })
     const face = controller.inject()
 
-    expect(face.hooks.subagentModelSelectionCard.getSnapshot().enabled).toBe(false)
-    face.toggleEnabled()
+    const state = () => face.hooks.subagentModelSelectionCard.getSnapshot()
+    expect(state()).toMatchObject({ enabled: true, needsSelection: true, invalid: true })
+    face.save()
+    expect(host.mutate).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      expect(face.hooks.subagentModelSelectionCard.getSnapshot().candidates).toHaveLength(1)
+      expect(state().catalogStatus).toBe('ready')
     })
     face.toggleModel('alpha\0fast')
+    face.setReasoningEffort('low')
+    expect(state().reasoningEffort).toBe('low')
+    face.toggleModel('alpha\0steady')
+    expect(state().reasoningEffort).toBeNull()
+    expect(state().candidates.filter(candidate => candidate.selected).map(candidate => candidate.model)).toEqual(['steady'])
+    face.setReasoningEffort('low')
+    expect(state().reasoningEffort).toBeNull()
+    face.setReasoningEffort('medium')
     face.save()
     await vi.waitFor(() => {
       expect(host.mutate).toHaveBeenCalledWith([
         { op: 'set', path: ['enabled'], value: true },
-        { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
+        { op: 'set', path: ['mediumModel'], value: { provider: 'alpha', model: 'steady' } },
+        { op: 'set', path: ['reasoningEffort'], value: 'medium' },
+        { op: 'unset', path: ['allowedModels'] },
       ], 3, expect.any(Function))
     })
 
@@ -145,7 +163,7 @@ describe('SubagentModelSelectionCardController', () => {
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
-    host.publish({ status: 'ready', writable: true, value: { enabled: false, allowedModels: [] }, user: {} })
+    host.publish({ status: 'ready', writable: true, value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {} })
     const face = controller.inject()
 
     face.toggleEnabled()
@@ -174,7 +192,7 @@ describe('SubagentModelSelectionCardController', () => {
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
     host.publish({
       status: 'ready', writable: true, revision: 5,
-      value: { enabled: true, allowedModels: [{ provider: 'alpha', model: 'fast' }] }, user: {},
+      value: { enabled: true, mediumModel: { provider: 'alpha', model: 'fast' }, reasoningEffort: null }, user: {},
     })
     const face = controller.inject()
     const state = () => face.hooks.subagentModelSelectionCard.getSnapshot()
@@ -184,7 +202,7 @@ describe('SubagentModelSelectionCardController', () => {
     face.toggleModel('missing')
     expect(state().dirty).toBe(false)
     face.toggleModel('alpha\0fast')
-    expect(state()).toMatchObject({ dirty: true, invalid: true })
+    expect(state()).toMatchObject({ dirty: false, invalid: false })
     face.discard()
     expect(state()).toMatchObject({ dirty: false, invalid: false, enabled: true })
 
@@ -199,7 +217,7 @@ describe('SubagentModelSelectionCardController', () => {
     acceptWrites(host)
     host.publish({
       status: 'ready', writable: true, revision: 5,
-      value: { enabled: true, allowedModels: [{ provider: 'alpha', model: 'fast' }] }, user: {},
+      value: { enabled: true, mediumModel: { provider: 'alpha', model: 'fast' }, reasoningEffort: null }, user: {},
     })
     const models = modelsApi({
       groups: [{ id: 'alpha', name: 'Alpha API', models: [{ id: 'fast', name: 'Fast' }] }],
@@ -213,7 +231,9 @@ describe('SubagentModelSelectionCardController', () => {
     await vi.waitFor(() => {
       expect(host.mutate).toHaveBeenCalledWith([
         { op: 'set', path: ['enabled'], value: false },
-        { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
+        { op: 'set', path: ['mediumModel'], value: { provider: 'alpha', model: 'fast' } },
+        { op: 'set', path: ['reasoningEffort'], value: null },
+        { op: 'unset', path: ['allowedModels'] },
       ], 5, expect.any(Function))
     })
     expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({
@@ -225,7 +245,7 @@ describe('SubagentModelSelectionCardController', () => {
     const host = stubConfigForm<SubagentModelSelectionSettings>()
     const models = modelsApi({ error: 'offline' })
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
-    host.publish({ status: 'ready', writable: true, value: { enabled: false, allowedModels: [] }, user: {} })
+    host.publish({ status: 'ready', writable: true, value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {} })
     const face = controller.inject()
     const state = () => face.hooks.subagentModelSelectionCard.getSnapshot()
 
@@ -243,7 +263,7 @@ describe('SubagentModelSelectionCardController', () => {
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
     host.publish({
       status: 'ready', writable: true, revision: 4,
-      value: { enabled: false, allowedModels: [] }, user: {},
+      value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {},
     })
     const face = controller.inject()
     face.toggleEnabled()
@@ -254,7 +274,7 @@ describe('SubagentModelSelectionCardController', () => {
 
     host.publish({
       revision: 5,
-      value: { enabled: true, allowedModels: [{ provider: 'other', model: 'new' }] },
+      value: { enabled: true, mediumModel: { provider: 'other', model: 'new' }, reasoningEffort: null },
     })
     expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({
       conflicted: true, failed: false, dirty: true,
@@ -277,7 +297,7 @@ describe('SubagentModelSelectionCardController', () => {
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
     host.publish({
       status: 'ready', writable: true, revision: 4,
-      value: { enabled: false, allowedModels: [] }, user: {},
+      value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {},
     })
     const face = controller.inject()
     face.toggleEnabled()
@@ -286,7 +306,7 @@ describe('SubagentModelSelectionCardController', () => {
 
     host.publish({
       revision: 5,
-      value: { enabled: true, allowedModels: [{ provider: 'alpha', model: 'fast' }] },
+      value: { enabled: true, mediumModel: { provider: 'alpha', model: 'fast' }, reasoningEffort: null },
     })
 
     expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({
@@ -299,7 +319,7 @@ describe('SubagentModelSelectionCardController', () => {
     acceptWrites(host)
     host.publish({
       status: 'ready', writable: true, revision: 2,
-      value: { enabled: false, allowedModels: [] }, user: {},
+      value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {},
     })
     const refreshed = deferred<never>()
     const models = vi.fn()
@@ -336,7 +356,9 @@ describe('SubagentModelSelectionCardController', () => {
     await vi.waitFor(() => {
       expect(host.mutate).toHaveBeenCalledWith([
         { op: 'set', path: ['enabled'], value: true },
-        { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
+        { op: 'set', path: ['mediumModel'], value: { provider: 'alpha', model: 'fast' } },
+        { op: 'set', path: ['reasoningEffort'], value: null },
+        { op: 'unset', path: ['allowedModels'] },
       ], 2, expect.any(Function))
     })
   })
@@ -348,7 +370,7 @@ describe('SubagentModelSelectionCardController', () => {
     })
     host.publish({
       status: 'ready', writable: true, revision: 4,
-      value: { enabled: false, allowedModels: [] }, user: {},
+      value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {},
     })
     const controller = new SubagentModelSelectionCardController(host.scope, models.ctx)
     const face = controller.inject()
@@ -359,7 +381,7 @@ describe('SubagentModelSelectionCardController', () => {
     controller.resetConnection()
     host.publish({
       revision: 4,
-      value: { enabled: true, allowedModels: [{ provider: 'other', model: 'new' }] },
+      value: { enabled: true, mediumModel: { provider: 'other', model: 'new' }, reasoningEffort: null },
     })
 
     expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({
@@ -374,7 +396,7 @@ describe('SubagentModelSelectionCardController', () => {
     const host = stubConfigForm<SubagentModelSelectionSettings>()
     host.publish({
       status: 'ready', writable: true, revision: 1,
-      value: { enabled: true, allowedModels: [] }, user: {},
+      value: { enabled: true, mediumModel: null, reasoningEffort: null }, user: {},
     })
     const models = vi.fn()
       .mockResolvedValueOnce({
@@ -410,10 +432,11 @@ describe('SubagentModelSelectionCardController', () => {
     const mutate = vi.fn(async (ops: readonly SettingsPathOpView[]) => {
       await write.promise
       const enabled = ops.find(op => op.path[0] === 'enabled')
-      const allowedModels = ops.find(op => op.path[0] === 'allowedModels')
+      const mediumModel = ops.find(op => op.path[0] === 'mediumModel')
       host.publish({ value: {
         enabled: enabled?.op === 'set' ? enabled.value as boolean : false,
-        allowedModels: allowedModels?.op === 'set' ? allowedModels.value as never[] : [],
+        mediumModel: mediumModel?.op === 'set' ? mediumModel.value as never : null,
+        reasoningEffort: null,
       } })
       return true
     })
@@ -422,7 +445,7 @@ describe('SubagentModelSelectionCardController', () => {
 
     face.save()
     face.toggleModel('alpha\0fast')
-    host.publish({ status: 'ready', writable: true, value: { enabled: false, allowedModels: [] }, user: {} })
+    host.publish({ status: 'ready', writable: true, value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {} })
     face.save()
     face.toggleEnabled()
     await vi.waitFor(() => { expect(face.hooks.subagentModelSelectionCard.getSnapshot().catalogStatus).toBe('ready') })
@@ -442,7 +465,7 @@ describe('SubagentModelSelectionCardController', () => {
 
   it('suppresses duplicate directory loads and late settlements', async () => {
     const host = stubConfigForm<SubagentModelSelectionSettings>()
-    host.publish({ status: 'ready', writable: true, value: { enabled: false, allowedModels: [] }, user: {} })
+    host.publish({ status: 'ready', writable: true, value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {} })
 
     const pending = deferred<never>()
     const models = vi.fn(() => pending.promise)
@@ -472,7 +495,7 @@ describe('SubagentModelSelectionCardController', () => {
   it('ignores writes while read-only and scope notifications after disposal', () => {
     const host = stubConfigForm<SubagentModelSelectionSettings>()
     const controller = new SubagentModelSelectionCardController(host.scope, modelsApi().ctx)
-    host.publish({ status: 'ready', writable: false, value: { enabled: false, allowedModels: [] }, user: {} })
+    host.publish({ status: 'ready', writable: false, value: { enabled: false, mediumModel: null, reasoningEffort: null }, user: {} })
     const face = controller.inject()
 
     face.toggleEnabled()
@@ -486,7 +509,7 @@ describe('SubagentModelSelectionCardController', () => {
     face.toggleEnabled()
     face.retryCatalog()
     face.save()
-    host.publish({ value: { enabled: true, allowedModels: [{ provider: 'alpha', model: 'fast' }] } })
+    host.publish({ value: { enabled: true, mediumModel: { provider: 'alpha', model: 'fast' }, reasoningEffort: null } })
     expect(host.mutate).not.toHaveBeenCalled()
     expect(face.hooks.subagentModelSelectionCard.getSnapshot().enabled).toBe(false)
   })
@@ -534,7 +557,7 @@ describe('shared Subagent card actions', () => {
     })
     models.publish({
       status: 'ready', writable: true, revision: 5,
-      value: { enabled: false, allowedModels: [{ provider: 'alpha', model: 'fast' }] }, user: {},
+      value: { enabled: false, mediumModel: { provider: 'alpha', model: 'fast' }, reasoningEffort: null }, user: {},
     })
     acceptWrites(limits)
     acceptWrites(models)
@@ -555,7 +578,9 @@ describe('shared Subagent card actions', () => {
     expect(limits.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['maxDepth'], value: 2 }], 2, expect.any(Function))
     expect(models.mutate).toHaveBeenCalledWith([
       { op: 'set', path: ['enabled'], value: true },
-      { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
+      { op: 'set', path: ['mediumModel'], value: { provider: 'alpha', model: 'fast' } },
+      { op: 'set', path: ['reasoningEffort'], value: null },
+      { op: 'unset', path: ['allowedModels'] },
     ], 5, expect.any(Function))
   })
 

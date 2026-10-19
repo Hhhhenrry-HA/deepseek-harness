@@ -24,6 +24,26 @@
   gap: 10px;
 }
 
+.effort,
+.high {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.effort select {
+  max-width: 65%;
+  padding: 6px 8px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
 .hint,
 .notice,
 .invalid,

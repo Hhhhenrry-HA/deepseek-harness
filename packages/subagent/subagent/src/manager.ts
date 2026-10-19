@@ -21,7 +21,7 @@ import type { SessionObservation, SessionQueryEngine } from '@deepseek-ai/dsh-se
 import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import {
   appendDelegatedPolicyOverrides, applyChildComposition, captureDelegatedPolicyOverrides,
-  childSessionMeta, resolveChildAgentOptions, resolveChildDepth,
+  childSessionMeta, mergeChildAgentOptions, parentAgentOptionsForDelegation, resolveChildDepth,
 } from './child-agent.ts'
 import type { ChildComposition, DelegatedPolicyOverrides } from './child-agent.ts'
 import { createAgentMessage, withContinuableReturnGuidance, createSettlementMessage } from './continuation-messages.ts'
@@ -58,6 +58,8 @@ type ChildDeliveryOptions =
 
 /** Package-private hooks supplied by the owning service. */
 interface SubagentHost {
+  /** Resolve the child route after startup has captured its permissions and ownership. */
+  prepareStart(spec: SubagentActivationSpec): Promise<SubagentActivationSpec>
   startExternal(name: string, request: ResolvedSubagentStartRequest): Promise<SubagentRun>
   /** Resolve one provider's detached continuable-creation contribution. */
   prepareContinuable(name: string, request: ContinuableCreateRequest): Promise<ContinuableCreateSpec>
@@ -377,7 +379,7 @@ export class SubagentManager {
    * @returns the durable child id and accepted initial prompt message id.
    */
   async startLocal(spec: SubagentActivationSpec): Promise<SubagentActivation & { messageId: MessageId }> {
-    const request = spec.request
+    let request = spec.request
     const parent = request.parent
     this.assertAdmitting(parent)
     const persistence = spec.delivery === 'caller' ? this.ctx.get('sessionPersistence') : this.requirePersistence()
@@ -385,20 +387,7 @@ export class SubagentManager {
     const childId = spec.childId ?? brandString<SessionId>(randomUUID())
     this.assertChildIdAvailable(childId)
     const childDepth = resolveChildDepth(parent, request.maxDepth)
-    // Snapshot before any await: invalid descriptor JSON rejects the call
-    // before a child exists, and the detached value is what reaches the log.
-    const agentOptions = resolveChildAgentOptions(parent, request.agentOptions, childDepth)
-    const agentProvider = agentOptions.provider
-    const agentModel = agentOptions.model
-    const agentReasoningEffort = agentOptions.reasoningEffort
-    const descriptor = snapshotSubagentDescriptor({
-      mode: 'continuable',
-      provider: spec.provider,
-      label: spec.label,
-      ...agentProvider !== undefined ? { agentProvider } : {},
-      ...agentModel !== undefined ? { agentModel } : {},
-      ...agentReasoningEffort !== undefined ? { agentReasoningEffort } : {},
-    })
+    const parentOptions = parentAgentOptionsForDelegation(parent)
     // Capture before the first await: a later parent switch belongs to the
     // parent's future, not to this child.
     const delegatedPolicies = captureDelegatedPolicyOverrides(parent)
@@ -409,6 +398,17 @@ export class SubagentManager {
     const releaseHold = this.holdOwnership(parent, childId)
     try {
       const cwd = await this.resolveDirectory(request, spec.signal)
+      spec = await this.host.prepareStart(spec)
+      request = spec.request
+      const agentOptions = mergeChildAgentOptions(parentOptions, request.agentOptions, childDepth, request.inheritReasoningEffort)
+      const descriptor = snapshotSubagentDescriptor({
+        mode: 'continuable',
+        provider: spec.provider,
+        label: spec.label,
+        ...agentOptions.provider !== undefined ? { agentProvider: agentOptions.provider } : {},
+        ...agentOptions.model !== undefined ? { agentModel: agentOptions.model } : {},
+        ...agentOptions.reasoningEffort !== undefined ? { agentReasoningEffort: agentOptions.reasoningEffort } : {},
+      })
       const prepared = await this.host.prepareContinuable(spec.provider, {
         sessionId: childId,
         cwd,
@@ -488,6 +488,7 @@ export class SubagentManager {
     let activation: Activation | undefined
     try {
       const cwd = await this.resolveDirectory(spec.request, spec.signal)
+      spec = await this.host.prepareStart(spec)
       activation = await this.materialize({
         kind: 'external',
         childId: pendingId,

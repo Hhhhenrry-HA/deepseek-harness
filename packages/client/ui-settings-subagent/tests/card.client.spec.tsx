@@ -49,6 +49,8 @@ function renderSubagent(
     catalogStatus: 'idle',
     catalogPartial: false,
     conflicted: false,
+    needsSelection: false,
+    reasoningEffort: null,
     ...modelState,
   })
   const actions = {
@@ -56,6 +58,7 @@ function renderSubagent(
     resetLimit: vi.fn(),
     toggleEnabled: vi.fn(),
     toggleModel: vi.fn(),
+    setReasoningEffort: vi.fn(),
     retryCatalog: vi.fn(),
     save: vi.fn(),
     discard: vi.fn(),
@@ -98,6 +101,7 @@ describe('Subagent model selection fields', () => {
           modelName: 'Fast',
           available: true,
           selected: true,
+          efforts: [],
         },
         {
           key: 'alpha\0deep',
@@ -107,6 +111,7 @@ describe('Subagent model selection fields', () => {
           modelName: 'Deep',
           available: true,
           selected: false,
+          efforts: [],
         },
       ],
       catalogStatus: 'ready',
@@ -114,9 +119,7 @@ describe('Subagent model selection fields', () => {
 
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
     expect(screen.getByText('Alpha API', { exact: true })).toBeTruthy()
-    fireEvent.click(screen.getByRole('checkbox', { name: /Fast/ }))
-    fireEvent.click(screen.getByRole('checkbox', { name: /Deep/ }))
-    expect(actions.toggleModel).toHaveBeenCalledWith('alpha\0fast')
+    fireEvent.click(screen.getByRole('radio', { name: /Deep/ }))
     expect(actions.toggleModel).toHaveBeenCalledWith('alpha\0deep')
   })
 
@@ -131,10 +134,11 @@ describe('Subagent model selection fields', () => {
     expect(errorActions.retryCatalog).toHaveBeenCalledOnce()
 
     cleanup()
-    renderSubagentModelSelection({
+    const unavailableActions = renderSubagentModelSelection({
       enabled: true,
       catalogStatus: 'ready',
       catalogPartial: true,
+      reasoningEffort: 'previous-effort',
       candidates: [{
         key: 'legacy\0old',
         provider: 'legacy',
@@ -143,11 +147,16 @@ describe('Subagent model selection fields', () => {
         modelName: 'old',
         available: false,
         selected: true,
+        efforts: [],
       }],
     })
     expect(screen.getByText(en.subagentModelSelectionPartial)).toBeTruthy()
     expect(screen.getByText(en.subagentModelSelectionUnavailable)).toBeTruthy()
     expect(screen.getByText(en.subagentModelSelectionUnavailableGroup)).toBeTruthy()
+    const effort = screen.getByRole('combobox', { name: en.subagentModelSelectionEffort }) as HTMLSelectElement
+    expect(effort.value).toBe('previous-effort')
+    fireEvent.change(effort, { target: { value: '' } })
+    expect(unavailableActions.setReasoningEffort).toHaveBeenCalledWith(null)
 
     cleanup()
     renderSubagentModelSelection({ enabled: true, catalogStatus: 'ready' })

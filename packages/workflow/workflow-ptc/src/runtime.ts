@@ -30,7 +30,7 @@ export interface ExecutionObserver {
 }
 
 /** The `agent()` options the script may pass; everything else rejects loud. */
-const SUPPORTED_AGENT_OPTIONS = new Set(['label', 'phase', 'schema', 'provider', 'model'])
+const SUPPORTED_AGENT_OPTIONS = new Set(['label', 'phase', 'schema', 'provider', 'model', 'model_tier'])
 /** Deferred Claude Code options we name explicitly in the rejection message. */
 const DEFERRED_AGENT_OPTIONS = new Set(['effort', 'isolation', 'agentType'])
 
@@ -182,6 +182,7 @@ export class WorkflowExecution {
       try {
         run = await this.children.startAgent({
           prompt: rawPrompt,
+          ...opts.model_tier === undefined ? {} : { modelTier: opts.model_tier },
           ...opts.schema !== undefined ? { schema: opts.schema } : {},
           ...opts.provider !== undefined ? { provider: opts.provider } : {},
           ...opts.model !== undefined ? { model: opts.model } : {},
@@ -234,6 +235,7 @@ export class WorkflowExecution {
     phase?: string
     provider?: string
     model?: string
+    model_tier?: 'medium' | 'high'
     schema?: ObjectJsonSchema
   } {
     if (rawOpts === undefined) return {}
@@ -249,12 +251,15 @@ export class WorkflowExecution {
       throw new WorkflowError('agent() options must be an object', 'INVALID_ARGUMENT')
     }
     const record = opts as Record<string, unknown>
+    if (record.model_tier != null && record.model_tier !== 'medium' && record.model_tier !== 'high') {
+      throw new WorkflowError('agent() model_tier must be medium or high', 'INVALID_ARGUMENT')
+    }
     for (const key of Object.keys(record)) {
       if (SUPPORTED_AGENT_OPTIONS.has(key)) continue
       if (DEFERRED_AGENT_OPTIONS.has(key)) {
-        throw new WorkflowError(`agent() option "${key}" is deferred and not supported by this engine (supported: label, phase, schema, provider, model)`, 'UNSUPPORTED_OPTION')
+        throw new WorkflowError(`agent() option "${key}" is deferred and not supported by this engine (supported: ${[...SUPPORTED_AGENT_OPTIONS].join(', ')})`, 'UNSUPPORTED_OPTION')
       }
-      throw new WorkflowError(`agent() option "${key}" is not recognized (supported: label, phase, schema, provider, model)`, 'UNSUPPORTED_OPTION')
+      throw new WorkflowError(`agent() option "${key}" is not recognized (supported: ${[...SUPPORTED_AGENT_OPTIONS].join(', ')})`, 'UNSUPPORTED_OPTION')
     }
     for (const key of ['label', 'phase', 'provider', 'model'] as const) {
       if (record[key] !== undefined && typeof record[key] !== 'string') {
@@ -275,6 +280,7 @@ export class WorkflowExecution {
     return {
       ...record.label !== undefined ? { label: record.label as string } : {},
       ...record.phase !== undefined ? { phase: record.phase as string } : {},
+      ...record.model_tier == null ? {} : { model_tier: record.model_tier },
       ...record.provider !== undefined ? { provider: record.provider as string } : {},
       ...record.model !== undefined ? { model: record.model as string } : {},
       ...schema !== undefined ? { schema } : {},

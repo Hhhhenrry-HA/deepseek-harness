@@ -47,6 +47,8 @@ function childRequest(value: unknown): ChildStartRequest {
   const prompt = text(request.prompt, 'prompt')
   const provider = request.provider === undefined ? undefined : text(request.provider, 'provider')
   const model = request.model === undefined ? undefined : text(request.model, 'model')
+  const modelTier = request.modelTier
+  if (modelTier !== undefined && modelTier !== 'medium' && modelTier !== 'high') throw new Error('workflow model_tier must be medium or high')
   let schema: ObjectJsonSchema | undefined
   if (request.schema !== undefined) {
     const candidate = object(request.schema)
@@ -55,6 +57,7 @@ function childRequest(value: unknown): ChildStartRequest {
   }
   return {
     prompt,
+    ...modelTier === undefined ? {} : { modelTier },
     ...provider === undefined ? {} : { provider },
     ...model === undefined ? {} : { model },
     ...schema === undefined ? {} : { schema },
@@ -210,6 +213,7 @@ export class PtcWorkflowRun implements WorkflowRun {
         prompt: [{ type: 'text', text: request.prompt }],
         parent: this.parent,
         ...request.schema === undefined ? {} : { outputSchema: request.schema },
+        ...request.modelTier === undefined ? {} : { modelTier: request.modelTier },
         ...request.provider === undefined && request.model === undefined ? {} : {
           agentOptions: {
             ...request.provider === undefined ? {} : { provider: request.provider },

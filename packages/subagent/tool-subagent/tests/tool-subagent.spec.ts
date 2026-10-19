@@ -241,11 +241,10 @@ describe('dsh-tool-subagent', () => {
     expect(replacementStart).not.toHaveBeenCalled()
   })
 
-  it('merges model overrides over provider-owned route defaults before preflight', async () => {
+  it('validates a configured effort with provider-owned route defaults before preflight', async () => {
     let seen: SubagentStartRequest | undefined
     const ctx = await setup({
       provider: 'mock',
-      withModelSelection: true,
       agentOptions: { reasoningEffort: ReasoningEffortId('high'), maxTokens: 321 },
       maxDepth: 'provider-managed',
     }, {
@@ -262,8 +261,6 @@ describe('dsh-tool-subagent', () => {
       provider: 'alpha',
       model: 'child-model',
     })
-    expect(ctx.tools.schemas(modelSelectionSetupAgent(ctx)).find(schema => schema.name === 'subagent')?.description)
-      .toContain('this provider\'s route defaults')
     expect(seen?.agentOptions).toEqual({
       provider: 'alpha',
       model: 'child-model',

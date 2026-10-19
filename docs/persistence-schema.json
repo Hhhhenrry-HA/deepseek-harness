@@ -16020,6 +16020,124 @@
       }
     },
     {
+      "key": "event:subagent/model-tier-policy",
+      "kind": "event",
+      "event": "subagent/model-tier-policy",
+      "surface": false,
+      "digest": "5c2a9b86c53d317ca0e231612c40b119e478429ad74f1455f52a531c8aae4075",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 8,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 9,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 10,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "enabled",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "mediumModel",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "union",
+            "types": [
+              4,
+              6
+            ]
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "model",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "union",
+            "types": [
+              5,
+              6
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "subagent/model-tier-policy"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:system/message",
       "kind": "event",
       "event": "system/message",
@@ -22585,7 +22703,7 @@
       ],
       "sources": [
         "packages/session/session-title/src/types.ts:20",
-        "packages/subagent/tool-subagent/src/model-selection.ts:9"
+        "packages/subagent/tool-subagent/src/model-selection.ts:8"
       ]
     },
     {
@@ -22687,7 +22805,7 @@
       "digest": "0d47a8f3d847243c4488e755ad4cab7a04ac5d4621b9c81865524cf3f4d8536f",
       "names": [],
       "sources": [
-        "packages/subagent/tool-subagent/src/model-selection-state.ts:17"
+        "packages/subagent/tool-subagent/src/model-selection-state.ts:26"
       ]
     },
     {
@@ -23934,6 +24052,11 @@
       "sources": []
     },
     {
+      "digest": "5c2a9b86c53d317ca0e231612c40b119e478429ad74f1455f52a531c8aae4075",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "5c45bf4c544a7211dcd8ba6ba7e5f1bc39b49e7a9df9d5cbdc8e87c22771b37b",
       "names": [],
       "sources": []
@@ -24320,6 +24443,11 @@
       "sources": [
         "packages/core/session/src/types.ts:213"
       ]
+    },
+    {
+      "digest": "799231ac91869a6695666505343003905638e1b4d11349bff953d4dbfe3191ba",
+      "names": [],
+      "sources": []
     },
     {
       "digest": "79ddc907312f97cf9553d4841e8b3fc937097bd8d97900a790efad3c05255e99",
@@ -25298,6 +25426,15 @@
       "sources": []
     },
     {
+      "digest": "b6a934431d8543f7fb4e0280cdd9b6077f20637a14f1547539b1211cab3e5967",
+      "names": [
+        "packages/subagent/tool-subagent/src/model-selection-state.ts#SubagentModelTierPolicy"
+      ],
+      "sources": [
+        "packages/subagent/tool-subagent/src/model-selection-state.ts:10"
+      ]
+    },
+    {
       "digest": "b6ef9c6210be8350cd465f485cf520031fffa6bf3809c61a1e713e834c5982d0",
       "names": [],
       "sources": [
@@ -25401,6 +25538,11 @@
     },
     {
       "digest": "baccc97ec34be6c4c78e95aa88c85c29820269479445e5b13f956cd64c5e286f",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "baf353b4a81ff3f6f337a432501fb016e8894c2f1ad9f3b350bfc90c45d17ae9",
       "names": [],
       "sources": []
     },
@@ -26190,6 +26332,11 @@
     },
     {
       "digest": "f789af5ab844827eb5a4f357c0afae1eeed108c6c22d8ca1a56e586b349a7c85",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "f860ad8525f5e1eb4df9507619cb425a6ea8d0999b6779187c7641010f6d82c5",
       "names": [],
       "sources": []
     },

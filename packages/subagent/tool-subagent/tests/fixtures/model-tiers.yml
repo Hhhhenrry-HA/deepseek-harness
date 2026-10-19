@@ -1,0 +1,25 @@
+- name: cordis:modelSettings
+  config:
+    enabled: true
+    mediumModel: { provider: alpha, model: child-model }
+- name: cordis:subagents
+  config:
+    maxDepth: 3
+- name: cordis:spawn
+- name: cordis:fork
+- name: cordis:presets
+  config:
+    default: tiered
+- name: cordis:preset
+  config:
+    id: tiered
+    plugins:
+      - name: cordis:delegate
+        config:
+          provider: spawn
+          modelSelectionSettings: true
+      - name: cordis:delegate
+        config:
+          provider: fork
+          toolName: subagent_fork
+          modelSelectionSettings: true

@@ -1,6 +1,5 @@
 /** Child LLM route selection for the subagent tool. */
 
-import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import z from '@deepseek-ai/schemastery'
@@ -18,12 +17,6 @@ export const AllowedModelRouteSchema: z<AllowedModelRoute> = z.object({
   provider: z.string().min(1).required(),
   model: z.string().min(1).required(),
 })
-
-/** Route-selection authority captured by one delegation definition. */
-export interface ModelSelectionPolicy {
-  /** Exact provider/model routes authorized for explicit selection. */
-  readonly routes: readonly AllowedModelRoute[]
-}
 
 /**
  * Stable identity for one provider/model pair.
@@ -59,97 +52,6 @@ export function assertAllowedModelRoutes(routes: unknown): asserts routes is rea
     }
     seen.add(key)
   }
-}
-
-/** Model-facing child LLM route fields. */
-export interface DelegationModelRequest {
-  readonly provider?: string
-  readonly model?: string
-  readonly reasoning_effort?: string
-}
-
-/**
- * Whether a call explicitly selects any child LLM value.
- * @param request - Model-facing route fields from the tool call.
- * @returns Whether at least one route or effort field is present.
- */
-export function hasDelegationModelRequest(request: DelegationModelRequest): boolean {
-  return request.provider !== undefined
-    || request.model !== undefined
-    || request.reasoning_effort !== undefined
-}
-
-/** Reject an empty model-facing route value at the tool JSON boundary. */
-function assertNonEmpty(value: string | undefined, field: keyof DelegationModelRequest): void {
-  if (value !== undefined && value.length === 0) {
-    throw new Error(`child LLM \`${field}\` must be non-empty`)
-  }
-}
-
-/**
- * Merge model-supplied selection fields over configured child defaults.
- * Provider and model form one route and must be supplied together. Changing
- * that route without an effort clears the configured route-owned effort.
- * @param parentOptions - Current parent values that supply missing child values.
- * @param configured - Tool-instance child defaults.
- * @param request - Model-facing route override.
- * @param enabled - Whether this tool instance permits model-facing selection.
- * @returns Child Agent options, preserving omission when no layer contributes one.
- */
-export function requestedAgentOptions(
-  parentOptions: AgentOptions,
-  configured: AgentOptions | undefined,
-  request: DelegationModelRequest,
-  enabled: boolean,
-): AgentOptions | undefined {
-  if (!hasDelegationModelRequest(request)) return configured
-  if (!enabled) {
-    throw new Error('child model selection is disabled for this tool instance')
-  }
-  assertNonEmpty(request.provider, 'provider')
-  assertNonEmpty(request.model, 'model')
-  assertNonEmpty(request.reasoning_effort, 'reasoning_effort')
-  if ((request.provider === undefined) !== (request.model === undefined)) {
-    throw new Error('child LLM `provider` and `model` must be supplied together')
-  }
-
-  const baselineProvider = configured?.provider ?? parentOptions.provider
-  const baselineModel = configured?.model ?? parentOptions.model
-  const routeChanged = request.provider !== undefined
-    && (request.provider !== baselineProvider || request.model !== baselineModel)
-  const { reasoningEffort: _configuredReasoningEffort, ...configuredWithoutReasoning } = configured ?? {}
-  return {
-    ...routeChanged && request.reasoning_effort === undefined ? configuredWithoutReasoning : configured,
-    ...request.provider === undefined ? {} : { provider: request.provider, model: request.model },
-    ...request.reasoning_effort === undefined
-      ? {}
-      : { reasoningEffort: ReasoningEffortId(request.reasoning_effort) },
-  }
-}
-
-/**
- * Enforce a settings-owned route list at the operation that creates the child.
- * Pure inheritance remains outside this policy because no model-facing choice
- * occurred; any explicit route or effort field must resolve to an allowed route.
- * @param policy - Selection authority captured for this Session.
- * @param parentOptions - Current parent values that supply missing child values.
- * @param requested - Effective child options after request/config merging.
- * @param request - Model-facing selection fields from the tool call.
- */
-export function assertAllowedModelSelection(
-  policy: ModelSelectionPolicy | undefined,
-  parentOptions: AgentOptions,
-  requested: AgentOptions | undefined,
-  request: DelegationModelRequest,
-): void {
-  if (policy === undefined || !hasDelegationModelRequest(request)) return
-  const provider = requested?.provider ?? parentOptions.provider
-  const model = requested?.model ?? parentOptions.model
-  if (provider === undefined || model === undefined) {
-    throw new Error('cannot select child LLM values without an effective provider and model')
-  }
-  if (policy.routes.some(route => route.provider === provider && route.model === model)) return
-  throw new Error(`child LLM route "${provider}/${model}" is not allowed for this Session`)
 }
 
 /**

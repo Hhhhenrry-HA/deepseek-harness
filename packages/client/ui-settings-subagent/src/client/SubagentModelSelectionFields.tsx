@@ -1,6 +1,7 @@
 /** User control for model-selectable subagent delegation in new sessions. */
 
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useId } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   SubagentModelCandidate,
@@ -11,7 +12,7 @@ import css from './SubagentModelSelectionFields.module.css'
 
 /** Plain model state and callbacks supplied by the owning Subagent card. */
 export type SubagentModelSelectionFieldsProps = PropsLocale<'settings.subagent'>
-  & Pick<SubagentModelSelectionCardFace, 'toggleEnabled' | 'toggleModel' | 'retryCatalog'>
+  & Pick<SubagentModelSelectionCardFace, 'toggleEnabled' | 'toggleModel' | 'setReasoningEffort' | 'retryCatalog'>
   & { state: SubagentModelSelectionCardState }
 
 /**
@@ -21,6 +22,9 @@ export type SubagentModelSelectionFieldsProps = PropsLocale<'settings.subagent'>
  */
 export function SubagentModelSelectionFields(props: SubagentModelSelectionFieldsProps) {
   const { t, state } = props
+  const modelGroupName = useId()
+  const effortId = useId()
+  const selected = state.candidates.find(candidate => candidate.selected)
   const availableGroups = new Map<string, {
     providerName: string
     candidates: SubagentModelCandidate[]
@@ -44,7 +48,8 @@ export function SubagentModelSelectionFields(props: SubagentModelSelectionFields
   const renderCandidate = (candidate: SubagentModelCandidate) => (
     <label key={candidate.key} className={css.model}>
       <input
-        type="checkbox"
+        type="radio"
+        name={modelGroupName}
         checked={candidate.selected}
         disabled={!state.writable || state.saving}
         onChange={() => { props.toggleModel(candidate.key) }}
@@ -70,9 +75,7 @@ export function SubagentModelSelectionFields(props: SubagentModelSelectionFields
             onChange={props.toggleEnabled}
           />
         </div>
-        <p className={css.hint}>
-          {t(state.enabled ? 'subagentModelSelectionChoose' : 'subagentModelSelectionOff')}
-        </p>
+        <p className={css.hint}>{t('subagentModelSelectionChoose')}</p>
       </div>
       {state.enabled
         ? (
@@ -116,7 +119,23 @@ export function SubagentModelSelectionFields(props: SubagentModelSelectionFields
               : state.catalogStatus === 'ready'
                 ? <p className={css.notice}>{t('subagentModelSelectionEmpty')}</p>
                 : null}
-            {state.invalid ? <p className={css.invalid}>{t('subagentModelSelectionRequired')}</p> : null}
+            {selected !== undefined && (selected.efforts.length > 0 || state.reasoningEffort !== null)
+              ? (
+                <div className={css.effort}>
+                  <label htmlFor={effortId}>{t('subagentModelSelectionEffort')}</label>
+                  <select id={effortId} value={state.reasoningEffort ?? ''} disabled={!state.writable || state.saving}
+                    onChange={(event) => { props.setReasoningEffort(event.target.value || null) }}>
+                    <option value="">{t('subagentModelSelectionDefaultEffort')}</option>
+                    {state.reasoningEffort !== null && !selected.efforts.some(effort => effort.id === state.reasoningEffort)
+                      ? <option value={state.reasoningEffort}>{state.reasoningEffort} · {t('subagentModelSelectionUnavailable')}</option>
+                      : null}
+                    {selected.efforts.map(effort => <option key={effort.id} value={effort.id}>{effort.name}</option>)}
+                  </select>
+                </div>
+              )
+              : null}
+            <div className={css.high}><span>{t('subagentModelSelectionHigh')}</span><span>{t('subagentModelSelectionFollowMain')}</span></div>
+            {state.invalid ? <p className={css.invalid}>{t(state.needsSelection ? 'subagentModelSelectionReselect' : 'subagentModelSelectionRequired')}</p> : null}
           </div>
         )
         : null}

@@ -19,7 +19,8 @@
     - text: "12"
 - region "模型选择":
   - heading "模型选择" [level=3]
-  - text: 允许 Agent 为子智能体选择模型
-  - switch "允许 Agent 为子智能体选择模型"
-  - paragraph: 关闭后，子智能体使用配置的默认模型或继承父 Agent 的模型；已选模型会保留。
+  - text: 启用子智能体分级模型
+  - switch "启用子智能体分级模型"
+  - paragraph: 新会话生效
+- paragraph
 - button "保存" [disabled]

@@ -13,4 +13,5 @@
 - textbox "默认结果数量":
   - /placeholder: ""
 - paragraph: 搜索未指定数量时使用。
+- paragraph
 - button "保存" [disabled]

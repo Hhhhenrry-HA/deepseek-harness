@@ -14,7 +14,6 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import {
   assertSubagentMaxDepth,
@@ -22,22 +21,9 @@ import {
   parentAgentOptionsForDelegation,
 } from '@deepseek-ai/dsh-subagent'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
-import {
-  assertAllowedModelSelection,
-  hasConfiguredLlmSelection,
-  hasDelegationModelRequest,
-  preflightChildLlmRoute,
-  requestedAgentOptions,
-} from './model-selection.ts'
-import type { DelegationModelRequest, ModelSelectionPolicy } from './model-selection.ts'
-import { registerListSubagentModels } from './list-models.ts'
+import { hasConfiguredLlmSelection, preflightChildLlmRoute } from './model-selection.ts'
 import { SubagentPresetSelection, type PresetSelectionConfig, type PresetSelectionRequest } from './preset-selection.ts'
 import type {} from './model-selection-settings.ts'
-import {
-  recordSubagentModelSelection,
-  subagentModelSelectionProjectionDefinition,
-  subagentModelSelectionPolicy,
-} from './model-selection-state.ts'
 
 export const name = 'tool-subagent'
 export const inject = ['tools', 'subagents', 'systemPrompt', 'sessionProjections']
@@ -159,7 +145,6 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
   const toolName = config.toolName ?? 'subagent'
 
   const modelSelectionCapable = config.modelSelectionSettings === true
-  ctx.sessionProjections.register(subagentModelSelectionProjectionDefinition)
 
   const assertSubagentProviderConfiguration = (subagentProvider: SubagentProvider): void => {
     presets.assertProvider(subagentProvider)
@@ -190,9 +175,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
   const initialProvider = ctx.subagents.getProvider(config.provider)
   if (initialProvider !== undefined) assertSubagentProviderConfiguration(initialProvider)
 
-  const install = (runtimeCtx: Context, modelSelectionPolicy: ModelSelectionPolicy | undefined): void => {
-    const modelSelectionEnabled = modelSelectionPolicy !== undefined
-    if (modelSelectionPolicy !== undefined) registerListSubagentModels(runtimeCtx, modelSelectionPolicy)
+  const install = (runtimeCtx: Context, modelSelectionEnabled: boolean): void => {
     // Load order and HMR replacement can change provider availability while
     // this fiber remains active.
     let mounted: { subagentProvider: SubagentProvider; definition: ToolDefinition; disposeTool: () => void } | undefined
@@ -200,23 +183,13 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
       assertSubagentProviderConfiguration(subagentProvider)
       const wording = providerWording(subagentProvider.inheritsParentContext)
       const providerRouteDefaults = subagentProvider.agentRouteDefaults
-      const selectionDescription = providerRouteDefaults !== undefined
-        ? ' Child LLM selection is optional. Omit `provider`, `model`, and `reasoning_effort` to use configured child defaults and this provider\'s route defaults. Supply `provider` and `model` together after using `list_subagent_models` to inspect advertised routes and efforts. Changing the effective route without naming an effort uses the selected model\'s default effort.'
-        : ' Child LLM selection is optional. Omit `provider`, `model`, and `reasoning_effort` to use configured child defaults and inherit compatible missing values from the parent Agent. Supply `provider` and `model` together after using `list_subagent_models` to inspect advertised routes and efforts. Changing the effective route without naming an effort uses the selected model\'s default effort.'
-      const choiceDescription = !modelSelectionEnabled
-        ? ''
-        : selectionDescription
-          + (subagentProvider.inheritsParentContext
-            ? ' Changing the route can prevent provider-side reuse of the inherited conversation prefix.'
-            : '')
       const definition = defineTool({
         name: toolName,
         description: wording.description
           + ' This tool starts an independently managed subagent and immediately returns its id. The runtime notifies you when it finishes.'
           + (subagentProvider.prepareContinuable !== undefined
             ? ' The child reports results with `send_message`; use `send_message` to steer it while running or continue its conversation after it finishes.'
-            : ' The completion notice includes its final answer. This backend does not accept follow-up messages.')
-          + choiceDescription,
+            : ' The completion notice includes its final answer. This backend does not accept follow-up messages.'),
         parameters: {
           cwd: {
             type: 'string',
@@ -240,23 +213,9 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
             },
           },
           ...modelSelectionEnabled ? {
-            provider: {
-              type: 'string' as const,
-              description: providerRouteDefaults !== undefined
-                ? 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or this provider\'s route defaults.'
-                : 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or inherit the parent route.',
-            },
-            model: {
-              type: 'string' as const,
-              description: providerRouteDefaults !== undefined
-                ? 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or this provider\'s route defaults.'
-                : 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or inherit the parent route.',
-            },
-            reasoning_effort: {
-              type: 'string' as const,
-              description: providerRouteDefaults !== undefined
-                ? 'Adapter-owned reasoning effort for the effective child route. Omit to use a compatible configured effort or the selected model\'s default.'
-                : 'Adapter-owned reasoning effort for the effective child route. Omit to inherit a compatible configured/parent effort or use a newly selected model\'s default.',
+            model_tier: {
+              oneOf: [{ type: 'string', enum: ['medium', 'high'] }, { type: 'null' }],
+              description: 'medium (default when omitted or null): the user-selected model and reasoning effort, for well-defined implementation, lookup, and other mostly deterministic work. high: the main agent\'s current model and reasoning effort, for work requiring the same judgment as the main agent. Conversation inheritance is independent of this choice.',
             },
           } : {},
 
@@ -281,25 +240,12 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
           }
 
           const agentPreset = presets.resolve(args as PresetSelectionRequest)
-          const modelRequest = args as DelegationModelRequest
           const parentOptions = parentAgentOptionsForDelegation(parent)
-          const requiresRoutePreflight = hasDelegationModelRequest(modelRequest)
-            || hasConfiguredLlmSelection(config.agentOptions)
+          const requiresRoutePreflight = !modelSelectionEnabled && hasConfiguredLlmSelection(config.agentOptions)
           const configuredChildAgentOptions = requiresRoutePreflight && providerRouteDefaults !== undefined
             ? { ...providerRouteDefaults, ...config.agentOptions }
             : config.agentOptions
-          const requestedChildAgentOptions = requestedAgentOptions(
-            parentOptions,
-            configuredChildAgentOptions,
-            modelRequest,
-            modelSelectionEnabled,
-          )
-          assertAllowedModelSelection(
-            modelSelectionPolicy,
-            parentOptions,
-            requestedChildAgentOptions,
-            modelRequest,
-          )
+          const requestedChildAgentOptions = configuredChildAgentOptions
           if (requiresRoutePreflight) {
             const llm = runtimeCtx.get('llm')
             if (llm === undefined) {
@@ -322,6 +268,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
             ...args.cwd === undefined ? {} : { cwd: args.cwd },
             prompt: [{ type: 'text', text: args.prompt }] as ContentBlock[],
             parent,
+            ...args.model_tier == null ? {} : { modelTier: args.model_tier },
             ...agentPreset === undefined ? {} : { agentPreset },
             ...requestedChildAgentOptions !== undefined ? { agentOptions: requestedChildAgentOptions } : {},
             ...maxDepth !== undefined ? { maxDepth } : {},
@@ -399,7 +346,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
   if (presets.configured && (session !== undefined || compositionScope === undefined)) await presets.validate(ctx)
 
   if (!modelSelectionCapable && (!presets.configured || session !== undefined || compositionScope === undefined)) {
-    install(ctx, undefined)
+    install(ctx, false)
     return
   }
 
@@ -410,35 +357,8 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
       + '@deepseek-ai/dsh-tool-subagent/model-selection-settings in the Host scope',
     )
   }
-  const selectForSession = (target: Session): ModelSelectionPolicy | undefined => {
-    if (!modelSelectionCapable || settings === undefined) return undefined
-    const freshSession = target.firstLiveSeq === 0
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
-      && target.eventAt(SessionSeq(0))?.type !== 'session/end-seed'
-    let allowedModels = subagentModelSelectionPolicy(ctx.sessionProjections, target)
-    if (allowedModels === undefined) {
-      const parentId = target.header.origin === 'subagent'
-        ? target.header.parentSession
-        : undefined
-      if (parentId !== undefined) {
-        const sessions = ctx.get('sessions')
-        if (sessions === undefined) {
-          throw new Error('tool-subagent: child model-selection inheritance requires the Session registry')
-        }
-        const parent = sessions.get(parentId)
-        allowedModels = parent === undefined
-          ? undefined
-          : subagentModelSelectionPolicy(ctx.sessionProjections, parent)
-      } else if (freshSession) {
-        const current = settings.current()
-        allowedModels = current.enabled ? current.allowedModels : undefined
-      }
-    }
-    if (allowedModels !== undefined) {
-      recordSubagentModelSelection(ctx.sessionProjections, target, allowedModels)
-    }
-    return allowedModels === undefined ? undefined : { routes: allowedModels }
-  }
+  const selectForSession = (target: Session): boolean =>
+    modelSelectionCapable && settings !== undefined && settings.forSession(target).enabled
 
   if (session !== undefined) {
     install(ctx, selectForSession(session))

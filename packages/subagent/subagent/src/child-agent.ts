@@ -93,14 +93,33 @@ export function parentAgentOptionsForDelegation(parent: Agent): AgentOptions {
  * @param parent - the delegating parent whose route the child inherits.
  * @param requested - per-child overrides, if any.
  * @param childDepth - the resolved delegation depth to stamp.
+ * @param inheritReasoningEffort - whether compatible parent reasoning may fill an omitted effort.
  * @returns the resolved options for `ctx.agents.create()`.
  */
 export function resolveChildAgentOptions(
   parent: Agent,
   requested: AgentOptions | undefined,
   childDepth: number,
+  inheritReasoningEffort = true,
 ): AgentOptions {
   const parentOptions = parentAgentOptionsForDelegation(parent)
+  return mergeChildAgentOptions(parentOptions, requested, childDepth, inheritReasoningEffort)
+}
+
+/**
+ * Merge requested child controls over the parent options captured at delegation.
+ * @param parentOptions - immutable parent controls captured before asynchronous route lookup.
+ * @param requested - resolved per-child overrides.
+ * @param childDepth - delegation depth stamped on the child.
+ * @param inheritReasoningEffort - whether a compatible parent effort can fill an omitted effort.
+ * @returns detached child options with route-owned effort inheritance applied.
+ */
+export function mergeChildAgentOptions(
+  parentOptions: AgentOptions,
+  requested: AgentOptions | undefined,
+  childDepth: number,
+  inheritReasoningEffort = true,
+): AgentOptions {
   const parentProvider = parentOptions.provider
   const parentModel = parentOptions.model
   const parentReasoningEffort = parentOptions.reasoningEffort
@@ -114,7 +133,7 @@ export function resolveChildAgentOptions(
     subagentDepth: childDepth,
   }
   const routeChanged = resolved.provider !== parentProvider || resolved.model !== parentModel
-  if (routeChanged && requested?.reasoningEffort === undefined) delete resolved.reasoningEffort
+  if ((routeChanged || !inheritReasoningEffort) && requested?.reasoningEffort === undefined) delete resolved.reasoningEffort
   return resolved
 }
 
