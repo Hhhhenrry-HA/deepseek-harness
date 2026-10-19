@@ -84,7 +84,7 @@ describe('ShellCardController', () => {
     expect(face.hooks.shellCard.getSnapshot().timeoutMs.text).toBe('60000')
 
     face.save()
-    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined, expect.any(Function)) })
 
     expect(face.hooks.shellCard.getSnapshot()).toMatchObject({
       dirty: false,

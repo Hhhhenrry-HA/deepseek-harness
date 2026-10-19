@@ -124,9 +124,10 @@ export class ConfigFormController<T> implements ConfigForm<T> {
    * Queue one atomic namespace mutation; see {@link ConfigForm.mutate}.
    * @param ops - ordered field operations copied when queued.
    * @param expectedRevision - optional fixed revision read by the domain editor.
+   * @param onRejected - receives this mutation's Host refusal reason; omission preserves boolean-only reporting.
    * @returns whether the Host accepted the mutation, after any recovery read.
    */
-  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<boolean> {
+  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number, onRejected?: (reason: string) => void): Promise<boolean> {
     const ownedOps = structuredClone(ops) as SettingsPathOpView[]
     const generation = ++this.writeGeneration
     return this.enqueue(async () => {
@@ -134,6 +135,7 @@ export class ConfigFormController<T> implements ConfigForm<T> {
       const response = await this.ctx.remote.settings.mutate(this.spec.namespace, ownedOps, revision)
       if (!response.ok) {
         await this.recover(generation)
+        onRejected?.(response.error.message)
         return false
       }
       if (this.disposed) return true

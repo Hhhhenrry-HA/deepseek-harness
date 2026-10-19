@@ -1386,7 +1386,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 
 ### `update_goal`
 
-更新当前目标。
+使用精确 ID 和最新 revision 更新当前目标。只有 edit 修改目标内容或轮数上限；只有 blocked 记录阻塞原因。返回更新后的目标、新 revision 及自动继续的激活状态。
 
 ```json
 {
@@ -1412,16 +1412,37 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
       ]
     },
     "objective": {
-      "type": "string",
-      "description": "Replacement objective; valid only with action edit."
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Replacement objective for edit. Omit, null, or an empty string leaves it unchanged. For other actions, omit or use null (empty string if a string is required)."
     },
     "max_goal_rounds": {
-      "type": "number",
-      "description": "Replacement cap; valid only with action edit."
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Replacement positive safe-integer round cap for edit. Omit, null, or 0 leaves it unchanged. For other actions, omit or use null (0 if a number is required)."
     },
     "blocked_reason": {
-      "type": "string",
-      "description": "Required only with action blocked: the concrete condition that persisted across rounds and blocks progress."
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "For blocked, required non-empty text describing the condition that persisted across rounds and blocks progress. For other actions, omit or use null (empty string if a string is required)."
     }
   },
   "required": [

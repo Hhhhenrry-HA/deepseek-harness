@@ -14,7 +14,9 @@ afterEach(cleanup)
 
 const t = (key: keyof typeof en) => en[key]
 
-const settled: SettingsFormShell = { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false }
+const settled: SettingsFormShell = {
+  available: true, writable: true, dirty: false, invalid: false, saving: false, saveResult: undefined, failed: false,
+}
 
 function field(text: string, rest: Partial<SettingsFieldState> = {}): SettingsFieldState {
   return { text, overridden: false, invalid: false, ...rest }
@@ -112,7 +114,7 @@ describe('ShellCard', () => {
     cleanup()
 
     renderCard({ dirty: true, failed: true })
-    expect(screen.getByText(en.saveFailed)).toBeTruthy()
+    expect(screen.getByText(en.saveFailed, { exact: false })).toBeTruthy()
     expect(screen.getByLabelText(en.timeoutMs)).toBeTruthy()
   })
 

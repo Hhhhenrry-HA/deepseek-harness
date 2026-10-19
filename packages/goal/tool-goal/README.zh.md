@@ -37,7 +37,7 @@ kind: "package-reference"
 | `create_goal(objective, max_goal_rounds?)` | 根据人类直接发起的顶层轮次创建一个 goal |
 | `update_goal(goal_id, revision, action, objective?, max_goal_rounds?, blocked_reason?)` | 对精确 goal revision 执行 `edit`、`pause`、`resume`、`complete` 或 `blocked` |
 
-在 `update_goal` 之前调用 `get_goal`，并复制精确的 `goal_id` 与 `revision`；所有调用都互斥，因此模型排序的批次能观察到更早变更及其新 revision。替换值只属于 `edit`；`blocked_reason` 只有在 `blocked` 时才必填，并以稳定代码 `model-reported` 持久化。严格 schema 下的空字符串和零填充值视为省略，而有意义的值仍限定到各自 action。
+在 `update_goal` 之前调用 `get_goal`，并复制精确的 `goal_id` 与 `revision`；所有调用都互斥，因此模型排序的批次能观察到更早变更及其新 revision。只有 `edit` 读取替换值；只有 `blocked` 读取并要求 `blocked_reason`，并以稳定代码 `model-reported` 持久化。其他动作忽略这些字段，不修改目标内容、轮数上限或阻塞原因。可选字段接受省略或 `null`；空字符串和轮数上限零也视为省略。schema 仅要求 `goal_id`、`revision`、`action` 三个字段；供应商要求全部字段时，未使用字段可填 `null`，仅接受字符串或数字的路由可填空字符串和零。未知动作、无效引用、权限不符和缺少阻塞原因仍会报错，且不修改目标。
 
 ### 配置
 

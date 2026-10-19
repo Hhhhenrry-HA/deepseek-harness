@@ -115,7 +115,7 @@ describe('SubagentModelSelectionCardController', () => {
       expect(host.mutate).toHaveBeenCalledWith([
         { op: 'set', path: ['enabled'], value: true },
         { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
-      ], 3)
+      ], 3, expect.any(Function))
     })
 
     expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({
@@ -214,7 +214,7 @@ describe('SubagentModelSelectionCardController', () => {
       expect(host.mutate).toHaveBeenCalledWith([
         { op: 'set', path: ['enabled'], value: false },
         { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
-      ], 5)
+      ], 5, expect.any(Function))
     })
     expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({
       enabled: false, dirty: false,
@@ -337,7 +337,7 @@ describe('SubagentModelSelectionCardController', () => {
       expect(host.mutate).toHaveBeenCalledWith([
         { op: 'set', path: ['enabled'], value: true },
         { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
-      ], 2)
+      ], 2, expect.any(Function))
     })
   })
 
@@ -552,11 +552,11 @@ describe('shared Subagent card actions', () => {
     face.toggleEnabled()
     face.save()
     await vi.waitFor(() => { expect(state()).toMatchObject({ saving: false, dirty: false, failed: false }) })
-    expect(limits.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['maxDepth'], value: 2 }], 2)
+    expect(limits.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['maxDepth'], value: 2 }], 2, expect.any(Function))
     expect(models.mutate).toHaveBeenCalledWith([
       { op: 'set', path: ['enabled'], value: true },
       { op: 'set', path: ['allowedModels'], value: [{ provider: 'alpha', model: 'fast' }] },
-    ], 5)
+    ], 5, expect.any(Function))
   })
 
   it('saves a limit-only draft without rewriting model authorization', async () => {
@@ -585,7 +585,7 @@ describe('shared Subagent card actions', () => {
         expect(face.hooks.subagentModelSelectionCard.getSnapshot()).toMatchObject({ saving: false, dirty: false })
       })
       expect(state().saving).toBe(true)
-      expect(set).toHaveBeenCalledWith([{ op: 'set', path: ['maxDepth'], value: 2 }], 2)
+      expect(set).toHaveBeenCalledWith([{ op: 'set', path: ['maxDepth'], value: 2 }], 2, expect.any(Function))
       face.discard()
       expect(face.hooks.subagentLimitsCard.getSnapshot()).toMatchObject({ dirty: true, maxDepth: { text: '2' } })
     } finally {

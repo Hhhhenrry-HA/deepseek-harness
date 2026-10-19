@@ -50,9 +50,10 @@ export interface SettingsFormScope<T> {
    * Apply ordered field edits in one revision-fenced write.
    * @param ops - the edits, in staging order.
    * @param expectedRevision - the revision the drafts were staged against, when known.
+   * @param onRejected - receives the Host refusal reason when supplied; omission leaves reporting to the caller.
    * @returns true for Host acceptance, false for refusal, after any recovery read.
    */
-  mutate(ops: readonly SettingsFormPathOp[], expectedRevision?: number): Promise<boolean>
+  mutate(ops: readonly SettingsFormPathOp[], expectedRevision?: number, onRejected?: (reason: string) => void): Promise<boolean>
 }
 
 /** The write one field's staged text performs when the card is saved. */
@@ -99,6 +100,9 @@ export interface SettingsFieldState {
   invalid: boolean
 }
 
+/** Last completed save; absent before saving or after editing/discarding. */
+export type SettingsSaveResult = { status: 'success' } | { status: 'failure'; reason: string | undefined }
+
 /** Form state every plugin card shares. */
 export interface SettingsFormShell {
   /** False while the namespace is not served to this client; the card renders nothing. */
@@ -113,6 +117,8 @@ export interface SettingsFormShell {
   saving: boolean
   /** Whether the last save did not land as staged; cleared by the next edit or save. */
   failed: boolean
+  /** Settlement of the last save, cleared by an edit, discard, or a new save. */
+  saveResult: SettingsSaveResult | undefined
 }
 
 /** The write actions every plugin card's slot entry injects. */
@@ -200,7 +206,7 @@ export class SettingsFormModel<T> {
   private baseline: SettingsFormScopeSnapshot<T> | undefined
   private readonly unsubscribe: () => void
   private saving = false
-  private failed = false
+  private saveResult: SettingsSaveResult | undefined
 
   /**
    * @param scope - the shared configuration form for this card's namespace.
@@ -241,7 +247,8 @@ export class SettingsFormModel<T> {
       dirty: plan.length > 0,
       invalid: plan.some(item => item.run === undefined && item.op === undefined),
       saving: this.saving,
-      failed: this.failed,
+      failed: this.saveResult?.status === 'failure',
+      saveResult: this.saveResult,
     }
   }
 
@@ -279,10 +286,10 @@ export class SettingsFormModel<T> {
       },
       save: () => { void this.save() },
       discard: () => {
-        if (this.staged.size === 0 && !this.failed) return
+        if (this.staged.size === 0 && this.saveResult === undefined) return
         this.staged.clear()
         this.baseline = undefined
-        this.failed = false
+        this.saveResult = undefined
         this.publish()
       },
     }
@@ -302,17 +309,18 @@ export class SettingsFormModel<T> {
     if (!plan.length || this.saving || !this.scope.getSnapshot().writable
       || plan.some(item => item.run === undefined && item.op === undefined)) return
     this.saving = true
-    this.failed = false
+    this.saveResult = undefined
     this.publish()
     try {
       const ops = plan.flatMap(item => item.op === undefined ? [] : [item.op])
-      let landed = !ops.length || await this.scope.mutate(ops, this.baseline?.revision)
-      if (!landed) { this.failed = true; return }
+      let reason: string | undefined
+      let landed = !ops.length || await this.scope.mutate(ops, this.baseline?.revision, (message) => { reason = message })
+      if (!landed) { this.saveResult = { status: 'failure', reason }; return }
       for (const item of plan) if (item.run) landed = await item.run() && landed
       if (landed) { this.staged.clear(); this.baseline = undefined }
-      this.failed = !landed
-    } catch (_error) {
-      this.failed = true
+      this.saveResult = landed ? { status: 'success' } : { status: 'failure', reason }
+    } catch (error) {
+      this.saveResult = { status: 'failure', reason: error instanceof Error ? error.message : String(error) }
     } finally {
       this.saving = false
       this.publish()
@@ -354,7 +362,7 @@ export class SettingsFormModel<T> {
   private stage(field: string, edit: StagedEdit): void {
     this.baseline ??= this.scope.getSnapshot()
     this.staged.set(field, edit)
-    this.failed = false
+    this.saveResult = undefined
     this.publish()
   }
 

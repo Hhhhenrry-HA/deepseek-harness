@@ -12,11 +12,15 @@ const labels = {
   unavailable: 'Not loaded.',
   readOnly: 'Read-only.',
   saveFailed: 'Not accepted.',
+  saveSucceeded: 'Saved.',
+  saveReasonMissing: 'No reason returned.',
   save: 'Save',
   saving: 'Saving…',
 }
 
-const settled: SettingsFormShell = { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false }
+const settled: SettingsFormShell = {
+  available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false, saveResult: undefined,
+}
 
 function renderForm(state: Partial<SettingsFormShell> = {}) {
   const onSave = vi.fn()
@@ -57,7 +61,15 @@ it('blocks the save while a draft is invalid or one is in flight, and reports a 
   cleanup()
 
   renderForm({ dirty: true, failed: true })
-  expect(screen.getByRole('status').textContent).toBe(labels.saveFailed)
+  expect(screen.getByRole('status').textContent).toContain(labels.saveReasonMissing)
+  cleanup()
+
+  renderForm({ dirty: true, failed: true, saveResult: { status: 'failure', reason: 'Connection closed' } })
+  expect(screen.getByRole('status').textContent).toContain('Connection closed')
+  cleanup()
+
+  renderForm({ saveResult: { status: 'success' } })
+  expect(screen.getByRole('status').textContent).toBe(labels.saveSucceeded)
 })
 
 it('says the document is read-only over the controls', () => {

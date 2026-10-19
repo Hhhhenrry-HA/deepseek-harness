@@ -22,6 +22,10 @@ export interface SettingsFormLabels {
   readOnly: string
   /** Shown beside the save after a save the Host did not accept. */
   saveFailed: string
+  /** Shown only after all staged writes succeed. */
+  saveSucceeded: string
+  /** Used when a failed write supplies no reason. */
+  saveReasonMissing: string
   /** The save control. */
   save: string
   /** The save control while a save is crossing the wire. */
@@ -59,7 +63,11 @@ export function SettingsForm(props: SettingsFormProps) {
       {!state.writable ? <p className={css.readOnly} role="status">{labels.readOnly}</p> : null}
       {props.children}
       <div className={css.footer}>
-        {state.failed ? <p className={css.failed} role="status">{labels.saveFailed}</p> : null}
+        <p className={state.failed ? css.failed : css.result} role={state.saveResult !== undefined || state.failed ? 'status' : undefined}>
+          {state.failed
+            ? <>{labels.saveFailed}{state.saveResult?.status === 'failure' && state.saveResult.reason || labels.saveReasonMissing}</>
+            : state.saveResult?.status === 'success' ? labels.saveSucceeded : null}
+        </p>
         <button
           type="button"
           className={css.save}

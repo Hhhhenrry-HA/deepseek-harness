@@ -3,7 +3,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsFormScope, SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SettingsFormScope, SettingsFormShell, SettingsSaveResult } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Namespace of the Host-owned subagent model-selection preference. */
 export const SUBAGENT_MODEL_SELECTION_NS = 'subagent-model-selection-settings'
@@ -132,7 +132,7 @@ export class SubagentModelSelectionCardController {
   private draftRoutes: Map<string, AllowedSubagentModel> | undefined
   private draftRevision: number | undefined
   private saving = false
-  private failed = false
+  private saveResult: SettingsSaveResult | undefined
   private conflicted = false
   private disposed = false
   private saveGeneration = 0
@@ -219,7 +219,7 @@ export class SubagentModelSelectionCardController {
     if (this.disposed || snapshot.status !== 'ready' || !snapshot.writable || this.saving) return
     this.beginDraft()
     this.draftEnabled = !this.draftEnabled
-    this.failed = false
+    this.saveResult = undefined
     if (this.draftEnabled && this.catalogStatus === 'idle') void this.loadCatalog()
     this.publish()
   }
@@ -231,7 +231,7 @@ export class SubagentModelSelectionCardController {
     const routes = this.beginDraft()
     if (routes.has(key)) routes.delete(key)
     else routes.set(key, { provider: candidate.provider, model: candidate.model })
-    this.failed = false
+    this.saveResult = undefined
     this.publish()
   }
 
@@ -239,7 +239,7 @@ export class SubagentModelSelectionCardController {
     this.draftEnabled = undefined
     this.draftRoutes = undefined
     this.draftRevision = undefined
-    this.failed = false
+    this.saveResult = undefined
     this.conflicted = false
   }
 
@@ -273,23 +273,32 @@ export class SubagentModelSelectionCardController {
     }
     const generation = this.saveGeneration
     this.saving = true
-    this.failed = false
+    this.saveResult = undefined
     this.conflicted = false
     this.publish()
-    await this.scope.mutate([
-      { op: 'set', path: ['enabled'], value: desiredEnabled },
-      {
-        op: 'set',
-        path: ['allowedModels'],
-        value: desired.map(route => ({ provider: route.provider, model: route.model })),
-      },
-    ], this.draftRevision)
-    if (generation !== this.saveGeneration) return
-    const landed = this.currentEnabled() === desiredEnabled && sameRoutes(this.currentRoutes(), desired)
-    this.saving = false
-    this.failed = !landed
-    if (landed) this.clearDraft()
-    this.publish()
+    try {
+      let reason: string | undefined
+      const accepted = await this.scope.mutate([
+        { op: 'set', path: ['enabled'], value: desiredEnabled },
+        {
+          op: 'set',
+          path: ['allowedModels'],
+          value: desired.map(route => ({ provider: route.provider, model: route.model })),
+        },
+      ], this.draftRevision, (message) => { reason = message })
+      if (generation !== this.saveGeneration) return
+      const landed = accepted && this.currentEnabled() === desiredEnabled && sameRoutes(this.currentRoutes(), desired)
+      if (landed) this.clearDraft()
+      this.saveResult = landed ? { status: 'success' } : { status: 'failure', reason }
+    } catch (error) {
+      if (generation !== this.saveGeneration) return
+      this.saveResult = { status: 'failure', reason: error instanceof Error ? error.message : String(error) }
+    } finally {
+      if (generation === this.saveGeneration) {
+        this.saving = false
+        this.publish()
+      }
+    }
   }
 
   /** Invalidate and reload model candidates after a Host model input changes. */
@@ -341,7 +350,8 @@ export class SubagentModelSelectionCardController {
       dirty: this.currentEnabled() !== enabled || !sameRoutes(current, desired),
       invalid: enabled && desired.length === 0,
       saving: this.saving,
-      failed: this.failed,
+      failed: this.saveResult?.status === 'failure',
+      saveResult: this.saveResult,
       enabled,
       candidates: this.candidates(),
       catalogStatus: this.catalogStatus,

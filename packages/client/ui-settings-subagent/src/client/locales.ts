@@ -1,9 +1,10 @@
 /** Locale bundles for the Subagent settings page. */
 
-import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import { settingsSaveEn, settingsSaveZh, type SettingsFormLabels, type SettingsSaveLocaleKey } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Locale keys the page renders. */
 export type SubagentSettingsLocaleKey =
+  | SettingsSaveLocaleKey
   | 'overridden' | 'reset' | 'readOnly' | 'unavailable'
   | 'save' | 'saving' | 'saveFailed'
   | 'subagentTitle' | 'subagentDescription' | 'subagentLimitsTitle'
@@ -23,13 +24,13 @@ export type SubagentSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<SubagentSettingsLocaleKey, string> = {
+  ...settingsSaveEn,
   overridden: 'Overridden',
   reset: 'Reset to default',
   readOnly: 'This deployment stores settings read-only.',
   unavailable: 'This plugin is not loaded, so it cannot be configured right now.',
   save: 'Save',
   saving: 'Saving…',
-  saveFailed: 'The deployment did not accept these values; they were left for you to correct.',
   subagentTitle: 'Subagent',
   subagentDescription: 'Set Subagent recursion depth, count, and models.',
   subagentLimitsTitle: 'Limits',
@@ -62,13 +63,13 @@ export const en: Record<SubagentSettingsLocaleKey, string> = {
 
 /** Simplified Chinese copy. */
 export const zh: Record<SubagentSettingsLocaleKey, string> = {
+  ...settingsSaveZh,
   overridden: '已覆盖',
   reset: '恢复默认',
   readOnly: '本部署的设置为只读。',
   unavailable: '该插件当前未加载，暂时无法配置。',
   save: '保存',
   saving: '保存中…',
-  saveFailed: '本部署没有接受这些值，已保留供你修改。',
   subagentTitle: '子智能体',
   subagentDescription: '设置子智能体的递归层级、数量和模型。',
   subagentLimitsTitle: '运行限制',
@@ -105,5 +106,8 @@ export const zh: Record<SubagentSettingsLocaleKey, string> = {
  * @returns the labels the shared settings form renders.
  */
 export function formLabels(t: (key: SubagentSettingsLocaleKey) => string): SettingsFormLabels {
-  return { unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'), save: t('save'), saving: t('saving') }
+  return {
+    unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'),
+    saveSucceeded: t('saveSucceeded'), saveReasonMissing: t('saveReasonMissing'), save: t('save'), saving: t('saving'),
+  }
 }

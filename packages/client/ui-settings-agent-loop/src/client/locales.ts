@@ -1,15 +1,17 @@
 /** Locale bundles for the agent loop's settings page. */
 
-import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import { settingsSaveEn, settingsSaveZh, type SettingsFormLabels, type SettingsSaveLocaleKey } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Locale keys the page renders. */
 export type AgentLoopSettingsLocaleKey =
+  | SettingsSaveLocaleKey
   | 'title' | 'description' | 'maxParallel' | 'maxParallelHint'
   | 'overridden' | 'reset' | 'readOnly' | 'unavailable'
   | 'save' | 'saving' | 'saveFailed' | 'invalidNumber'
 
 /** English copy. */
 export const en: Record<AgentLoopSettingsLocaleKey, string> = {
+  ...settingsSaveEn,
   title: 'Agent loop',
   description: 'Control how the Agent dispatches tool calls.',
   maxParallel: 'Parallel tool calls',
@@ -20,12 +22,12 @@ export const en: Record<AgentLoopSettingsLocaleKey, string> = {
   unavailable: 'This plugin is not loaded, so it cannot be configured right now.',
   save: 'Save',
   saving: 'Saving…',
-  saveFailed: 'The deployment did not accept these values; they were left for you to correct.',
   invalidNumber: 'Enter a number, or leave blank to use the default.',
 }
 
 /** Simplified Chinese copy. */
 export const zh: Record<AgentLoopSettingsLocaleKey, string> = {
+  ...settingsSaveZh,
   title: 'Agent 循环',
   description: '控制 Agent 派发工具调用的方式。',
   maxParallel: '并行工具调用数',
@@ -36,7 +38,6 @@ export const zh: Record<AgentLoopSettingsLocaleKey, string> = {
   unavailable: '该插件当前未加载，暂时无法配置。',
   save: '保存',
   saving: '保存中…',
-  saveFailed: '本部署没有接受这些值，已保留供你修改。',
   invalidNumber: '请填数字；留空表示使用默认值。',
 }
 
@@ -46,5 +47,8 @@ export const zh: Record<AgentLoopSettingsLocaleKey, string> = {
  * @returns the labels the shared settings form renders.
  */
 export function formLabels(t: (key: AgentLoopSettingsLocaleKey) => string): SettingsFormLabels {
-  return { unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'), save: t('save'), saving: t('saving') }
+  return {
+    unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'),
+    saveSucceeded: t('saveSucceeded'), saveReasonMissing: t('saveReasonMissing'), save: t('save'), saving: t('saving'),
+  }
 }

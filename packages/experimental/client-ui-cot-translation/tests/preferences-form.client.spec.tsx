@@ -33,7 +33,7 @@ it('stages provider and language together, rejects malformed codes, and resets t
   fireEvent.click(view.getByRole('button', { name: en.save }))
   await vi.waitFor(() => { expect(scope.mutate).toHaveBeenCalledWith([
     { op: 'set', path: ['provider'], value: 'google' }, { op: 'set', path: ['targetLanguage'], value: 'zh-Hant' },
-  ], 7) })
+  ], 7, expect.any(Function)) })
   fireEvent.change(view.getByLabelText(en.targetLanguage), { target: { value: 'ja' } })
   fireEvent.click(view.getAllByRole('button', { name: en.reset }).at(-1)!)
   expect(view.getByLabelText(en.targetLanguage)).toHaveProperty('value', 'auto')
@@ -86,7 +86,7 @@ it('reports provider overrides, rejects an invalid draft, and resets to the inhe
     fireEvent.click(view.getByRole('button', { name: en.reset }))
     expect(view.getByLabelText(en.provider)).toHaveProperty('value', 'bing')
     fireEvent.click(view.getByRole('button', { name: en.save }))
-    await vi.waitFor(() => { expect(scope.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['provider'] }], 3) })
+    await vi.waitFor(() => { expect(scope.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['provider'] }], 3, expect.any(Function)) })
     actions.edit('provider', '')
     expect(hooks.translationForm.getSnapshot().invalid).toBe(false)
   } finally { view.unmount(); form.dispose() }
@@ -120,7 +120,7 @@ it('offers both version-free paid routes only when eligible and keeps selection 
     expect(view.queryByText(en.anonymousNotice)).toBeNull()
     expect(scope.mutate).not.toHaveBeenCalled()
     fireEvent.click(view.getByRole('button', { name: en.save }))
-    await vi.waitFor(() => { expect(scope.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['provider'], value: 'deepseek-account' }], 4) })
+    await vi.waitFor(() => { expect(scope.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['provider'], value: 'deepseek-account' }], 4, expect.any(Function)) })
     fireEvent.change(view.getByLabelText(en.provider), { target: { value: 'deepseek-official' } })
     expect(hooks.translationForm.getSnapshot().invalid).toBe(false)
     expect(view.getByText(en.paidNotice)).toBeTruthy()

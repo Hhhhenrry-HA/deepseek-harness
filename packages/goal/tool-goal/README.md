@@ -37,7 +37,7 @@ All three tools return the same compact JSON — `{ goal: null }` when no goal i
 | `create_goal(objective, max_goal_rounds?)` | Creates one goal from a direct top-level human turn |
 | `update_goal(goal_id, revision, action, objective?, max_goal_rounds?, blocked_reason?)` | `edit`, `pause`, `resume`, `complete`, or `blocked` on the exact goal revision |
 
-Call `get_goal` before `update_goal` and copy the exact `goal_id` and `revision`; all calls are exclusive, so a model-ordered batch observes earlier mutations and their new revisions. Replacements belong only to `edit`; `blocked_reason` is required only for `blocked` and is persisted with the stable code `model-reported`. Strict-schema empty-string and zero fillers count as omitted, while meaningful values remain limited to their action.
+Call `get_goal` before `update_goal` and copy the exact `goal_id` and `revision`; all calls are exclusive, so a model-ordered batch observes earlier mutations and their new revisions. Only `edit` reads replacement values; only `blocked` reads and requires `blocked_reason`, persisted with the stable code `model-reported`. Other actions ignore these fields without changing the objective, round cap, or blocker reason. Optional fields accept omission or `null`; empty strings and a zero round cap also count as omitted. The schema keeps only `goal_id`, `revision`, and `action` required; providers requiring every field can fill unused fields with `null`, or empty strings and zero on string/number-only routes. Unknown actions, invalid refs, authority failures, and missing blocker reasons still fail without changing the goal.
 
 ### Configure it
 

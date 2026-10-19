@@ -1,9 +1,10 @@
 /** Locale bundles for the shell executor's settings page. */
 
-import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import { settingsSaveEn, settingsSaveZh, type SettingsFormLabels, type SettingsSaveLocaleKey } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Locale keys the page renders. */
 export type ShellSettingsLocaleKey =
+  | SettingsSaveLocaleKey
   | 'title' | 'description'
   | 'timeoutMs' | 'timeoutMsHint' | 'maxOutputBytes' | 'maxOutputBytesHint'
   | 'overridden' | 'reset' | 'readOnly' | 'unavailable'
@@ -11,6 +12,7 @@ export type ShellSettingsLocaleKey =
 
 /** English copy. */
 export const en: Record<ShellSettingsLocaleKey, string> = {
+  ...settingsSaveEn,
   title: 'Shell',
   description: 'Limit how long each command may run and how much it may output.',
   timeoutMs: 'Command timeout (ms)',
@@ -23,12 +25,12 @@ export const en: Record<ShellSettingsLocaleKey, string> = {
   unavailable: 'This plugin is not loaded, so it cannot be configured right now.',
   save: 'Save',
   saving: 'Saving…',
-  saveFailed: 'The deployment did not accept these values; they were left for you to correct.',
   invalidNumber: 'Enter a number, or leave blank to use the default.',
 }
 
 /** Simplified Chinese copy. */
 export const zh: Record<ShellSettingsLocaleKey, string> = {
+  ...settingsSaveZh,
   title: '终端',
   description: '限制每条命令最多能跑多久、最多输出多少内容。',
   timeoutMs: '命令超时（毫秒）',
@@ -41,7 +43,6 @@ export const zh: Record<ShellSettingsLocaleKey, string> = {
   unavailable: '该插件当前未加载，暂时无法配置。',
   save: '保存',
   saving: '保存中…',
-  saveFailed: '本部署没有接受这些值，已保留供你修改。',
   invalidNumber: '请填数字；留空表示使用默认值。',
 }
 
@@ -51,5 +52,8 @@ export const zh: Record<ShellSettingsLocaleKey, string> = {
  * @returns the labels the shared settings form renders.
  */
 export function formLabels(t: (key: ShellSettingsLocaleKey) => string): SettingsFormLabels {
-  return { unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'), save: t('save'), saving: t('saving') }
+  return {
+    unavailable: t('unavailable'), readOnly: t('readOnly'), saveFailed: t('saveFailed'),
+    saveSucceeded: t('saveSucceeded'), saveReasonMissing: t('saveReasonMissing'), save: t('save'), saving: t('saving'),
+  }
 }

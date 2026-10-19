@@ -45,7 +45,7 @@ A settings surface registers into the slot types this package declares. The shel
 
 ### Observable success and failures
 
-A committed write folds its answer into the shared mirror. Refused writes refresh the latest Host values. Browser validation uses the serialized Config schema; the Host validates complete configuration, including checks that cannot be serialized.
+A committed write folds its answer into the shared mirror. Refused writes refresh the latest Host values; `mutate` can report that operation's refusal reason through its optional `onRejected` callback without changing its boolean result. Browser validation uses the serialized Config schema; the Host validates complete configuration, including checks that cannot be serialized.
 
 -----
 

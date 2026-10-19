@@ -83,10 +83,10 @@ describe('SettingsFormModel', () => {
     subject.actions().edit('timeoutMs', '9000')
     host.mutate.mockRejectedValueOnce(new Error('disconnected'))
     await subject.save()
-    expect(subject.shell()).toMatchObject({ dirty: true, failed: true, saving: false })
+    expect(subject.shell()).toMatchObject({ dirty: true, failed: true, saving: false, saveResult: { status: 'failure', reason: 'disconnected' } })
     acceptWrites(host)
     await subject.save()
-    expect(subject.shell()).toMatchObject({ dirty: false, failed: false, saving: false })
+    expect(subject.shell()).toMatchObject({ dirty: false, failed: false, saving: false, saveResult: { status: 'success' } })
   })
 
   it('shows the effective value and stays clean until something is staged', () => {
@@ -160,7 +160,7 @@ describe('SettingsFormModel', () => {
 
     await subject.save()
 
-    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined)
+    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined, expect.any(Function))
     expect(subject.shell()).toMatchObject({ dirty: false, failed: false })
   })
 
@@ -185,7 +185,7 @@ describe('SettingsFormModel', () => {
     expect(subject.field('timeoutMs')).toEqual({ text: '', overridden: false, invalid: false })
     await subject.save()
 
-    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined)
+    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined, expect.any(Function))
   })
 
   it('clears a text field by emptying it', async () => {
@@ -196,7 +196,7 @@ describe('SettingsFormModel', () => {
     subject.actions().edit('baseURL', '   ')
     await subject.save()
 
-    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['baseURL'] }], undefined)
+    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['baseURL'] }], undefined, expect.any(Function))
   })
 
   it('writes the trimmed text of a text field', async () => {
@@ -218,7 +218,7 @@ describe('SettingsFormModel', () => {
 
     // The stub Host accepted the call without storing it, exactly as a
     // validator that refuses the value does.
-    expect(host.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['timeoutMs'], value: 9_000 }], undefined)
+    expect(host.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['timeoutMs'], value: 9_000 }], undefined, expect.any(Function))
     expect(subject.shell()).toMatchObject({ dirty: true, failed: true, saving: false })
     expect(subject.field('timeoutMs').text).toBe('9000')
   })
@@ -231,7 +231,7 @@ describe('SettingsFormModel', () => {
     subject.actions().resetField('timeoutMs')
     await subject.save()
 
-    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined)
+    expect(host.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['timeoutMs'] }], undefined, expect.any(Function))
     expect(subject.shell().failed).toBe(true)
   })
 

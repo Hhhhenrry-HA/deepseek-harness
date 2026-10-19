@@ -96,9 +96,10 @@ jobs:
           $notes = @"
           ## Windows x64 安装
 
-          Exa 联网作为 fork 内置功能统一提供。升级时自动清理旧独立 Exa 插件的安装记录与本地文件，并清理没有其他插件依赖的旧版 Exa 底层包；已有搜索设置与密钥保持不变，不再需要单独安装 Exa 插件。
+          本次更新：
 
-          编辑重发与重新生成仅限最后一轮，不再允许从更早的消息重发并删除后续对话。保留模型级 JSON 工具兼容模式、自定义思考等级及现有工具权限与 API 重试机制。
+          - 设置保存显示“保存成功”或“保存失败：具体原因”，失败时保留输入，方便修改后重试。
+          - 目标工具按 action 处理对应参数，完成调用多带轮数上限等无关字段时不再报错，也不会修改这些设置。保留目标 ID、revision 和权限校验，并补全可选参数与空值说明。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -113,7 +114,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 内置 Exa 清理与最后一轮重发" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 保存反馈与目标工具修复" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

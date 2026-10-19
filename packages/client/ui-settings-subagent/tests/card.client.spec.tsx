@@ -21,7 +21,7 @@ const settled: SettingsFormShell = {
   dirty: false,
   invalid: false,
   saving: false,
-  failed: false,
+  saveResult: undefined, failed: false,
 }
 
 function field(text: string, rest: Partial<SettingsFieldState> = {}): SettingsFieldState {
@@ -280,7 +280,7 @@ describe('SubagentCard', () => {
       models.set({ ...models.getSnapshot(), saving: false, failed: true })
     })
     expect(screen.getByRole('switch')).toBeTruthy()
-    expect(screen.getByText(en.saveFailed)).toBeTruthy()
+    expect(screen.getByText(en.saveFailed, { exact: false })).toBeTruthy()
     expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', false)
   })
 

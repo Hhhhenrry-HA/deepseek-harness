@@ -20,16 +20,23 @@
   padding-top: 16px;
 }
 
+.result,
 .failed {
   flex: 1;
   min-width: 0;
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.failed {
   color: var(--dsw-alias-label-error);
 }
 
 .save {
+  flex-shrink: 0;
   appearance: none;
   border: 1px solid transparent;
   border-radius: var(--dsw-radius-md);

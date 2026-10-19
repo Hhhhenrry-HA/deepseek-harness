@@ -179,7 +179,7 @@ export class WebSearchCardController {
    */
   private async writeKey(value: string): Promise<boolean> {
     const response = await this.ctx.remote.credentials.set(refOf(this.scope.getSnapshot()), value)
-    if (!response.ok) return false
+    if (!response.ok) throw new Error(response.error.message)
     return this.readCredential()
   }
   /** Release configuration subscriptions. */

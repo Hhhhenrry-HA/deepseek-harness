@@ -50,7 +50,7 @@ describe('AgentLoopCardController', () => {
 
     face.edit('maxParallelToolCalls', '4')
     face.save()
-    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['maxParallelToolCalls'], value: 4 }], undefined) })
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledWith([{ op: 'set', path: ['maxParallelToolCalls'], value: 4 }], undefined, expect.any(Function)) })
 
     expect(face.hooks.agentLoopCard.getSnapshot()).toMatchObject({
       dirty: false,

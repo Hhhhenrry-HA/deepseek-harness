@@ -31,6 +31,8 @@ export function subagentCardShell(
   models: SubagentModelSelectionCardState,
 ): SettingsFormShell {
   const sections = [limits, models].filter(section => section.available)
+  const failure = sections.find(section => section.failed)?.saveResult
+  const settled = sections.every(section => !section.dirty && !section.saving)
   return {
     available: sections.length > 0,
     writable: sections.every(section => section.writable),
@@ -39,6 +41,7 @@ export function subagentCardShell(
       || (models.available && models.dirty && models.conflicted),
     saving: sections.some(section => section.saving),
     failed: sections.some(section => section.failed),
+    saveResult: failure ?? (settled ? sections.find(section => section.saveResult?.status === 'success')?.saveResult : undefined),
   }
 }
 

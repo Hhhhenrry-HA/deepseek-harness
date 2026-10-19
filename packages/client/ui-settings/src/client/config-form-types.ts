@@ -49,10 +49,11 @@ export interface ConfigForm<T> {
    * the latest queued or mirrored revision.
    * @param ops - ordered field operations copied when queued.
    * @param expectedRevision - optional fixed revision read by the domain editor.
+   * @param onRejected - receives the Host refusal reason when supplied; omitted callers receive only the boolean result.
    * @returns true for Host acceptance, false for refusal or skipped writes, after any latest-write recovery.
    * Transport failures reject.
    */
-  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<boolean>
+  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number, onRejected?: (reason: string) => void): Promise<boolean>
   /**
    * Queue one field write. Rapid writes preserve mutation order, each carries
    * the latest known namespace revision, and only the latest settlement may
