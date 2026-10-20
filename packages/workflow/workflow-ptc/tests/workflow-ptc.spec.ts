@@ -229,12 +229,12 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
       expect('value' in end).toBe(false)
     })
 
-    it('agent({schema, model}) forwards outputSchema and agentOptions to the provider through PTC bindings', async () => {
+    it.each(['default', 'high'] as const)('agent({schema, model, model_tier: %s}) forwards child options through PTC bindings', async (tier) => {
       const { ctx, parent, provider } = await setup({
         reply: () => ({ output: [], structured: { files: ['x.ts', 'y.ts'] }, stopReason: 'completed' }),
       })
       const result = await run(ctx, parent, scripted(`
-        const found = await agent('list files', { model_tier: 'high', model: 'deepseek-v4-pro', schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' } } }, required: ['files'] } })
+        const found = await agent('list files', { model_tier: '${tier}', model: 'deepseek-v4-pro', schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' } } }, required: ['files'] } })
         return { first: found.files[0], count: found.files.length }
       `))
       expect(result.stopReason, result.error?.split('\n')[0]).toBe('completed')
@@ -245,7 +245,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         required: ['files'],
       })
       expect(provider.runs[0]!.request.agentOptions).toEqual({ model: 'deepseek-v4-pro' })
-      expect(provider.runs[0]!.request.modelTier).toBe('high')
+      expect(provider.runs[0]!.request.modelTier).toBe(tier)
       expect(provider.runs[0]!.request.parent).toBeDefined()
     })
 

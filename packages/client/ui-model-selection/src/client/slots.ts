@@ -9,7 +9,7 @@ import type { ModelDirectoryState } from './directory.ts'
 export interface ModelLabelOwner {
   /** Provider identity and localized display name; contains no connection configuration. */
   provider: Pick<ModelProviderGroup, 'id' | 'name'>
-  /** The exact provider's model catalog entry. */
+  /** The exact provider's catalog entry, or the recorded model ID as its name for read-only history. */
   model: ModelCatalogModel
   /** Trigger caption, root-menu current value, or selectable model row. */
   placement: 'trigger' | 'menu' | 'option'
@@ -18,6 +18,18 @@ export interface ModelLabelOwner {
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotFactoryMap {
+    /** Shared composer model control; addressed children show recorded request values without selection. */
+    'conversation.model': {
+      scope: 'session'
+      props: { locked: boolean }
+      inject: ModelSelectInjected
+      locale: 'model'
+      children: {
+        'conversation.input.model.label': { kind: 'single'; scope: 'session'; inline: true }
+      }
+    }
+  }
   interface SlotMap {
     /**
      * Non-interactive inline model label; selection controls remain owner-managed.

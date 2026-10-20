@@ -2841,6 +2841,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-settings-agent-loop':
         specifier: workspace:*
         version: link:../../client/ui-settings-agent-loop
+      '@deepseek-ai/dsh-client-ui-settings-compaction':
+        specifier: workspace:*
+        version: link:../../client/ui-settings-compaction
       '@deepseek-ai/dsh-client-ui-settings-general':
         specifier: workspace:*
         version: link:../../client/ui-settings-general
@@ -5192,6 +5195,42 @@ importers:
         specifier: ^18.2.0
         version: 18.3.1
 
+  packages/client/ui-settings-compaction:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: workspace:*
+        version: link:../../api/remotes
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:*
+        version: link:../locale
+      '@deepseek-ai/dsh-client-store':
+        specifier: workspace:*
+        version: link:../store
+      '@deepseek-ai/dsh-client-test-runtime':
+        specifier: workspace:*
+        version: link:../../test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-plugin-manager':
+        specifier: workspace:*
+        version: link:../ui-plugin-manager
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:*
+        version: link:../ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:*
+        version: link:../ui-renderer
+      '@deepseek-ai/dsh-client-ui-settings':
+        specifier: workspace:*
+        version: link:../ui-settings
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:*
+        version: link:../ui-slots
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
   packages/client/ui-settings-general:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -6097,6 +6136,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-input-trigger':
         specifier: workspace:*
         version: link:../ui-input-trigger
+      '@deepseek-ai/dsh-client-ui-model-selection':
+        specifier: workspace:*
+        version: link:../ui-model-selection
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: workspace:*
         version: link:../ui-primitives
@@ -6705,6 +6747,9 @@ importers:
       '@deepseek-ai/dsh-session-projection':
         specifier: workspace:*
         version: link:../../session/session-projection
+      '@deepseek-ai/dsh-settings':
+        specifier: workspace:*
+        version: link:../../settings/settings
       '@deepseek-ai/dsh-token-meter':
         specifier: workspace:*
         version: link:../../llm/token-meter

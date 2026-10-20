@@ -12,8 +12,11 @@
     - tab "Trajectory"
 - text: Give one concrete event sourcing example. {{clock}}
 - button "Copy"
+- button "Edit message"
 - status: Completed
 - button "Completed in {{duration}}" [disabled]
+- button "Regenerate"
 - status:
   - strong: This subagent is read-only for now
   - text: The parent session is offline; reopen it to continue sending messages.
+  - status "Subagent model and reasoning effort": No model recorded yet

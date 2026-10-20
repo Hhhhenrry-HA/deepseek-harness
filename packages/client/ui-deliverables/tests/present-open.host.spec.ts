@@ -132,12 +132,16 @@ describe('Presented workspace file native open route', () => {
   })
 
   it('opens external regular files through absolute and relative paths but refuses final symlinks', async () => {
-    const { root, cwd, file, open, opener } = await fixture()
+    const { root, cwd, ctx, file, open, opener } = await fixture()
     const outside = join(root, 'outside.txt')
     await writeFile(outside, 'outside')
     const source = join(cwd, file.path)
     await unlink(source)
-    await symlink(outside, source)
+    // Windows directory junctions exercise real link metadata without requiring symlink privilege.
+    const linkTarget = process.platform === 'win32' ? join(root, 'outside-directory') : outside
+    if (process.platform === 'win32') await mkdir(linkTarget)
+    await symlink(linkTarget, source, process.platform === 'win32' ? 'junction' : 'file')
+    expect((await ctx.fs.lstat(file.path, { cwd }))?.type).toBe('symlink')
     expect((await open()).status).toBe(404)
     expect(opener).not.toHaveBeenCalled()
     for (const path of ['../outside.txt', outside]) {
@@ -145,6 +149,16 @@ describe('Presented workspace file native open route', () => {
       expect((await open()).status).toBe(204)
       expect(opener.mock.lastCall?.[0].path).toBe(await realpath(outside))
     }
+  })
+
+  it('refuses link metadata even when resolving the path would reach a regular file', async () => {
+    const { ctx, cwd, file, open, opener } = await fixture()
+    const entry = await ctx.fs.lstat(file.path, { cwd })
+    expect(entry?.type).toBe('file')
+    vi.spyOn(ctx.fs, 'lstat').mockResolvedValueOnce({ ...entry!, type: 'symlink' })
+    expect((await open()).status).toBe(404)
+    expect(opener).not.toHaveBeenCalled()
+    expect((await open()).status).toBe(204)
   })
 
   it('reports query and launcher failures without leaking Host paths and allows retry', async () => {

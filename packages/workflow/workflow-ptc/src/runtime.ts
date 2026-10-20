@@ -235,7 +235,7 @@ export class WorkflowExecution {
     phase?: string
     provider?: string
     model?: string
-    model_tier?: 'medium' | 'high'
+    model_tier?: 'default' | 'high'
     schema?: ObjectJsonSchema
   } {
     if (rawOpts === undefined) return {}
@@ -251,8 +251,8 @@ export class WorkflowExecution {
       throw new WorkflowError('agent() options must be an object', 'INVALID_ARGUMENT')
     }
     const record = opts as Record<string, unknown>
-    if (record.model_tier != null && record.model_tier !== 'medium' && record.model_tier !== 'high') {
-      throw new WorkflowError('agent() model_tier must be medium or high', 'INVALID_ARGUMENT')
+    if (record.model_tier != null && record.model_tier !== 'default' && record.model_tier !== 'high') {
+      throw new WorkflowError('agent() model_tier must be default or high', 'INVALID_ARGUMENT')
     }
     for (const key of Object.keys(record)) {
       if (SUPPORTED_AGENT_OPTIONS.has(key)) continue

@@ -14,7 +14,7 @@ import {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Session-owned medium/high delegation policy. */
+    /** Session-owned default/high delegation policy. */
     subagentModelSelection: SubagentModelSelectionConfig
   }
 }
@@ -32,7 +32,7 @@ export interface Config {
 }
 
 const policyErrors = {
-  mediumMissing: 'The medium-tier model is not configured. Ask the user to select one and start a new conversation.',
+  defaultMissing: 'The default-tier model is not configured. Ask the user to select one and start a new conversation.',
   mainMissing: 'The main agent is unavailable; the high-tier child was not started.',
   routeMissing: 'The main agent has no resolved model; the high-tier child was not started.',
 }
@@ -57,14 +57,14 @@ export class SubagentModelSelectionConfig extends Service {
         const spec = await next()
         const policy = this.forSession(spec.request.parent.session)
         if (!policy.enabled) return spec
-        const tier = spec.request.modelTier ?? 'medium'
+        const tier = spec.request.modelTier ?? 'default'
         const main = tier === 'high' ? this.mainAgent(spec.request.parent) : undefined
         const mainOptions = main === undefined ? undefined : parentAgentOptionsForDelegation(main)
-        const route = tier === 'medium' ? policy.mediumModel : mainOptions
+        const route = tier === 'default' ? policy.mediumModel : mainOptions
         if (route?.provider === undefined || route.model === undefined) {
-          throw new SubagentError(tier === 'medium' ? policyErrors.mediumMissing : policyErrors.routeMissing, 'MODEL_NOT_CONFIGURED')
+          throw new SubagentError(tier === 'default' ? policyErrors.defaultMissing : policyErrors.routeMissing, 'MODEL_NOT_CONFIGURED')
         }
-        const effort = tier === 'medium' ? policy.reasoningEffort : mainOptions?.reasoningEffort
+        const effort = tier === 'default' ? policy.reasoningEffort : mainOptions?.reasoningEffort
         const { reasoningEffort: _requestedEffort, ...configured } = spec.request.agentOptions ?? {}
         const requestedOptions = {
           ...configured,
@@ -83,7 +83,7 @@ export class SubagentModelSelectionConfig extends Service {
 
   /**
    * Read the current configuration, converting a released single-entry allowlist at this boundary.
-   * @returns The enabled state, single medium route, and optional reasoning effort.
+   * @returns The enabled state, single default route, and optional reasoning effort.
    */
   current(): SubagentModelSelectionSettings {
     const oldRoutes = this.config.allowedModels.get()
@@ -100,7 +100,7 @@ export class SubagentModelSelectionConfig extends Service {
   /**
    * Read or capture one Session's policy; children inherit it and restored sessions keep it.
    * @param session - target Session before its delegation definition is published.
-   * @returns the pinned medium model, effort, and enabled state.
+   * @returns the pinned default model, effort, and enabled state.
    */
   forSession(session: Session): SubagentModelTierPolicy {
     const projections = this.ctx.get('sessionProjections')

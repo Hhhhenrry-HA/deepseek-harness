@@ -1,0 +1,21 @@
+- button "返回插件": 插件
+- heading "上下文压缩" [level=3]
+- paragraph: 选择总结会话历史所用的模型和思考强度。
+- paragraph: 保存后，下一次自动压缩或 /compact 生效，已有会话也适用。会话模型不变。
+- group "总结模型":
+  - text: 总结模型
+  - radio "默认（跟随会话模型）"
+  - text: 默认（跟随会话模型） DeepSeek
+  - radio "DeepSeek-V4-Flash DeepSeek · deepseek-official/deepseek-v4-flash"
+  - text: DeepSeek-V4-Flash DeepSeek · deepseek-official/deepseek-v4-flash
+  - radio "DeepSeek-V4-Flash-Vision-Exp DeepSeek · deepseek-official/deepseek-v4-flash-vision-exp" [checked]
+  - text: DeepSeek-V4-Flash-Vision-Exp DeepSeek · deepseek-official/deepseek-v4-flash-vision-exp
+- text: 思考强度
+- combobox "思考强度":
+  - option "模型默认"
+  - option "off"
+  - option "low" [selected]
+  - option "high"
+  - option "max"
+- paragraph
+- button "保存" [disabled]

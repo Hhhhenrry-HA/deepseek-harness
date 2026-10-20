@@ -326,7 +326,7 @@ describe('web e2e: plugin manager', () => {
         await basic.locator('[data-plugin-item]').first().waitFor()
         // Configuration cards lead the list; their absent switches give the text column more width.
         const loaded = await measure(basic)
-        expect(await basic.locator(':scope > ul > li[data-plugin-item]').count()).toBe(4)
+        expect(await basic.locator(':scope > ul > li[data-plugin-item]').count()).toBe(5)
         expect(loaded.rows).toHaveLength(loading.rows.length)
         const compare = (name: string, a: typeof loading.pageHeader, b: typeof loaded.pageHeader, axes: readonly (keyof typeof a)[] = ['x', 'y', 'width', 'height']) => {
           for (const axis of axes) {
@@ -500,7 +500,7 @@ describe('web e2e: plugin manager', () => {
       .toMatchObject({ enabled: true, installed: false, removable: true, error: { code: 'operation-error' }, rows: [] })
     await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'missing-bundle.expected.md'),
       await captureStableAria(page, '[data-plugin-panel]', scaffold.workspaceCwd, {
-        replacements: [[scaffold.harnessHome, '{{home}}']],
+        replacements: [[JSON.stringify(join(scaffold.harnessHome, 'profiles', 'scaffold')).slice(1, -1), '{{home}}/profiles/scaffold']],
       }), MODE)
     await toggle.click()
     await expect.poll(async () => (JSON.parse(await homeFile('profiles', 'scaffold', 'package.json')) as {
@@ -574,7 +574,7 @@ describe('web e2e: plugin manager', () => {
     expect(focusRing.outlineWidth).toBeGreaterThan(0)
     // Profile bundles stay in Installed; configuration pages and offered bundles have their own groups.
     expect(await panel.locator('[data-plugin-group="bundles"] [data-plugin-package]').count()).toBe(2)
-    expect(await panel.locator('[data-plugin-group="basic"] [data-plugin-item]').count()).toBe(4)
+    expect(await panel.locator('[data-plugin-group="basic"] [data-plugin-item]').count()).toBe(5)
     expect(await panel.locator('[data-plugin-package="@deepseek-ai/dsh-experimental-inspector"]').count()).toBe(0)
     expect(await panel.getByRole('switch', { name: '启用 语音输入', exact: true }).getAttribute('aria-checked')).toBe('false')
     expect(await panel.getByRole('switch', { name: '启用 开发者工具', exact: true }).getAttribute('aria-checked')).toBe('false')
@@ -747,7 +747,7 @@ describe('web e2e: plugin manager', () => {
     await panel.getByText('Registry description for the fixture bundle.', { exact: true }).first().waitFor()
     expect([...scaffold.ctx.loader.entries()].some(entry => entry.options.name.startsWith('@fixture/bundle'))).toBe(false)
     await compareOrRefreshGolden(EXPORTS_EXPECTED, await captureStableAria(page, '[data-plugin-panel]', scaffold.workspaceCwd, {
-      replacements: [[FIXTURE_PLUGINS, '{{fixtures}}']],
+      replacements: [[join(FIXTURE_PLUGINS, 'fixture-bundle'), '{{fixtures}}/fixture-bundle']],
     }), MODE)
     try {
       await setLanguage('en')
@@ -756,7 +756,7 @@ describe('web e2e: plugin manager', () => {
       expect(await search.getByText('Search package introduction.', { exact: true }).count()).toBe(0)
       expect(await review.getByText('审查工作区中的改动。', { exact: true }).count()).toBe(0)
       await compareOrRefreshGolden(EXPORTS_EN_EXPECTED, await captureStableAria(page, '[data-plugin-panel]', scaffold.workspaceCwd, {
-        replacements: [[FIXTURE_PLUGINS, '{{fixtures}}']],
+        replacements: [[join(FIXTURE_PLUGINS, 'fixture-bundle'), '{{fixtures}}/fixture-bundle']],
       }), MODE)
       expect(await panel.locator('[data-plugin-name]').textContent()).toBe('@fixture/bundle')
     } finally {
@@ -790,7 +790,7 @@ describe('web e2e: plugin manager', () => {
       // Schedule ships in the delivered composition, so no bundle card carries it in either language.
       expect(await panel.getByRole('button', { name: 'View Automation tasks', exact: true }).count()).toBe(0)
       // The official configuration pages follow the language too, from their own dictionary.
-      for (const title of ['Shell', 'Agent loop', 'Subagent', 'Web search']) {
+      for (const title of ['Shell', 'Agent loop', 'Subagent', 'Context compaction', 'EXA Web Search']) {
         await panel.getByRole('button', { name: `View ${title}`, exact: true }).waitFor()
       }
     } finally {

@@ -28,7 +28,8 @@ Cordis 框架及其基础库以源码形式 vendored 在 [`vendor/`](../vendor/R
 - **`cordis.yml` 配置文件家族**，包括 `*.cordis.yml`、`*.cordis.snapshot.yml`、`cordis.patch.yml`。
 - **名字里带这个词的 harness 包**，例如 `@deepseek-ai/dsh-tool-cordis`。
 - **上游运行时标识符**，例如 Schemastery 的 `Symbol.for('schemastery')` 及其 `vendor:` 元数据字段。
-- **`docs/` 之外的散文。** `vendor/*/README.md`、各包 README 与 Agent Note 保留写作当时的名字；那里的裸 `cordis` 也可能是 Python SDK 的选项名或某个 agent-preset 的 id。`docs/` 之内，散文与所有 Markdown 围栏都跟着改。
+- **由所属文件声明的产品标识符**，包括 `cordis` agent-preset id 和 `cordis/*` 事件名。这些例外不会豁免显式模块引用或 Loader 插件名的检查。
+- **`docs/` 之外的散文。** `vendor/*/README.md`、各包 README 与 Agent Note 保留写作当时的名字；那里的裸 `cordis` 也可能是 Python SDK 的选项名或某个 agent-preset 的 id。`docs/` 之内，散文和 Markdown 围栏中的包引用跟着改。
 
 ## 你的代码要改什么
 
@@ -41,7 +42,7 @@ Cordis 框架及其基础库以源码形式 vendored 在 [`vendor/`](../vendor/R
 
 ## 施加、核验与回退
 
-上面这份映射由 [`scripts/rescope-vendor.ts`](../scripts/rescope-vendor.ts) 承载并执行改名，任何引用都不靠手改：
+上面这份映射由 [`scripts/rescope-vendor.ts`](../scripts/rescope-vendor.ts) 承载并执行改名，任何引用都不靠手改。检查范围是工作树中存在的已跟踪文件和未被忽略的新文件；已删除的路径不参与检查：
 
 ```sh
 pnpm run rescope-vendor            # report what would change

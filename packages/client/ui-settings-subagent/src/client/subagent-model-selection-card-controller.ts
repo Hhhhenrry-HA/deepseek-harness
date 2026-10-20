@@ -1,7 +1,8 @@
-/** Staged editor for the Host-owned single medium-tier model. */
+/** Staged editor for the Host-owned single default-tier model. */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-remotes/client'
+import { modelRouteKey, modelRouteCandidates } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsFormScope, SettingsFormShell, SettingsSaveResult } from '@deepseek-ai/dsh-client-ui-primitives'
 
@@ -18,7 +19,7 @@ export interface AllowedSubagentModel {
 export interface SubagentModelSelectionSettings {
   /** Whether model-facing child route selection applies to new Sessions. */
   enabled: boolean
-  /** Single route used for medium-tier delegation. */
+  /** Single route used for default-tier delegation. */
   mediumModel: AllowedSubagentModel | null
   /** Adapter-owned effort; null uses the selected model's default. */
   reasoningEffort: string | null
@@ -86,7 +87,7 @@ export interface SubagentModelSelectionCardFace {
  * @returns Opaque key for lookup within the card.
  */
 export function subagentModelKey(route: AllowedSubagentModel): string {
-  return `${route.provider}\0${route.model}`
+  return modelRouteKey(route)
 }
 
 /**
@@ -101,34 +102,7 @@ export function subagentModelCandidates(
   stored: readonly AllowedSubagentModel[],
   selected: ReadonlySet<string>,
 ): SubagentModelCandidate[] {
-  const storedByKey = new Map(stored.map(route => [subagentModelKey(route), route]))
-  const candidates = groups.flatMap(group => group.models.map((model): SubagentModelCandidate => {
-    const route = { provider: group.id, model: model.id }
-    const key = subagentModelKey(route)
-    storedByKey.delete(key)
-    return {
-      ...route,
-      key,
-      providerName: group.name,
-      modelName: model.name,
-      available: true,
-      selected: selected.has(key),
-      efforts: model.reasoning?.efforts ?? [],
-    }
-  }))
-  for (const route of storedByKey.values()) {
-    const key = subagentModelKey(route)
-    candidates.push({
-      ...route,
-      key,
-      providerName: route.provider,
-      modelName: route.model,
-      available: false,
-      selected: selected.has(key),
-      efforts: [],
-    })
-  }
-  return candidates
+  return modelRouteCandidates(groups, stored, selected)
 }
 
 function sameRoute(left: AllowedSubagentModel | null, right: AllowedSubagentModel | null): boolean {

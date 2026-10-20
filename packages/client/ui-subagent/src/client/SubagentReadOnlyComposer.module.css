@@ -1,7 +1,7 @@
 .frame {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   margin: 0 24px 20px;
   min-height: 54px;
@@ -16,5 +16,17 @@
 
 .frame strong {
   color: var(--dsw-alias-label-primary);
-  font-weight: 510;
+  font-weight: 500;
+}
+
+.message {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.model {
+  display: flex;
+  justify-content: flex-end;
 }

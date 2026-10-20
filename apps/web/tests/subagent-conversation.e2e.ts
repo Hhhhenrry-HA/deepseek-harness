@@ -460,6 +460,23 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     if (scaffold.ctx.agents.get(childId) !== undefined) {
       throw new Error(`viewing the child activated it; API calls: ${apiCalls.join(', ')}`)
     }
+    const modelDisplay = page.getByRole('status', { name: 'Subagent model and reasoning effort' })
+    await modelDisplay.waitFor()
+    const request = (await readPersistedEvents(scaffold, childId)).findLast(event => event.type === 'request/header')
+    if (request?.type !== 'request/header') throw new Error('child has no recorded request')
+    expect(await modelDisplay.locator('[data-model-id]').getAttribute('data-model-id')).toBe(request.data.header.config.model)
+    expect(await modelDisplay.getByRole('button').count()).toBe(0)
+    const viewport = page.viewportSize()!
+    try {
+      await page.setViewportSize({ width: 390, height: 844 })
+      await expect.poll(() => modelDisplay.evaluate((element) => {
+        const label = element.querySelector('[data-model-id]')!
+        const rect = label.getBoundingClientRect()
+        return label.getClientRects().length > 0 && rect.width > 0 && rect.left >= 0 && rect.right <= window.innerWidth
+      })).toBe(true)
+    } finally {
+      await page.setViewportSize(viewport)
+    }
     const hierarchy = page.getByRole('navigation', { name: 'Session hierarchy' })
     await hierarchy.getByRole('button', { name: `Switch subagent: ${LABEL}` }).waitFor()
     const sidebar = await captureStableAria(
@@ -600,6 +617,8 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     await page.getByRole('button', { name: '2 subagents' }).hover()
     await page.getByRole('treeitem', { name: new RegExp(ONE_SHOT_LABEL) }).click()
     await page.getByText('One-shot tasks do not accept follow-ups; review the full execution record here.').waitFor()
+    await expect.poll(() => page.getByRole('status', { name: 'Subagent model and reasoning effort' }).textContent()).toBe('No model recorded yet')
+    expect(await page.getByRole('button', { name: /Select model/ }).count()).toBe(0)
     expect(scaffold.ctx.agents.get(oneShotId)).toBeUndefined()
   })
 

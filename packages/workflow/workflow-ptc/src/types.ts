@@ -36,8 +36,8 @@ export interface WorkerInit {
 
 /** One `agent()` child request after the guest validates script options. */
 export interface ChildStartRequest {
-  /** User-selected medium model by default; high follows the main Agent. */
-  modelTier?: 'medium' | 'high'
+  /** Omitted tiers use the user-selected model; high follows the main Agent. */
+  modelTier?: 'default' | 'high'
   /** The child's prompt text. */
   prompt: string
   /** The structured-output schema, if the call passed one (already subset-checked). */

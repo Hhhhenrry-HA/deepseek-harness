@@ -101,8 +101,8 @@ interface SubagentStartRequest {
    * before initializing the separate child runtime.
    */
   readonly agentOptions?: AgentOptions
-  /** User-configured medium route by default; high explicitly follows the main Agent. */
-  readonly modelTier?: 'medium' | 'high'
+  /** Omitted tiers use the user-configured route; high follows the main Agent. */
+  readonly modelTier?: 'default' | 'high'
   /** Whether an omitted effort inherits a compatible parent effort; defaults to true. */
   readonly inheritReasoningEffort?: boolean
   /**
@@ -415,14 +415,14 @@ Owns saved model settings, session snapshots, and pre-start route enforcement.
 ```ts cordis-catalog
 /**
  * Read the current configuration, converting a released single-entry allowlist at this boundary.
- * @returns The enabled state, single medium route, and optional reasoning effort.
+ * @returns The enabled state, single default route, and optional reasoning effort.
  */
 current(): SubagentModelSelectionSettings
 
 /**
  * Read or capture one Session's policy; children inherit it and restored sessions keep it.
  * @param session - target Session before its delegation definition is published.
- * @returns the pinned medium model, effort, and enabled state.
+ * @returns the pinned default model, effort, and enabled state.
  */
 forSession(session: Session): SubagentModelTierPolicy
 ```

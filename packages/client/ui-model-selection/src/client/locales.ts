@@ -10,6 +10,8 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'readonly.label': '子智能体使用的模型与思考强度',
+  'readonly.unrecorded': '暂无模型记录',
   'provider.account': 'DeepSeek 账号',
   'command.label': '模型',
   'command.description': '选择本会话使用的模型',
@@ -40,6 +42,8 @@ export type ModelKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'readonly.label': 'Subagent model and reasoning effort',
+  'readonly.unrecorded': 'No model recorded yet',
   'provider.account': 'DeepSeek Account',
   'command.label': 'Model',
   'command.description': 'Select the model for this conversation',

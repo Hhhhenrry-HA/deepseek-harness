@@ -158,11 +158,25 @@ export class ModelDirectory {
     if (this.disposed) return
     const catalog = this.catalog.store.getSnapshot()
     const projected = modelSelectionProjection(this.projected.getSnapshot())
-    const intended = projected?.next ?? catalog.value?.default
+    const readOnly = !this.available()
+    const intended = readOnly ? projected?.lastUsed ?? undefined : projected?.next ?? catalog.value?.default
     const reasoning = intended === undefined ? undefined : this.catalog.reasoningFor(intended)
-    const effort = intended?.reasoningEffort ?? reasoning?.defaultEffort
+    const effort = readOnly ? intended?.reasoningEffort : intended?.reasoningEffort ?? reasoning?.defaultEffort
     const retainedEffort = effort === undefined ? undefined
       : reasoning?.efforts.find(level => level.id === effort)?.name ?? effort
+    if (readOnly) {
+      this.store.set({
+        current: intended ?? null,
+        ...retainedEffort === undefined ? {} : { retainedEffort },
+        routable: null,
+        groups: catalog.value?.groups ?? [],
+        failures: [],
+        status: projected === undefined ? 'loading' : 'ready',
+        pending: null,
+        error: null,
+      })
+      return
+    }
     if (catalog.status !== 'ready' || catalog.value === null || projected === undefined) {
       this.store.set({
         current: catalog.value === null ? null : this.store.getSnapshot().current,

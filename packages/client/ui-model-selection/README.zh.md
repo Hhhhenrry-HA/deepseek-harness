@@ -35,6 +35,8 @@ DeepSeek 账号和 API Key 路由显示为独立提供方分组，各自展示�
 
 鼠标选择沿用浏览器原生点击及其取消行为；仅按下按钮不会选定。打开根菜单时聚焦触发按钮，再次点击触发按钮会关闭菜单并把焦点还给它。根菜单行和搜索清除按钮的键盘焦点与悬停使用相同底色，不显示原生焦点轮廓。选定模型或推理等级后，焦点返回触发按钮但不显示焦点环；焦点离开按钮或重新打开菜单后恢复正常焦点提示。等待任一入口发起的选择结果时，焦点停在触发按钮，触发按钮以加载图标代替下拉箭头，该选择包含的值所在行以加载图标代替勾选标记；选择被拒绝后菜单保持打开。显示模型搜索框时，Tab 返回搜索框并高亮当前模型，否则返回当前选中行。
 
+已寻址的子智能体会话将 composer 模型控件复用为只读文字，一次性历史和父会话离线的子会话也一样。显示取最近一次已记录请求，不取下一次请求的选择或全局默认值。目录可用时使用名称，否则保留已记录的模型与强度 ID；没有模型记录时显示“暂无模型记录”。窄屏下文字换行，不折叠为仅图标控件。子会话没有模型菜单或 `/model` 命令，查看不会激活 Agent 或提交模型选择。
+
 ### 模型与推理强度
 
 按钮模型菜单仅在完整目录超过四个模型时显示搜索框；较小目录聚焦当前模型或首行，直接支持键盘导航。`/model` 命令始终保留搜索框。两个搜索框均按模型名称进行不区分大小写的匹配，支持按顺序输入不连续字符，并忽略首尾空格。每个提供方内的结果优先按前缀匹配、其次按匹配得分、最后按目录顺序排列。没有匹配项的分组会隐藏。空目录和无匹配结果均通过状态区域通知屏幕阅读器。方向键在各提供方分组的结果间循环移动高亮，焦点保留在搜索框；Enter 或 Tab 选定高亮项。左右方向键仍用于移动输入光标。打开时高亮当前模型或首个可用选项，修改搜索内容后高亮首个结果。重新打开模型面板会清空搜索内容。
@@ -49,7 +51,7 @@ composer 菜单中的模型名称和推理等级均使用 400（regular）字重
 
 `conversation.input.model.label` 是会话作用域的内联 `single` slot，覆盖 composer 触发按钮（`placement: 'trigger'`）、根菜单中的当前值（`'menu'`）和各模型选项（`'option'`）。owner props 提供 `provider: { id, name }`、准确的目录 `model`、`placement` 和 `selected`。提供方名称是本地化显示名称；按 `provider.id` 匹配渠道，按提供方与模型 ID 的组合识别模型。slot 不接收连接 URL 或凭据。
 
-扩展必须渲染非交互的内联内容，例如带颜色的名称或徽标。选择器负责点击、搜索、焦点、禁用状态、勾选标记、推理强度和触发按钮的无障碍文字。没有扩展（包括插件卸载后）时显示目录名称。触发按钮和根菜单当前值仅在所选模型存在于显示目录中时调用 slot，否则保留内置占位文字。刷新期间保留的目录条目仍调用 slot。菜单打开时会跟随名称内容的尺寸变化调整位置，保持在视口内。`/model` 命令行使用命令弹窗独立的渲染 API。
+扩展必须渲染非交互的内联内容，例如带颜色的名称或徽标。选择器负责点击、搜索、焦点、禁用状态、勾选标记、推理强度和触发按钮的无障碍文字。没有扩展（包括插件卸载后）时显示目录名称。触发按钮和根菜单当前值仅在所选模型存在于显示目录中时调用 slot，否则保留内置占位文字。刷新期间保留的目录条目仍调用 slot。菜单打开时会跟随名称内容的尺寸变化调整位置，保持在视口内。只读子会话也渲染此 slot；目录条目缺失时，`model.id` 与 `model.name` 均为已记录的模型 ID。`/model` 命令行使用命令弹窗独立的渲染 API。
 
 以 type-only 方式导入本包的 `/client` 声明，再通过 `ctx.slots.inject('conversation.input.model.label', () => ctx.slots.register({ name: 'conversation.input.model.label' }, ModelLabel))` 注册。`ModelLabel` 的 props 从 `PropsRuntime<'conversation.input.model.label'>` 派生；用提供方 ID 选择 CSS Module 类，并保留 `model.name` 作为文字。注册随声明和贡献插件的生命周期清理。不替换组件时，样式也可以在三个显示位置通过名称外层的 `data-provider-id` 和 `data-model-id` 属性定位。
 
@@ -73,7 +75,7 @@ composer 菜单中的模型名称和推理等级均使用 400（regular）字重
 
 composer 的 `ModelSelect` 与 `/model` 选项构建器共用[提供方排序](src/client/provider-order.ts)，两个搜索框均在每个提供方内使用 `rankByName`。命令通过 [popupSelect API](../ui-commands/README.zh.md#use-this-package) 提供可选分组与 `searchMode: 'fuzzy-label'`；两个入口均使用 `MenuGroup`，并在渲染分组变化时重建其吸顶观察器。命令弹窗撑满 composer 浮层，按钮则保留紧凑菜单。
 
-两个入口共用一份由 `ModelDirectoryResolver`（`ctx.modelDirectories`）持有的会话级目录：`/model` popupSelect 贡献项（经 `ctx.commandUi` 注册）与 composer 的具名 `conversation.input.model` 位都经 `session.models` 加载会话的可用目录、经 `session.selectModel` 通过同一个 `ModelDirectory` 实例提交，因此任一入口所做的切换正是另一个入口接下来显示的。目录加载与选择共享一个代次计数器，旧响应不会覆盖新结果。目录把最近一次提交的选择发布为 `pending`，直到它完成或被连接重置作废；连接重置丢弃所有常驻投影，并在显示前重新拉取 Host 恢复的选择。目录按会话惰性解析，随会话作用域一并 dispose（资源释放）；已寻址 subagent 会话不公开任一入口。每份常驻目录都会直接在转发的 `llm/adapters-updated`、`settings/document-updated` 与凭据更新事件上重拉。
+两个入口共用一份由 `ModelDirectoryResolver`（`ctx.modelDirectories`）持有的会话级目录：`/model` popupSelect 贡献项（经 `ctx.commandUi` 注册）与 composer 的具名 `conversation.input.model` 位都经 `session.models` 加载会话的可用目录、经 `session.selectModel` 通过同一个 `ModelDirectory` 实例提交，因此任一入口所做的切换正是另一个入口接下来显示的。目录加载与选择共享一个代次计数器，旧响应不会覆盖新结果。目录把最近一次提交的选择发布为 `pending`，直到它完成或被连接重置作废；连接重置丢弃所有常驻投影，并在显示前重新拉取 Host 恢复的选择。目录按会话惰性解析，随会话作用域一并 dispose（资源释放）；已寻址 subagent 会话只公开只读的 composer 展示。共享的会话级 `conversation.model` Factory 拥有控件及模型名称 slot，普通 composer 模型位和只读子会话 composer 都渲染它。每份常驻目录都会直接在转发的 `llm/adapters-updated`、`settings/document-updated` 与凭据更新事件上重拉。
 
 </details>
 

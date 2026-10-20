@@ -1,10 +1,8 @@
 /** User control for model-selectable subagent delegation in new sessions. */
 
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
-import { useId } from 'react'
+import { ModelRouteFields, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  SubagentModelCandidate,
   SubagentModelSelectionCardFace,
   SubagentModelSelectionCardState,
 } from './subagent-model-selection-card-controller.ts'
@@ -22,47 +20,6 @@ export type SubagentModelSelectionFieldsProps = PropsLocale<'settings.subagent'>
  */
 export function SubagentModelSelectionFields(props: SubagentModelSelectionFieldsProps) {
   const { t, state } = props
-  const modelGroupName = useId()
-  const effortId = useId()
-  const selected = state.candidates.find(candidate => candidate.selected)
-  const availableGroups = new Map<string, {
-    providerName: string
-    candidates: SubagentModelCandidate[]
-  }>()
-  const unavailable: SubagentModelCandidate[] = []
-  for (const candidate of state.candidates) {
-    if (!candidate.available) {
-      unavailable.push(candidate)
-      continue
-    }
-    const group = availableGroups.get(candidate.provider)
-    if (group === undefined) {
-      availableGroups.set(candidate.provider, {
-        providerName: candidate.providerName,
-        candidates: [candidate],
-      })
-    } else {
-      group.candidates.push(candidate)
-    }
-  }
-  const renderCandidate = (candidate: SubagentModelCandidate) => (
-    <label key={candidate.key} className={css.model}>
-      <input
-        type="radio"
-        name={modelGroupName}
-        checked={candidate.selected}
-        disabled={!state.writable || state.saving}
-        onChange={() => { props.toggleModel(candidate.key) }}
-      />
-      <span>
-        <span className={css.modelName}>{candidate.modelName}</span>
-        <span className={css.route}>{`${candidate.providerName} · ${candidate.provider}/${candidate.model}`}</span>
-      </span>
-      {!candidate.available
-        ? <span className={css.unavailable}>{t('subagentModelSelectionUnavailable')}</span>
-        : null}
-    </label>
-  )
   return (
     <>
       <div className={css.permission}>
@@ -98,42 +55,18 @@ export function SubagentModelSelectionFields(props: SubagentModelSelectionFields
               : null}
             {state.candidates.length > 0
               ? (
-                <fieldset className={css.models}>
-                  <legend>{t('subagentModelSelectionAllowed')}</legend>
-                  {[...availableGroups].map(([provider, group]) => (
-                    <div key={provider} className={css.modelGroup}>
-                      <div className={css.providerName}>{group.providerName}</div>
-                      {group.candidates.map(renderCandidate)}
-                    </div>
-                  ))}
-                  {unavailable.length > 0
-                    ? (
-                      <div className={css.modelGroup}>
-                        <div className={css.providerName}>{t('subagentModelSelectionUnavailableGroup')}</div>
-                        {unavailable.map(renderCandidate)}
-                      </div>
-                    )
-                    : null}
-                </fieldset>
+                <ModelRouteFields candidates={state.candidates} reasoningEffort={state.reasoningEffort}
+                  disabled={!state.writable || state.saving}
+                  labels={{
+                    title: t('subagentModelSelectionAllowed'), unavailable: t('subagentModelSelectionUnavailable'),
+                    unavailableGroup: t('subagentModelSelectionUnavailableGroup'),
+                    effort: t('subagentModelSelectionEffort'), defaultEffort: t('subagentModelSelectionDefaultEffort'),
+                  }}
+                  onSelect={(key) => { if (key !== null) props.toggleModel(key) }} onEffort={props.setReasoningEffort} />
               )
               : state.catalogStatus === 'ready'
                 ? <p className={css.notice}>{t('subagentModelSelectionEmpty')}</p>
                 : null}
-            {selected !== undefined && (selected.efforts.length > 0 || state.reasoningEffort !== null)
-              ? (
-                <div className={css.effort}>
-                  <label htmlFor={effortId}>{t('subagentModelSelectionEffort')}</label>
-                  <select id={effortId} value={state.reasoningEffort ?? ''} disabled={!state.writable || state.saving}
-                    onChange={(event) => { props.setReasoningEffort(event.target.value || null) }}>
-                    <option value="">{t('subagentModelSelectionDefaultEffort')}</option>
-                    {state.reasoningEffort !== null && !selected.efforts.some(effort => effort.id === state.reasoningEffort)
-                      ? <option value={state.reasoningEffort}>{state.reasoningEffort} · {t('subagentModelSelectionUnavailable')}</option>
-                      : null}
-                    {selected.efforts.map(effort => <option key={effort.id} value={effort.id}>{effort.name}</option>)}
-                  </select>
-                </div>
-              )
-              : null}
             <div className={css.high}><span>{t('subagentModelSelectionHigh')}</span><span>{t('subagentModelSelectionFollowMain')}</span></div>
             {state.invalid ? <p className={css.invalid}>{t(state.needsSelection ? 'subagentModelSelectionReselect' : 'subagentModelSelectionRequired')}</p> : null}
           </div>

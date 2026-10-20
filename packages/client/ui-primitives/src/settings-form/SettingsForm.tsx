@@ -57,7 +57,7 @@ export function SettingsForm(props: SettingsFormProps) {
   discard.current = props.onDiscard
   useEffect(() => () => { discard.current() }, [])
   if (!state.available) return <p className={css.unavailable} role="status">{labels.unavailable}</p>
-  const blocked = !state.dirty || state.invalid || state.saving
+  const blocked = !state.writable || !state.dirty || state.invalid || state.saving
   return (
     <div className={css.form}>
       {!state.writable ? <p className={css.readOnly} role="status">{labels.readOnly}</p> : null}

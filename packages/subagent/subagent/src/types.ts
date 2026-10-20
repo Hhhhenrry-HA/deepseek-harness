@@ -167,8 +167,8 @@ export interface SubagentStartRequest {
    * before initializing the separate child runtime.
    */
   readonly agentOptions?: AgentOptions
-  /** User-configured medium route by default; high explicitly follows the main Agent. */
-  readonly modelTier?: 'medium' | 'high'
+  /** Omitted tiers use the user-configured route; high follows the main Agent. */
+  readonly modelTier?: 'default' | 'high'
   /** Whether an omitted effort inherits a compatible parent effort; defaults to true. */
   readonly inheritReasoningEffort?: boolean
   /**

@@ -701,6 +701,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'compactionModelSelection',
+    summary: 'Owns the user preference without changing conversation routes or history.',
+    description: 'Owns the user preference without changing conversation routes or history.',
+    methods: [
+      {
+        signature: 'current(): CompactionModelSelectionSettings',
+        description: 'Capture one preference for the next summary; an in-flight request keeps its selection.',
+        parameters: [],
+        returns: 'A detached route and effort; follow mode uses the backend\'s configured behavior.',
+      },
+    ],
+  },
+  {
     key: 'computerUse',
     summary: 'Owns one optional provider registration in the shared computer-use service.',
     description: 'Owns one optional provider registration in the shared computer-use service.',
@@ -3014,13 +3027,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'current(): SubagentModelSelectionSettings',
         description: 'Read the current configuration, converting a released single-entry allowlist at this boundary.',
         parameters: [],
-        returns: 'The enabled state, single medium route, and optional reasoning effort.',
+        returns: 'The enabled state, single default route, and optional reasoning effort.',
       },
       {
         signature: 'forSession(session: Session): SubagentModelTierPolicy',
         description: 'Read or capture one Session\'s policy; children inherit it and restored sessions keep it.',
         parameters: [{ name: 'session', description: 'target Session before its delegation definition is published.' }],
-        returns: 'the pinned medium model, effort, and enabled state.',
+        returns: 'the pinned default model, effort, and enabled state.',
       },
     ],
   },
@@ -5088,6 +5101,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CompactionId',
     declaration: 'export type CompactionId = Branded<\'CompactionId\'>;',
+  },
+  {
+    name: 'CompactionModelSelectionSettings',
+    declaration: 'export interface CompactionModelSelectionSettings {\n    model: SummaryModelRoute | null;\n    reasoningEffort: string | null;\n}',
   },
   {
     name: 'CompactionResult',
@@ -7939,7 +7956,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubagentStartRequest',
-    declaration: 'export interface SubagentStartRequest {\n    readonly cwd?: string;\n    readonly agentPreset?: string;\n    readonly label?: string;\n    readonly prompt: ContentBlock[];\n    readonly parent: Agent;\n    readonly signal: AbortSignal;\n    readonly agentOptions?: AgentOptions;\n    readonly modelTier?: \'medium\' | \'high\';\n    readonly inheritReasoningEffort?: boolean;\n    readonly outputSchema?: ObjectJsonSchema;\n    readonly maxDepth?: number;\n}',
+    declaration: 'export interface SubagentStartRequest {\n    readonly cwd?: string;\n    readonly agentPreset?: string;\n    readonly label?: string;\n    readonly prompt: ContentBlock[];\n    readonly parent: Agent;\n    readonly signal: AbortSignal;\n    readonly agentOptions?: AgentOptions;\n    readonly modelTier?: \'default\' | \'high\';\n    readonly inheritReasoningEffort?: boolean;\n    readonly outputSchema?: ObjectJsonSchema;\n    readonly maxDepth?: number;\n}',
   },
   {
     name: 'SubagentStopReason',

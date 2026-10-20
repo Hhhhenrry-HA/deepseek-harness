@@ -69,6 +69,7 @@ function requestFromState(
           provider: summary.data.provider,
           model: summary.data.model,
           purpose: 'compaction',
+          ...(summary.data.reasoningEffort === undefined ? {} : { reasoningEffort: summary.data.reasoningEffort }),
           ...(summary.data.maxTokens === undefined ? {} : { maxTokens: summary.data.maxTokens }),
         },
         ...(summary.data.usage === undefined ? {} : { usage: summary.data.usage }),

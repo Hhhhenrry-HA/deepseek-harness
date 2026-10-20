@@ -1225,7 +1225,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'conversation.composer.bar\' (client-ui-conversation), so it exists while that entry is mounted',
     occupants: [
-      'client-ui-model-selection ModelSelect',
+      'client-ui-model-selection ModelSeat',
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.input.model\', () => ctx.slots.register(\n      { name: \'conversation.input.model\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
@@ -1239,7 +1239,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     doc: 'Non-interactive inline model label; selection controls remain owner-managed.\nWithout a contribution, the composer displays the catalog name.',
     registerOptions: [],
     ownerProps: [
-      '/** Catalog data for a model name inside the composer\'s existing controls. */\nexport interface ModelLabelOwner {\n  /** Provider identity and localized display name; contains no connection configuration. */\n  provider: Pick<ModelProviderGroup, \'id\' | \'name\'>\n  /** The exact provider\'s model catalog entry. */\n  model: ModelCatalogModel\n  /** Trigger caption, root-menu current value, or selectable model row. */\n  placement: \'trigger\' | \'menu\' | \'option\'\n  /** Whether this provider/model pair is the current selection. */\n  selected: boolean\n}',
+      '/** Catalog data for a model name inside the composer\'s existing controls. */\nexport interface ModelLabelOwner {\n  /** Provider identity and localized display name; contains no connection configuration. */\n  provider: Pick<ModelProviderGroup, \'id\' | \'name\'>\n  /** The exact provider\'s catalog entry, or the recorded model ID as its name for read-only history. */\n  model: ModelCatalogModel\n  /** Trigger caption, root-menu current value, or selectable model row. */\n  placement: \'trigger\' | \'menu\' | \'option\'\n  /** Whether this provider/model pair is the current selection. */\n  selected: boolean\n}',
     ],
     ownerPropsReferences: [
       'ModelCatalogModel',
@@ -1268,13 +1268,13 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     keyDomain: '',
     hookContext: '',
     slotInject: '',
-    declaredBy: 'an entry in \'conversation.input.model\' (client-ui-model-selection), so it exists while that entry is mounted',
+    declaredBy: 'factory \'conversation.model\' (client-ui-model-selection), so it exists while that definition is registered',
     occupants: [
       'client-ui-deepseek-model-label-1017 DeepSeekModelLabel',
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.input.model.label\', () => ctx.slots.register(\n      { name: \'conversation.input.model.label\' },\n      ({ provider, model }) => React.createElement(\'span\', { title: provider.name }, model.name),\n    ))\n  },\n}',
-    source: 'packages/client/ui-model-selection/src/client/slots.ts:36',
+    source: 'packages/client/ui-model-selection/src/client/slots.ts:48',
   },
   {
     key: 'conversation.input.overlay',
@@ -2540,6 +2540,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'main\' (client-ui-plugin-manager), so it exists while that entry is mounted',
     occupants: [
       'client-ui-settings-agent-loop AgentLoopCard id \'agent-loop\'',
+      'client-ui-settings-compaction CompactionCard id \'compaction\'',
       'client-ui-settings-shell ShellCard id \'shell\'',
       'client-ui-settings-subagent SubagentCard id \'subagent\'',
       'client-ui-settings-web-search WebSearchCard id \'web-search\'',

@@ -74,9 +74,9 @@ kind: "package-reference"
 <a id="selecting-a-child-llm"></a>
 ### 选择子级 LLM
 
-设置 `modelSelectionSettings: true`，由 Host 的 `subagent-model-selection-settings` 服务为工具公开 `model_tier`。启用后，省略或 null 表示 `medium`：用户单选的 `mediumModel` 路由和 `reasoningEffort`（null 使用该模型默认值）。`high` 采用主 Agent 当前的模型和推理强度，即使中间的父 Agent 正在使用中级模型。spawn、fork 和 workflow 启动共同执行创建前策略；上下文继承与模型等级相互独立。
+设置 `modelSelectionSettings: true`，由 Host 的 `subagent-model-selection-settings` 服务为工具公开 `model_tier`。启用后，省略或 null 表示 `default`：用户单选的 `mediumModel` 路由和 `reasoningEffort`（null 使用该模型默认值）。`high` 采用主 Agent 当前的模型和推理强度，即使中间的父 Agent 正在使用默认模型。spawn、fork 和 workflow 启动共同执行创建前策略；上下文继承与模型等级相互独立。
 
-策略在工具公开前记入 Session，由子 Session 继承。恢复会话保留已记录策略；没有策略的旧会话保持禁用。实时适配器在创建前校验模型和强度。中级模型未配置或不可用时启动失败，不切换到高级。此设置要求提供方支持 `agentOptions`。
+策略在工具公开前记入 Session，由子 Session 继承。恢复会话保留已记录策略；没有策略的旧会话保持禁用。实时适配器在创建前校验模型和强度。默认模型未配置或不可用时启动失败，不切换到高级。此设置要求提供方支持 `agentOptions`。
 
 关闭分级时，静态 `agentOptions` 和提供方路由默认值保持原有配置行为。缺少的兼容值取父 Agent 最新已记录请求，首次请求前取创建选项。路由变化会清除未指定的路由自有强度，并保留配置的输出 token 上限。
 
@@ -154,12 +154,12 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-可见的委派工具共享一段指导，列出按名称排序的工具，指示模型一起启动相互独立的委派，并在它们运行时继续工作；当只剩等待它们的结果时，结束本轮，而不是休眠或轮询。隐藏或不可用的工具不列入其中；没有可见工具时，不输出指导。`subagent` 和 `subagent_fork` 都可见时，文本为：
+可见的委派工具共享一段指导，列出按名称排序的工具，指示模型一起启动相互独立的委派，并在它们运行时继续不依赖其调查结果的工作。需要这些结果的步骤在子智能体汇报后进行。隐藏或不可用的工具不列入其中；没有可见工具时，不输出指导。`subagent` 和 `subagent_fork` 都可见时，文本为：
 
 ##### 工具指导 section
 
 ```markdown
-Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.
+Start independent delegations with `subagent` or `subagent_fork` together in one assistant message. A running child's findings are not available to you until it reports back. Meanwhile, continue with work that does not need them; steps that build on them come after the report.
 ```
 
 #### Token 影响

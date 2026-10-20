@@ -146,6 +146,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
   'packages/client/ui-settings-shell': { kind: 'none', reason: 'Browser-side settings surface; registers no model surface.' },
   'packages/client/ui-settings-session-log': { kind: 'none', reason: 'Browser preference controls request metadata, not model input.' },
   'packages/client/ui-settings-agent-loop': { kind: 'none', reason: 'Browser-side settings surface; registers no model surface.' },
+  'packages/client/ui-settings-compaction': { kind: 'none', reason: 'Browser-side summary preference editor; the compaction backend owns the model request and checkpoint.' },
   'packages/client/ui-settings-subagent': { kind: 'none', reason: 'Browser-side settings surface; registers no model surface.' },
   'packages/client/ui-settings-web-search': { kind: 'none', reason: 'Browser-side settings surface; registers no model surface.' },
   'packages/client/ui-plan': { kind: 'indirect', reason: 'The chip dispatches /plan off; dsh-plan-mode owns the model-visible policy, exit tool, and logged state.' },

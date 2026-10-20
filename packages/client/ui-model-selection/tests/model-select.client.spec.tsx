@@ -426,17 +426,28 @@ describe('ModelSelect reasoning effort', () => {
     }
   })
 
-  it('renders no Agent-bound control for an addressed subagent session', () => {
+  it('shows recorded child model and effort without Agent-bound controls, including unavailable models', () => {
     const load = vi.fn()
+    const directory = createSnapshotStore(state({ retainedEffort: 'High' }))
     render(<ModelSelect renderSlot={renderLabel}
       locked={false}
       available={false}
-      directory={createSnapshotStore(state())}
+      directory={directory}
       load={load}
       select={vi.fn().mockResolvedValue(undefined)}
       t={t}
     />)
 
+    const display = screen.getByRole('status', { name: zh['readonly.label'] })
+    expect(display.textContent).toBe('DeepSeek-V4-FlashHigh')
+    act(() => { directory.set(state({ current: { provider: 'removed', model: 'recorded-model', reasoningEffort: 'custom' }, groups: [], retainedEffort: 'custom' })) })
+    expect(display.textContent).toBe('recorded-modelcustom')
+    act(() => { directory.set(state({ current: null, groups: [] })) })
+    expect(display.textContent).toBe(zh['readonly.unrecorded'])
+    act(() => { directory.set(state({ current: null, status: 'loading' })) })
+    expect(display.textContent).toBe(zh['trigger.loading'])
+    act(() => { directory.set(state({ current: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } })) })
+    expect(display.textContent).toBe('DeepSeek-V4-Flash')
     expect(screen.queryByRole('button')).toBeNull()
     expect(load).not.toHaveBeenCalled()
   })

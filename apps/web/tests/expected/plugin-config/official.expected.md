@@ -11,6 +11,9 @@
     - button "查看 子智能体": 子智能体
     - text: 设置子智能体的递归层级、数量和模型。
   - listitem:
+    - button "查看 上下文压缩": 上下文压缩
+    - text: 选择总结会话历史所用的模型和思考强度。
+  - listitem:
     - button "查看 EXA 网页搜索": EXA 网页搜索
     - text: 设置 Exa 网页搜索。
   - listitem:

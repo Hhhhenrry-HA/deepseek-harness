@@ -1,5 +1,5 @@
 ---
-description: "The Subagent settings page on the dsh web client's Plugins page: delegation depth and capacity over the subagent namespace, and a single medium-tier model over subagent-model-selection-settings, on one page with one save."
+description: "The Subagent settings page on the dsh web client's Plugins page: delegation depth and capacity over the subagent namespace, and a single default-tier model over subagent-model-selection-settings, on one page with one save."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Open **Plugins** in the sidebar and select **Subagent** in the Official group to set how deep and how wide delegation may go, and the default medium-tier model for their subagents. The page groups the two Host namespaces, `subagent` and `subagent-model-selection-settings`, under one save; it exists while the Host serves either and shows the sections it serves.
+Open **Plugins** in the sidebar and select **Subagent** in the Official group to set how deep and how wide delegation may go, and the default model for their subagents. The page groups the two Host namespaces, `subagent` and `subagent-model-selection-settings`, under one save; it exists while the Host serves either and shows the sections it serves.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ Open **Plugins** in the sidebar and select **Subagent** in the Official group to
 
 **Limits** holds **Maximum recursion depth** and **Subagent parallelism limit** side by side, stacking on narrow screens; the information button beside each label discloses its rule — a two-row depth example, and the count that capacity bounds — and a draft that is not a whole number in range blocks the save and says so under the field. Depth yields to a tool's own maximum; capacity counts every live subagent under one main agent across all levels, the main agent excluded.
 
-**Model selection** stages the tier switch, a single medium-tier route, and its reasoning effort. High follows the main Agent without a separate selector. Changing models resets effort to the model default. The saved selection remains visible if unavailable; partial catalog failures do not hide other providers, and a failed load offers **Retry**. Settings apply to new conversations.
+**Model selection** stages the tier switch, a single default-tier route, and its reasoning effort. High follows the main Agent without a separate selector. Changing models resets effort to the model default. The saved selection remains visible if unavailable; partial catalog failures do not hide other providers, and a failed load offers **Retry**. Settings apply to new conversations.
 
 One **Save** writes both sections through their own namespaces, each fenced by the revision its draft read. The writes are independent: a section the Host refuses keeps its draft with the failure reported while the other lands, and a model draft a newer Host revision superseded is reported as a conflict to discard rather than overwriting the newer routes. Leaving the page drops every draft.
 

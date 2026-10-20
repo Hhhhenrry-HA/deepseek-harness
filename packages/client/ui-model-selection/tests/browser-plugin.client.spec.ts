@@ -9,6 +9,8 @@
  * Scope disposal drops the directory (HMR safety).
  */
 import { Context } from '@deepseek-ai/cordis'
+import type { ReactNode } from 'react'
+import type { PropsRenderFactories, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { describe, expect, it, vi } from 'vitest'
 import { createScope } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -123,9 +125,18 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     inject: ((sessionId: SessionId) => ModelSelectInjected) | undefined
     locale: string | undefined
   }>()
+  let renderModelSeat: ((props: Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & PropsRenderFactories) => ReactNode) | undefined
   ctx.provide('slots', {
     inject(_name: string, callback: () => () => void) { return callback() },
-    register(options: { name: string; locale?: string; inject?: (sessionId: SessionId) => ModelSelectInjected }) {
+    registerFactory(options: { name: string; locale?: string; inject?: (sessionId: SessionId) => ModelSelectInjected }) {
+      seats.set(options.name, { inject: options.inject, locale: options.locale })
+      return () => { seats.delete(options.name) }
+    },
+    register(
+      options: { name: string; locale?: string; inject?: (sessionId: SessionId) => ModelSelectInjected },
+      component: NonNullable<typeof renderModelSeat>,
+    ) {
+      if (options.name === 'conversation.input.model') renderModelSeat = component
       seats.set(options.name, { inject: options.inject, locale: options.locale })
       return () => { seats.delete(options.name) }
     },
@@ -186,7 +197,8 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       if (ui.kind !== 'popupSelect') throw new Error('expected the popupSelect kind')
       return ui
     },
-    seat: () => seats.get('conversation.input.model')!,
+    seat: () => seats.get('conversation.model')!,
+    renderModelSeat: (props: Parameters<NonNullable<typeof renderModelSeat>>[0]) => renderModelSeat!(props),
     hostCurrent: () => selected,
     rejectSelection: () => {
       selectionFailure = new RemoteError('session/writer-held', 'writer held', { sessionId: sid('owned') })
@@ -223,6 +235,9 @@ describe('ui-model-selection dual entry', () => {
     expect(b.seat().inject).toBeTypeOf('function')
     // Copy rides the standard locale seat.
     expect(b.seat().locale).toBe('model')
+    const renderFactorySlot = vi.fn(() => 'shared model control')
+    expect(b.renderModelSeat({ locked: true, renderFactorySlot })).toBe('shared model control')
+    expect(renderFactorySlot).toHaveBeenCalledWith('conversation.model', { locked: true })
   })
 
   it.each(['zh', 'en'] as const)('shows names and providers without catalog descriptions (%s)', async (locale) => {
@@ -506,12 +521,36 @@ describe('ui-model-selection dual entry', () => {
     expect(b.calls.select).toBe(0)
   })
 
+  it('keeps recorded child values without a catalog and never substitutes pending or default values', async () => {
+    const b = await bench()
+    const child = b.mint('recorded-child')
+    child.projection.set(undefined)
+    b.address(sid('recorded-child'))
+    b.setCatalogFailure(true)
+    const next = { provider: 'deepseek-official', model: 'deepseek-v4-pro', reasoningEffort: 'high' }
+    const face = b.seat().inject!(sid('recorded-child'))
+    expect(face.directory.getSnapshot()).toMatchObject({ current: null, status: 'loading' })
+    b.setProjected(sid('recorded-child'), { lastUsed: null, next })
+    expect(face.directory.getSnapshot().current).toBeNull()
+    const lastUsed = { provider: 'removed-provider', model: 'recorded-model', reasoningEffort: 'custom-effort' }
+    b.setProjected(sid('recorded-child'), { lastUsed, next })
+    expect(face.directory.getSnapshot()).toMatchObject({ current: lastUsed, retainedEffort: 'custom-effort' })
+    const noEffort = { provider: next.provider, model: next.model }
+    b.setProjected(sid('recorded-child'), { lastUsed: noEffort, next })
+    expect(face.directory.getSnapshot().retainedEffort).toBeUndefined()
+    b.setProjected(sid('recorded-child'), { lastUsed, next })
+    b.ctx.emit('connection/reset')
+    await vi.waitFor(() => { expect(b.calls.models).toBe(2) })
+    expect(face.directory.getSnapshot()).toMatchObject({ current: lastUsed, retainedEffort: 'custom-effort' })
+    expect(b.calls.select).toBe(0)
+  })
+
   it('an unknown session fails loud at the seat inject', async () => {
     const b = await bench()
     expect(() => b.seat().inject!(sid('ghost'))).toThrow(/resolved no scope/)
   })
 
-  it('withholds both model entries from addressed subagent sessions without Agent-bound RPCs', async () => {
+  it('withholds model selection from addressed subagent sessions without Agent-bound RPCs', async () => {
     const b = await bench()
     b.mint('child')
     b.address(sid('child'))

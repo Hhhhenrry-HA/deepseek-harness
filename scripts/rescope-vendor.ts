@@ -28,9 +28,10 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -67,8 +68,8 @@ interface ExactEdit {
 
 /**
  * A file where an upstream name also appears as a vendor DIRECTORY name or an
- * upstream runtime identifier: the generic pass is disabled for the listed
- * names and {@link EXACT_EDITS} renames the real package-name occurrences.
+ * upstream runtime identifier: bare quoted tokens keep the listed names.
+ * Module specifiers, Loader names, and {@link EXACT_EDITS} still identify package references.
  */
 interface GenericSkip {
   readonly file: string
@@ -85,6 +86,8 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'packages/boot/app-boot/tests/config-schema.spec.ts', upstream: ['schemastery'] },
   // Asserts the vendored-manifest table, which gains an upstream-name column.
   { file: 'scripts/gen-third-party-notices.spec.ts', upstream: RENAMES.map(rename => rename.upstream) },
+  // Rewrite fixtures contain both package spellings as input and expected data.
+  { file: 'scripts/rescope-vendor.spec.ts', upstream: RENAMES.map(rename => rename.upstream) },
   // `cordis` is also an agent-preset id, so in these files the bare name is
   // product data, not a package reference. Renaming it changed which preset
   // the creator flow stages and which id the roster reports.
@@ -100,6 +103,23 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'packages/preset/agent-preset-registry/tests/session.spec.ts', upstream: ['cordis'] },
   // The preset-roster loop names the `cordis` preset id, not a package.
   { file: 'apps/cli/tests/windows-shell.spec.ts', upstream: ['cordis'] },
+  { file: 'apps/cli/tests/optional-bundle-transitions.e2e.ts', upstream: ['cordis'] },
+  { file: 'apps/web/tests/agent-preset-selection.e2e.ts', upstream: ['cordis'] },
+  { file: 'apps/web/tests/developer-tools-settings.e2e.ts', upstream: ['cordis'] },
+  { file: 'packages/client/ui-agent-preset/src/client/CreatePluginMenuItem.tsx', upstream: ['cordis'] },
+  { file: 'packages/client/ui-agent-preset/tests/components.client.spec.tsx', upstream: ['cordis'] },
+  { file: 'packages/client/ui-agent-preset/tests/create-plugin-menu-item.client.spec.tsx', upstream: ['cordis'] },
+  { file: 'packages/client/ui-agent-preset/tests/section-store.client.spec.ts', upstream: ['cordis'] },
+  // These descriptions name the shipped preset, including YAML comments.
+  { file: 'packages/bundle/web-app/cordis.patch.yml', upstream: ['cordis'] },
+  { file: 'docs/subsystems/schedule.md', upstream: ['cordis'] },
+  { file: 'docs/subsystems/schedule.zh.md', upstream: ['cordis'] },
+  { file: 'docs/user/guide/schedule.md', upstream: ['cordis'] },
+  { file: 'docs/user/guide/schedule.zh.md', upstream: ['cordis'] },
+  { file: 'docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.md', upstream: ['cordis'] },
+  { file: 'docs/upgrade-guide/v0.2.0-rc.2/schedule-bundle-retired/guide.zh.md', upstream: ['cordis'] },
+  { file: 'docs/upgrade-guide/v0.2.1-alpha.1/subagent-preset-composition/guide.md', upstream: ['cordis'] },
+  { file: 'docs/upgrade-guide/v0.2.1-alpha.1/subagent-preset-composition/guide.zh.md', upstream: ['cordis'] },
   // GROUP_ORDER holds `packages/<group>/` directory names, not package names.
   { file: 'scripts/gen-module-graph.ts', upstream: ['cordis'] },
   { file: 'scripts/gen-doc-graphs.ts', upstream: ['cordis'] },
@@ -119,6 +139,9 @@ const GENERIC_SKIPS: readonly GenericSkip[] = [
   { file: 'packages/extensions/cordis-host-runner/src/types.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-host-runner/tests/helpers.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-host-runner/tests/runner.spec.ts', upstream: ['cordis'] },
+  { file: 'packages/extensions/cordis-host-runner/tests/inspect-registry.spec.ts', upstream: ['cordis'] },
+  { file: 'snapshots/session/cordis-inspect-liveness/client-fixture.mjs', upstream: ['cordis'] },
+  { file: 'snapshots/session/cordis-inspect-timeout/client-fixture.mjs', upstream: ['cordis'] },
   { file: 'packages/extensions/cordis-host-runner/tests/versioning.spec.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/tool-cordis/src/api-catalog.ts', upstream: ['cordis'] },
   { file: 'packages/extensions/tool-cordis/src/providers.ts', upstream: ['cordis'] },
@@ -470,7 +493,7 @@ function patterns(reverse: boolean): Pattern[] {
     .map(rename => ({
       ...rename,
       token: new RegExp(`(['"\`])${escapeRegExp(rename.from)}((?:/[^'"\`\\s]*)?)\\1`, 'g'),
-      yamlName: new RegExp(`^(\\s*(?:-\\s*)?name:[ \\t]+)${escapeRegExp(rename.from)}([ \\t]*(?:#.*)?)$`, 'gm'),
+      yamlName: new RegExp(`^(\\s*(?:-\\s*)?name:[ \\t]+)(['"]?)${escapeRegExp(rename.from)}\\2([ \\t]*(?:#.*)?)$`, 'gm'),
     }))
 }
 
@@ -481,9 +504,10 @@ function skipped(file: string, pattern: Pattern): boolean {
 function rewriteLine(line: string, file: string, all: readonly Pattern[]): string {
   let out = line
   for (const pattern of all) {
-    if (skipped(file, pattern)) continue
-    out = out.replace(pattern.token, (_match, quote: string, subpath: string) => `${quote}${pattern.to}${subpath}${quote}`)
-    out = out.replace(pattern.yamlName, (_match, prefix: string, suffix: string) => `${prefix}${pattern.to}${suffix}`)
+    if (!skipped(file, pattern)) {
+      out = out.replace(pattern.token, (_match, quote: string, subpath: string) => `${quote}${pattern.to}${subpath}${quote}`)
+    }
+    out = out.replace(pattern.yamlName, (_match, prefix: string, quote: string, suffix: string) => `${prefix}${quote}${pattern.to}${quote}${suffix}`)
   }
   return out
 }
@@ -517,6 +541,59 @@ function rewrite(text: string, file: string, all: readonly Pattern[]): { text: s
     return next
   })
   return { text: out.join('\n'), lines }
+}
+
+function rewriteModules(text: string, file: string, all: readonly Pattern[]): string {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
+  const edits: { start: number; end: number; value: string }[] = []
+  const visit = (node: ts.Node): void => {
+    if (ts.isStringLiteralLike(node)) {
+      const parent = node.parent
+      const moduleDeclaration = (ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) && parent.moduleSpecifier === node
+        || ts.isExternalModuleReference(parent)
+        || ts.isModuleDeclaration(parent) && parent.name === node
+        || ts.isLiteralTypeNode(parent) && ts.isImportTypeNode(parent.parent) && parent.parent.argument === parent
+      const moduleCall = ts.isCallExpression(parent) && parent.arguments[0] === node
+        && (parent.expression.kind === ts.SyntaxKind.ImportKeyword
+          || ts.isIdentifier(parent.expression) && parent.expression.text === 'require'
+          || ts.isPropertyAccessExpression(parent.expression) && parent.expression.name.text === 'resolve'
+            && ts.isIdentifier(parent.expression.expression) && parent.expression.expression.text === 'require')
+      if (moduleDeclaration || moduleCall) {
+        const pattern = all.find(candidate => node.text === candidate.from || node.text.startsWith(`${candidate.from}/`))
+        if (pattern !== undefined) edits.push({
+          start: node.getStart(source) + 1, end: node.getEnd() - 1,
+          value: pattern.to + node.text.slice(pattern.from.length),
+        })
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  for (const edit of edits.sort((a, b) => b.start - a.start)) {
+    text = text.slice(0, edit.start) + edit.value + text.slice(edit.end)
+  }
+  return text
+}
+
+/**
+ * Rewrite package references while preserving declared product identifiers.
+ * Module specifiers and Loader names remain checked even in files with identifier exceptions.
+ * @param text - Authored file contents.
+ * @param file - Repository-relative file path with forward slash separators.
+ * @param reverse - Restore upstream package names instead of applying the scope.
+ * @returns Rewritten contents and the number of changed physical lines.
+ */
+export function rescopeVendorText(text: string, file: string, reverse = false): { text: string; lines: number } {
+  const all = patterns(reverse)
+  if (!GENERIC_SKIPS.some(skip => skip.file === file)) return rewrite(text, file, all)
+  let next = rewrite(text, file, all).text
+  if (/\.(?:[cm]?[jt]sx?)$/.test(file)) next = rewriteModules(next, file, all)
+  else if (file.endsWith('.md')) {
+    next = next.replace(/(^```(?:[cm]?[jt]sx?|javascript|typescript)[^\n]*\n)([\s\S]*?)(^```)/gm,
+      (_match, opening: string, code: string, closing: string) => opening + rewriteModules(code, 'fence.tsx', all) + closing)
+  }
+  const before = text.split('\n')
+  return { text: next, lines: next.split('\n').filter((line, index) => line !== before[index]).length }
 }
 
 function classify(file: string): string {
@@ -563,14 +640,25 @@ export function exactEditState(text: string, find: string, replace: string, expe
   return hits === expect && landed === 0 ? 'pending' : 'invalid'
 }
 
+/**
+ * Discover authored files present in the working tree, including new unignored files.
+ * @param repoRoot - Git working-tree root.
+ * @returns Unique eligible paths with forward slash separators; deleted paths are omitted.
+ */
+export function rescopeFiles(repoRoot: string): string[] {
+  return [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+    cwd: repoRoot, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+  }).split('\0').map(file => file.replaceAll('\\', '/')))]
+    .filter(file => file !== '' && !isRescopeExcluded(file))
+    .filter(file => lstatSync(resolve(repoRoot, file), { throwIfNoEntry: false }) !== undefined)
+    .sort()
+}
+
 function main(): void {
   const args = process.argv.slice(2)
   const mode = args.includes('--apply') ? 'apply' : args.includes('--check') ? 'check' : 'dry'
   const reverse = args.includes('--reverse')
-  const all = patterns(reverse)
-  const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
-    .split('\0')
-    .filter(file => file !== '' && !isRescopeExcluded(file))
+  const files = rescopeFiles(root)
 
   const counts = new Map<string, { files: number; lines: number }>()
   const failures: string[] = []
@@ -613,7 +701,7 @@ function main(): void {
   for (const file of files) {
     const path = resolve(root, file)
     const before = readFileSync(path, 'utf8')
-    const { text: after, lines } = rewrite(before, file, all)
+    const { text: after, lines } = rescopeVendorText(before, file, reverse)
     if (after === before) continue
     outstanding.push(file)
     const kind = classify(file)
@@ -622,7 +710,7 @@ function main(): void {
     if (mode === 'apply') writeFileSync(path, after)
   }
 
-  console.log(`rescope-vendor: ${mode}${reverse ? ' --reverse' : ''} over ${String(files.length)} tracked files`)
+  console.log(`rescope-vendor: ${mode}${reverse ? ' --reverse' : ''} over ${String(files.length)} working-tree files`)
   for (const kind of [...counts.keys()].sort()) {
     const { files: count, lines } = counts.get(kind) ?? { files: 0, lines: 0 }
     console.log(`  ${kind.padEnd(24)} ${String(count).padStart(4)} file(s), ${String(lines)} line(s)`)

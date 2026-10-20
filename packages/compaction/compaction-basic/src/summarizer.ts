@@ -5,7 +5,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { contentHasImage, BlockAssembler, LlmError } from '@deepseek-ai/dsh-llm'
+import { contentHasImage, BlockAssembler, LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
   ContentBlock, FinishReason, GenerateOptions, Message, RequestMessage, TokenUsage, ToolSchema,
@@ -16,6 +16,7 @@ interface SummaryConfig {
   readonly summarizationProvider: string
   readonly summarizationModel: string
   readonly maxTokens: number
+  readonly reasoningEffort?: string | null
 }
 
 /** Tags wrapping the structured summary inside the landed checkpoint node. */
@@ -89,6 +90,7 @@ export type SummaryResult = {
   provider: string
   model: string
   maxTokens?: number
+  reasoningEffort?: ReasoningEffortId
   /** Provider-reported usage for this summarization request. */
   usage?: TokenUsage
 } & (
@@ -156,11 +158,15 @@ export async function summarizeWithLlm(
     toolHistory: agent.session.toolHistory(),
     ...input.tools === undefined ? {} : { tools: [...input.tools] },
     maxTokens: config.maxTokens,
+    ...config.reasoningEffort == null ? {} : { reasoningEffort: ReasoningEffortId(config.reasoningEffort) },
     sessionId: agent.session.id,
     purpose: 'compaction',
     ...signal === undefined ? {} : { signal },
   }
-  for await (const chunk of ctx.llm.stream(options)) assembler.push(chunk)
+  const prepared = config.reasoningEffort === undefined ? undefined : await ctx.llm.prepareCall(options, signal)
+  const request = prepared === undefined ? options : { ...options, ...prepared.config }
+  const stream = prepared === undefined ? ctx.llm.stream(request) : prepared.stream(request)
+  for await (const chunk of stream) assembler.push(chunk)
   const error = finishError(assembler.finish)
   if (error !== undefined) throw error
 
@@ -173,9 +179,10 @@ export async function summarizeWithLlm(
     summary,
     rawOutput,
     llmStreamCall: true,
-    provider: options.provider,
-    model: options.model,
-    maxTokens: config.maxTokens,
+    provider: request.provider,
+    model: request.model,
+    ...request.maxTokens === undefined ? {} : { maxTokens: request.maxTokens },
+    ...request.reasoningEffort === undefined ? {} : { reasoningEffort: request.reasoningEffort },
     ...(assembler.usage === undefined ? {} : { usage: assembler.usage }),
   }
 }

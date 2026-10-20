@@ -13,7 +13,7 @@
 | 事件 | 载荷 | 作用 |
 |---|---|---|
 | `compaction/start` | `{ turn }` | 获取日志记录的锁；数字标识尚未结束的自动轮次，`null` 标识独立手动尝试 |
-| `compaction/summary` | `{ summary, rawOutput?, llmStreamCall?, shadowedRange, shadowedSeqs, shadowedTokenCount, provider, model, maxTokens?, usage? }` | 安全摘要投影、可选的完整提供方输出与 usage、生成结果时恰好通过此上下文的 `ctx.llm.stream()` 发起一次调用所带的 `llmStreamCall: true` 标记（此时必须提供完整的 `rawOutput`）、被遮蔽的 surface 边界对（`start`/`end` seq——位置跨度，而非数值区间）、按 surface 顺序排列的被遮蔽 seq、估算 token 数，以及摘要调用的 envelope（`provider`、`model`，若有生成上限则还包括该上限）——写入日志后，该一次性请求可由日志 + 代码重建（见可重建性 Agent Note）；未带标记的 `rawOutput` 并不能判定调用路径 |
+| `compaction/summary` | `{ summary, rawOutput?, llmStreamCall?, shadowedRange, shadowedSeqs, shadowedTokenCount, provider, model, maxTokens?, reasoningEffort?, usage? }` | 安全摘要投影、可选的完整提供方输出与 usage、生成结果时恰好通过此上下文的 `ctx.llm.stream()` 发起一次调用所带的 `llmStreamCall: true` 标记（此时必须提供完整的 `rawOutput`）、被遮蔽的 surface 边界对（`start`/`end` seq——位置跨度，而非数值区间）、按 surface 顺序排列的被遮蔽 seq、估算 token 数，以及摘要调用的 envelope（`provider`、`model`，以及存在时的生成上限与已解析思考强度）——写入日志后，该一次性请求可由日志 + 代码重建（见可重建性 Agent Note）；未带标记的 `rawOutput` 并不能判定调用路径 |
 | `compaction/end` | `{ turn, error? }` | 使用相同的数字或 `null` 归属值释放锁（`error` 记录失败尝试） |
 
 锁括住**整个**操作：先追加 `compaction/start`，然后执行摘要生成、写入 `compaction/summary` 记录与 `user/message` 替换，最后才追加 `compaction/end`。最后释放锁意味着操作中途崩溃会表现为可检测的遗留锁（有 `compaction/start` 而无匹配的 `compaction/end`），而非一个虚假声称压缩已完成的 `compaction/end`。
@@ -101,6 +101,13 @@ type ManualCompactionErrorCode =
 压力压缩在 `agent/pre-step` waterfall（瀑布式事件）中运行，先于请求推导。一旦压力或规范化溢出满足条件，compaction-basic 会在选择范围前调用可选的 [`ctx.toolResultPruner`](../../packages/compaction/compaction-tool-result-pruner/README.zh.md)，再通过 `ctx.tokenMeter` 重新测量，并且可以在不生成摘要的情况下推进 surface。失败请求的恢复在失败的步骤关闭后通过 `agent/request-error` 运行；仅当 surface replacement generation 前进时才返回重试动作，即便后续摘要工作在剪枝后抛异常亦如此；取消仍然优先。区域边界保持工具调用/结果配对，但不保持整个轮次，因此一个过大轮次中较早关闭的步骤可以被压缩。`dsh-compaction-basic` 拥有阈值、保留尾部策略、溢出上限与失败处理。
 
 该 Service Definition 导出 `toolPairingBalancedBefore(session, seq)` 与 `toolPairingBalancedAfter(session, seq)`，用于检查 seq 之前与之后的工具调用/结果配对。两者都会验证当前 surface 成员关系，并拒绝缺失的 seq 与遗留结果；[包约定](../../packages/compaction/compaction/README.zh.md#tool-pairing-boundaries)定义其缓存行为。
+
+<a id="summary-model-preferences"></a>
+## 摘要模型偏好
+
+[后端的模型选择设置入口](../../packages/compaction/compaction-basic/src/model-selection-settings.ts)拥有 `ctx.compactionModelSelection` 和 `compaction-model-selection-settings` 命名空间。其实时 volatile 字段为 `model: { provider, model } | null` 和 `reasoningEffort: string | null`；现有 Settings 服务持久化用户覆盖值。基础组合包全局挂载该服务，供全部 agent 预设继承。`model` 为 `null` 时，服务返回 null 强度，并将摘要路由交由后端决定。
+
+[后端 README](../../packages/compaction/compaction-basic/README.zh.md#summary-model-selection)定义偏好生效时机、路由优先级、模型默认强度和失败行为。[上下文压缩设置页](../../packages/client/ui-settings-compaction/README.zh.md)负责依据源码编写的 UI 参考。
 
 ## 工具结果剪枝产出
 
@@ -208,6 +215,22 @@ abstract compactRegion( start: SessionSeq, end: SessionSeq, agent: CompactionAge
 Types: [CommandId](commands.zh.md) · [SessionSeq](session.zh.md)
 
 Source: [`packages/compaction/compaction/src/index.ts`](../../packages/compaction/compaction/src/index.ts)
+
+<a id="ctxcompactionmodelselection--compactionmodelselectionconfig"></a>
+
+### `ctx.compactionModelSelection` — `CompactionModelSelectionConfig`
+
+Owns the user preference without changing conversation routes or history.
+
+```ts cordis-catalog
+/**
+ * Capture one preference for the next summary; an in-flight request keeps its selection.
+ * @returns A detached route and effort; follow mode uses the backend's configured behavior.
+ */
+current(): CompactionModelSelectionSettings
+```
+
+Source: [`packages/compaction/compaction-basic/src/model-selection-settings.ts`](../../packages/compaction/compaction-basic/src/model-selection-settings.ts)
 
 <a id="ctxtoolresultpruner--toolresultpruner"></a>
 

@@ -214,8 +214,8 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
           },
           ...modelSelectionEnabled ? {
             model_tier: {
-              oneOf: [{ type: 'string', enum: ['medium', 'high'] }, { type: 'null' }],
-              description: 'medium (default when omitted or null): the user-selected model and reasoning effort, for well-defined implementation, lookup, and other mostly deterministic work. high: the main agent\'s current model and reasoning effort, for work requiring the same judgment as the main agent. Conversation inheritance is independent of this choice.',
+              oneOf: [{ type: 'string', enum: ['default', 'high'] }, { type: 'null' }],
+              description: 'default (when omitted or null): the user-selected model and reasoning effort, for well-defined implementation, lookup, and other mostly deterministic work. high: the main agent\'s current model and reasoning effort, for work requiring the same judgment as the main agent. Conversation inheritance is independent of this choice.',
             },
           } : {},
 
@@ -323,7 +323,9 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
           .sort()
         if (visible[0] !== toolName) return ''
         const names = visible.map(name => `\`${name}\``).join(' or ')
-        return `Start independent delegations with ${names} together in one assistant message and continue useful work while they run.`
+        return `Start independent delegations with ${names} together in one assistant message.`
+          + ' A running child\'s findings are not available to you until it reports back.'
+          + ' Meanwhile, continue with work that does not need them; steps that build on them come after the report.'
       },
     })
     runtimeCtx.systemPrompt.context({

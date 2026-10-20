@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: ca2df734ba617e9a
-  zh: 862a6b16cdda20e1
+  en: 8a94d0506895ccc0
+  zh: 0777d6c611a3baf0
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -231,8 +231,8 @@
   en: 841abe0dd5913ea7
   zh: 841abe0dd5913ea7
 /tool-schema-catalog/deepseek-ai-dsh-tool-subagent/subagent:
-  en: 6f37a7b3c8e95b0d
-  zh: ba25674b331b5433
+  en: 511fea34a638027c
+  zh: d8a8abf4cb9ccefc
 /tool-schema-catalog/deepseek-ai-dsh-tool-subagent-control:
   en: ab82e130c3413f04
   zh: ab82e130c3413f04
@@ -309,8 +309,8 @@
   en: bb38a9d29f46563c
   zh: bb38a9d29f46563c
 /tool-schema-catalog/deepseek-ai-dsh-tool-workflow/workflow:
-  en: f7b12ceaff14315b
-  zh: b745f9ee95a1af91
+  en: 1440ae77155a68b4
+  zh: eb0821930679a515
 /tool-schema-catalog/deepseek-ai-dsh-tool-workspace-dependencies:
   en: 96bffc40b80df4b8
   zh: 96bffc40b80df4b8

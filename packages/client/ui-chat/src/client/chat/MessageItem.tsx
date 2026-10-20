@@ -331,7 +331,7 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
   const latestInput = useChat((snapshot) => {
     const turn = snapshot.timeline.turnOrder.at(-1)
     if ((node.location.kind !== 'turn' && node.location.kind !== 'step') || node.location.turn.turn !== turn) return false
-    return turn !== undefined && snapshot.locations.getTurn(turn).findLast((key) => {
+    return snapshot.locations.getTurn(turn).findLast((key) => {
       const candidate = snapshot.nodes.get(key)
       return candidate?.kind === 'user' || candidate?.kind === 'steering'
     }) === node.key

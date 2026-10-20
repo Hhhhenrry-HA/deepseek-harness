@@ -600,6 +600,7 @@ describe('Trajectory conversation Definitions', () => {
         provider: 'test',
         model: 'test',
         maxTokens: 100,
+        reasoningEffort: 'low',
         usage: { inputTokens: 20, outputTokens: 5 },
       }),
       at(3, 'user/message', {
@@ -621,6 +622,7 @@ describe('Trajectory conversation Definitions', () => {
         resultSeq: 2,
         replacementSeq: 3,
         summary: 'summary',
+        requestConfig: { provider: 'test', model: 'test', maxTokens: 100, reasoningEffort: 'low' },
       },
       {
         purpose: 'compaction',

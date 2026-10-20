@@ -74,9 +74,9 @@ Compose persona and tools in the [preset plugin list](../../preset/agent-preset-
 <a id="selecting-a-child-llm"></a>
 ### Selecting a child LLM
 
-Set `modelSelectionSettings: true` to expose `model_tier` in a tool backed by the Host's `subagent-model-selection-settings` service. When enabled, omitted or null means `medium`: the user's single `mediumModel` route and `reasoningEffort` (`null` uses that model's default). `high` takes the main Agent's current route and reasoning effort, including when an intermediate parent uses medium. Spawn, fork, and workflow starts use the same pre-start policy; conversation inheritance is independent of the tier.
+Set `modelSelectionSettings: true` to expose `model_tier` in a tool backed by the Host's `subagent-model-selection-settings` service. When enabled, omitted or null means `default`: the user's single `mediumModel` route and `reasoningEffort` (`null` uses that model's default). `high` takes the main Agent's current route and reasoning effort, including when an intermediate parent uses the default tier. Spawn, fork, and workflow starts use the same pre-start policy; conversation inheritance is independent of the tier.
 
-The policy is recorded per Session before the tool is advertised and inherited by children. Restores keep their recorded policy; older restores without one stay disabled. The live adapter validates the route and effort before child creation. Missing or unavailable medium models reject the start without falling back to high. These settings require a provider supporting `agentOptions`.
+The policy is recorded per Session before the tool is advertised and inherited by children. Restores keep their recorded policy; older restores without one stay disabled. The live adapter validates the route and effort before child creation. Missing or unavailable default-tier models reject the start without falling back to high. These settings require a provider supporting `agentOptions`.
 
 With tiering disabled, static `agentOptions` and provider route defaults retain their configured behavior. Missing compatible values come from the parent's latest logged request or, before its first request, its creation options. Route changes clear omitted route-owned effort; configured output-token limits are retained.
 
@@ -154,12 +154,12 @@ Prefix-stable while provider instances and their configuration are unchanged. Ad
 
 #### What the model sees
 
-Visible delegation tools share one guidance paragraph, listing tools in name order and instructing the model to start independent delegations together and keep working while they run, and to end its turn instead of sleeping or polling when only waiting for their results remains. Hidden or unavailable tools are omitted; no guidance appears when none are visible. With both `subagent` and `subagent_fork` visible, the text is:
+Visible delegation tools share one guidance paragraph, listing tools in name order and instructing the model to start independent delegations together and continue work that does not need their findings while they run. Steps that use those findings follow the child's report. Hidden or unavailable tools are omitted; no guidance appears when none are visible. With both `subagent` and `subagent_fork` visible, the text is:
 
 ##### Tool-guidance section
 
 ```markdown
-Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.
+Start independent delegations with `subagent` or `subagent_fork` together in one assistant message. A running child's findings are not available to you until it reports back. Meanwhile, continue with work that does not need them; steps that build on them come after the report.
 ```
 
 #### Token effect

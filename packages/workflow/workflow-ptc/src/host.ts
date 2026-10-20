@@ -48,7 +48,7 @@ function childRequest(value: unknown): ChildStartRequest {
   const provider = request.provider === undefined ? undefined : text(request.provider, 'provider')
   const model = request.model === undefined ? undefined : text(request.model, 'model')
   const modelTier = request.modelTier
-  if (modelTier !== undefined && modelTier !== 'medium' && modelTier !== 'high') throw new Error('workflow model_tier must be medium or high')
+  if (modelTier !== undefined && modelTier !== 'default' && modelTier !== 'high') throw new Error('workflow model_tier must be default or high')
   let schema: ObjectJsonSchema | undefined
   if (request.schema !== undefined) {
     const candidate = object(request.schema)

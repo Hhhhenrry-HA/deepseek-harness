@@ -117,6 +117,7 @@ flowchart LR
   pkg_settings["settings"]
   pkg_agent_default_model["agent-default-model"]
   svc_settings["ctx.settings<br/>Plugin configuration forms"]
+  svc_compactionModelSelection["ctx.compactionModelSelection<br/>Compaction summary-model preference"]
   pkg_tool_subagent["tool-subagent"]
   svc_subagentModelSelection["ctx.subagentModelSelection<br/>Subagent model-selection preference"]
   pkg_credentials["credentials"]
@@ -328,6 +329,7 @@ flowchart LR
   pkg_commands --> svc_commands
   pkg_compaction --> svc_compaction
   pkg_compaction_basic --> svc_compaction
+  pkg_compaction_basic --> svc_compactionModelSelection
   pkg_compaction_tool_result_pruner --> svc_toolResultPruner
   pkg_computer_use --> svc_computerUse
   pkg_config_editor --> svc_configEditor
@@ -474,6 +476,7 @@ flowchart LR
   svc_browserUse --> pkg_experimental_browser_use_stagehand_native
   svc_clientModules --> pkg_client_hmr
   svc_compaction --> pkg_compaction_basic
+  svc_compactionModelSelection --> pkg_compaction_basic
   svc_computerUse --> pkg_experimental_computer_use_cua_driver_mcp
   svc_computerUse --> pkg_experimental_computer_use_cua_driver_native
   svc_configEditor --> pkg_agent_default_model
@@ -652,6 +655,7 @@ flowchart LR
 | `ctx.sessionPersistence` | `seam` | [`session-persistence`](../packages/session/session-persistence) | [`session-persistence-jsonl`](../packages/session/session-persistence-jsonl) | [`agent-loop`](../packages/core/agent-loop), [`tool-bash`](../packages/shell/tool-bash), [`hooks-claude-code`](../packages/experimental/hooks-claude-code), [`hooks-codex`](../packages/experimental/hooks-codex), [`session-query`](../packages/session-query/session-query), [`session-query-sqlite`](../packages/session-query/session-query-sqlite), [`message-feedback`](../packages/feedback/message-feedback) | - | JSONL backend 把 SessionEvent 词汇持久化为每个 Session 一份产物。 |
 | `ctx.configEditor` | `core` | [`config-editor`](../packages/boot/config-editor) | - | [`settings`](../packages/settings/settings), [`agent-default-model`](../packages/core/agent-default-model) | - | Persists profile config patches under the application file lock and HMR queue, then reconciles Loader entries. |
 | `ctx.settings` | `core` | [`settings`](../packages/settings/settings) | - | [`api-settings-controller`](../packages/api/settings-controller) | - | Forms project volatile Config fields from active profile entries and delegate validated edits to config-editor. Plugins consume their own Config references. |
+| `ctx.compactionModelSelection` | `core` | [`compaction-basic`](../packages/compaction/compaction-basic) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 拥有实时的总结模型和思考强度偏好；每次总结开始前读取，不改变会话模型。 |
 | `ctx.subagentModelSelection` | `core` | [`tool-subagent`](../packages/subagent/tool-subagent) | - | [`tool-subagent`](../packages/subagent/tool-subagent) | - | 拥有默认关闭的设置命名空间；Agent 作用域的委派工具会在组合新顶层 Session 时读取它。 |
 | `ctx.credentials` | `seam` | [`credentials`](../packages/credentials/credentials) | [`credentials-local`](../packages/credentials/credentials-local) | [`api-settings-controller`](../packages/api/settings-controller), [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | 配置携带对机密信息的引用；提供方拥有实际值。消费方按操作解析，因此轮换后的凭据会在紧接着的下一次请求中生效；settings controller 提供不含实际值的视图和只写存储。 |
 | `ctx.deepseekAccount` | `seam` | [`deepseek-account`](../packages/credentials/deepseek-account) | [`deepseek-account-platform`](../packages/credentials/deepseek-account-platform) | [`api-account-controller`](../packages/api/account-controller), [`llm-deepseek`](../packages/llm/llm-deepseek) | - | Host 负责浏览器授权和本地凭证；UI 使用方只接收不含 token 的状态。 |

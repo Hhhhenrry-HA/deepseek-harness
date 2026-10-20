@@ -13,7 +13,7 @@ Compaction extends [`SessionEventMap`](session.md) with three event types via de
 | Event | Payload | Role |
 |---|---|---|
 | `compaction/start` | `{ turn }` | acquires the log-recorded lock; a number identifies the open automatic turn, while `null` identifies a standalone manual attempt |
-| `compaction/summary` | `{ summary, rawOutput?, llmStreamCall?, shadowedRange, shadowedSeqs, shadowedTokenCount, provider, model, maxTokens?, usage? }` | the safe summary projection, optional complete provider output and usage, an `llmStreamCall: true` marker when producing the result consumed exactly one call through this context's `ctx.llm.stream()` (which requires complete `rawOutput`), the shadowed surface-boundary pair (`start`/`end` seqs — a position span, not a numeric interval), the shadowed seqs in surface order, the estimated token count, and the summarize call's envelope (`provider`, `model`, plus its generation cap when one applied) — logged so the one-shot request is reconstructable from log + code (the reconstructability Agent Note); unmarked `rawOutput` does not identify the call path |
+| `compaction/summary` | `{ summary, rawOutput?, llmStreamCall?, shadowedRange, shadowedSeqs, shadowedTokenCount, provider, model, maxTokens?, reasoningEffort?, usage? }` | the safe summary projection, optional complete provider output and usage, an `llmStreamCall: true` marker when producing the result consumed exactly one call through this context's `ctx.llm.stream()` (which requires complete `rawOutput`), the shadowed surface-boundary pair (`start`/`end` seqs — a position span, not a numeric interval), the shadowed seqs in surface order, the estimated token count, and the summarize call's envelope (`provider`, `model`, plus its generation cap and resolved reasoning effort when present) — logged so the one-shot request is reconstructable from log + code (the reconstructability Agent Note); unmarked `rawOutput` does not identify the call path |
 | `compaction/end` | `{ turn, error? }` | releases the lock with the same numeric-or-null owner (`error` records an unsuccessful attempt) |
 
 The lock brackets the **whole** operation: `compaction/start` is appended first, then summarization, the `compaction/summary` record, and the `user/message` replacement all land, and only then `compaction/end`. Releasing the lock last turns a crash mid-operation into a detectable orphaned lock (a `compaction/start` with no matching `compaction/end`) rather than a `compaction/end` that falsely claims compaction finished.
@@ -101,6 +101,13 @@ type ManualCompactionErrorCode =
 Pressure compaction runs at the `agent/pre-step` waterfall before request derivation. Once pressure or canonical overflow qualifies, compaction-basic invokes optional [`ctx.toolResultPruner`](../../packages/compaction/compaction-tool-result-pruner/README.md) before range selection, remeasures through `ctx.tokenMeter`, and can advance the surface without a summary. Failed-request recovery runs through `agent/request-error` after the failed step closes and returns a retry action only when the surface replacement generation advances, even if later summary work throws after pruning; cancellation still wins. Region boundaries preserve tool-call/result pairing but not whole turns, allowing early closed steps of one oversized turn to compact. `dsh-compaction-basic` owns thresholds, retained-tail policy, overflow caps, and failure handling.
 
 The Service Definition exports `toolPairingBalancedBefore(session, seq)` and `toolPairingBalancedAfter(session, seq)` for the tool-call/result pairing checks before and after a seq. Both validate current surface membership and reject missing seqs and orphan results; the [package contract](../../packages/compaction/compaction/README.md#tool-pairing-boundaries) defines their cache behavior.
+
+<a id="summary-model-preferences"></a>
+## Summary model preferences
+
+The [backend's model-selection settings entry](../../packages/compaction/compaction-basic/src/model-selection-settings.ts) owns `ctx.compactionModelSelection` and the `compaction-model-selection-settings` namespace. Its live volatile fields are `model: { provider, model } | null` and `reasoningEffort: string | null`; the existing Settings service persists user overrides. The base bundle mounts this service globally so all agent presets inherit it. When `model` is `null`, the service returns a null effort and leaves summary routing to the backend.
+
+The [backend README](../../packages/compaction/compaction-basic/README.md#summary-model-selection) defines preference timing, route precedence, model-default effort, and failures. The [Context compaction settings page](../../packages/client/ui-settings-compaction/README.md) owns the source-derived UI reference.
 
 ## Tool-result pruning outcomes
 
@@ -208,6 +215,22 @@ abstract compactRegion( start: SessionSeq, end: SessionSeq, agent: CompactionAge
 Types: [CommandId](commands.md) · [SessionSeq](session.md)
 
 Source: [`packages/compaction/compaction/src/index.ts`](../../packages/compaction/compaction/src/index.ts)
+
+<a id="ctxcompactionmodelselection--compactionmodelselectionconfig"></a>
+
+### `ctx.compactionModelSelection` — `CompactionModelSelectionConfig`
+
+Owns the user preference without changing conversation routes or history.
+
+```ts cordis-catalog
+/**
+ * Capture one preference for the next summary; an in-flight request keeps its selection.
+ * @returns A detached route and effort; follow mode uses the backend's configured behavior.
+ */
+current(): CompactionModelSelectionSettings
+```
+
+Source: [`packages/compaction/compaction-basic/src/model-selection-settings.ts`](../../packages/compaction/compaction-basic/src/model-selection-settings.ts)
 
 <a id="ctxtoolresultpruner--toolresultpruner"></a>
 

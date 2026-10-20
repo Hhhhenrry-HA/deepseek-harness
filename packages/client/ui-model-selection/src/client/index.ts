@@ -7,8 +7,9 @@
  * A switch made in either entry is what the other shows next. Failures
  * ride each entry's own retry surface (popup shell error/retry; seat menu
  * inline error) without forking the state. Addressed subagent sessions expose
- * neither entry because those Agent-bound RPCs would activate persisted
- * history outside the direct-parent continuation path.
+ * neither selection entry because those Agent-bound RPCs would activate persisted
+ * history outside the direct-parent continuation path. Their shared composer
+ * control displays recorded model and effort values without submitting RPCs.
  */
 // Type-only: the carrier types, the forwarded Host-event face and the ctx.remote merge.
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -21,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsRenderFactories, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
@@ -103,7 +104,12 @@ function selectionOf(state: ModelDirectoryState, id: string): ModelSelection | u
 /** Dictionary namespace owned by this plugin. */
 const NS = 'model'
 
-/** Required services: the contribution registry, the seat's slot registry, locale, and the service's own faces. */
+/** Render the shared model control in the normal composer. */
+function ModelSeat({ locked, renderFactorySlot }: PropsRuntime<'conversation.input.model'> & PropsRenderFactories) {
+  return renderFactorySlot('conversation.model', { locked })
+}
+
+/** Services used by the command, model directory, and composer registrations. */
 export const inject = ['commandUi', 'locale', 'sessions', 'slots', 'remote', 'remote.session']
 
 /**
@@ -171,6 +177,10 @@ export function apply(ctx: ClientContext): void {
     const sessions = scope.sessions
     scope.slots.inject('conversation.input.model', () => scope.slots.register({
       name: 'conversation.input.model',
+    }, ModelSeat))
+    scope.slots.registerFactory({
+      name: 'conversation.model',
+      scope: 'session',
       locale: NS,
       children: {
         'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
@@ -189,6 +199,6 @@ export function apply(ctx: ClientContext): void {
             : Promise.resolve(undefined),
         }
       },
-    }, ModelSelect))
+    }, ModelSelect)
   })
 }

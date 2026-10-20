@@ -134,6 +134,8 @@ flowchart LR
   cfg --> plugin_dsh_base_plan_mode
   plugin_dsh_base_token_meter["token-meter<br/>@deepseek-ai/dsh-token-meter"]
   cfg --> plugin_dsh_base_token_meter
+  plugin_dsh_base_compaction_model_selection_settings["compaction-model-selection-settings<br/>@deepseek-ai/dsh-compaction-basic/model-selection-settings"]
+  cfg --> plugin_dsh_base_compaction_model_selection_settings
   plugin_dsh_base_compaction_basic["compaction-basic<br/>@deepseek-ai/dsh-compaction-basic"]
   cfg --> plugin_dsh_base_compaction_basic
   plugin_dsh_base_command_compact["command-compact<br/>@deepseek-ai/dsh-command-compact"]
@@ -267,6 +269,7 @@ flowchart LR
 | `command-goal` | `@deepseek-ai/dsh-command-goal` |
 | `plan-mode` | `@deepseek-ai/dsh-plan-mode` |
 | `token-meter` | `@deepseek-ai/dsh-token-meter` |
+| `compaction-model-selection-settings` | `@deepseek-ai/dsh-compaction-basic/model-selection-settings` |
 | `compaction-basic` | `@deepseek-ai/dsh-compaction-basic` |
 | `command-compact` | `@deepseek-ai/dsh-command-compact` |
 | `subagent` | `@deepseek-ai/dsh-subagent` |

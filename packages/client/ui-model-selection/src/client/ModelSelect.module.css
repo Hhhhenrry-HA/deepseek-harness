@@ -42,6 +42,28 @@
   cursor: default;
 }
 
+.readOnly {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: none;
+  height: auto;
+  min-height: 28px;
+  cursor: default;
+}
+
+.trigger.readOnly:hover {
+  background: transparent;
+}
+
+.readOnly .triggerLabel,
+.readOnly .triggerEffort {
+  display: block;
+  flex-shrink: 1;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .triggerLabel {
   min-width: 0;
   overflow: hidden;

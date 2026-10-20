@@ -348,6 +348,9 @@
     - id: token-meter
       name: '@deepseek-ai/dsh-token-meter'
 
+    - id: compaction-model-selection-settings
+      name: '@deepseek-ai/dsh-compaction-basic/model-selection-settings'
+
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
 

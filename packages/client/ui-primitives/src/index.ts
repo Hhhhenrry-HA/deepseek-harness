@@ -119,3 +119,7 @@ export {
 export { GuideArtworkBrowser, GuideArtworkFiles } from './guide-artwork.tsx'
 export { ImageLightbox } from './ImageLightbox.tsx'
 export type { ImageLightboxLabels } from './ImageLightbox.tsx'
+export { ModelRouteFields } from './ModelRouteFields.tsx'
+export type { ModelRouteFieldsProps, ModelRouteFieldsLabels } from './ModelRouteFields.tsx'
+export { modelRouteKey, modelRouteCandidates } from './model-route.ts'
+export type { ModelRoute, ModelRouteGroup, ModelRouteCandidate } from './model-route.ts'

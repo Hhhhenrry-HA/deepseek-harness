@@ -28,7 +28,8 @@ Subpath exports keep their path: `@cordisjs/plugin-loader/repository` becomes `@
 - **The `cordis.yml` configuration family**, including `*.cordis.yml`, `*.cordis.snapshot.yml`, and `cordis.patch.yml`.
 - **Harness packages whose own names contain the word**, such as `@deepseek-ai/dsh-tool-cordis`.
 - **Upstream runtime identifiers**, such as Schemastery's `Symbol.for('schemastery')` and its `vendor:` metadata field.
-- **Prose outside `docs/`.** `vendor/*/README.md`, package READMEs, and Agent Notes keep the names they were written with; a bare `cordis` there can also be the Python SDK's option name or an agent-preset id. Inside `docs/`, prose and every Markdown fence follow the rename.
+- **Product identifiers declared by their owning files**, including the `cordis` agent-preset id and `cordis/*` event names. These exceptions do not exempt explicit module specifiers or Loader plugin names from checking.
+- **Prose outside `docs/`.** `vendor/*/README.md`, package READMEs, and Agent Notes keep the names they were written with; a bare `cordis` there can also be the Python SDK's option name or an agent-preset id. Inside `docs/`, package references in prose and Markdown fences follow the rename.
 
 ## What your code has to change
 
@@ -41,7 +42,7 @@ Subpath exports keep their path: `@cordisjs/plugin-loader/repository` becomes `@
 
 ## Applying, verifying, and reverting
 
-[`scripts/rescope-vendor.ts`](../scripts/rescope-vendor.ts) owns the mapping above and performs the rename, so no reference is renamed by hand:
+[`scripts/rescope-vendor.ts`](../scripts/rescope-vendor.ts) owns the mapping above and performs the rename, so no reference is renamed by hand. It checks tracked and new unignored files present in the working tree; deleted paths are omitted:
 
 ```sh
 pnpm run rescope-vendor            # report what would change

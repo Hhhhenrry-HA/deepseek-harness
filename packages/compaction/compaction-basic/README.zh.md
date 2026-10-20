@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包让长时 agent（智能体）会话在接近模型上下文上限时仍能正常工作。token 压力上升时，它会把最旧的历史压缩为摘要并保留近期消息；上下文溢出错误发生后，它会压缩并重试。你也可以通过 `/compact` 按需压缩，并选择先修剪超大工具输出。压缩使用一次额外的模型请求，并且只保留该请求返回的摘要文本。它无法缩减系统提示词、工具或会话前缀，也无法拆分单个不可分单元（例如一次超大工具调用）。
+本包让长时 agent（智能体）会话在接近模型上下文上限时仍能正常工作。token 压力上升时，它会把最旧的历史压缩为摘要并保留近期消息；上下文溢出错误发生后，它会压缩并重试。你也可以通过 `/compact` 按需压缩，并选择先修剪超大工具输出。压缩会发起一次额外的模型请求；只有其摘要文本进入后续历史。它无法缩减系统提示词、工具或会话前缀，也无法拆分单个不可分单元（例如一次超大工具调用）。
 
 ## 目录
 
@@ -77,9 +77,16 @@ kind: "package-reference"
 
 配置错误会快速失败：未知设置、重复的按模型覆盖、无效 token 数、两种保留形式同时出现，或保留比例不小于阈值比例，都会在加载时拒绝插件。模型首次使用时，`W − O − B` 必须为正，且解析出的保留预算必须低于触发阈值。余量为零时，必须在全局或对应模型策略中显式设置正数 `maxTokens`。小窗口部署必须配置适合其容量的余量；降低 `thresholdRatio` 可以提早压缩。
 
+<a id="summary-model-selection"></a>
+### 选择摘要模型
+
+[上下文压缩设置页](../../client/ui-settings-compaction/README.zh.md)让你独立于会话模型保存摘要模型与思考强度。后端在每次自动、`/compact` 或显式区域摘要开始时读取实时偏好，已有会话中的摘要也适用。进行中的摘要保留已捕获的偏好。该选择不改变会话模型、压力阈值、保留策略、剪枝或压缩指令。
+
+**默认（跟随会话模型）**保存 `model: null`，并保留后端配置的摘要路由：`summarizationProvider` 和 `summarizationModel` 优先；空对使用最新已路由请求目标，再回退到 `AgentOptions` 对。固定的 `{ provider, model }` 偏好覆盖该配置路由。对于固定模型，**模型默认**保存 `reasoningEffort: null`，并解析为所选适配器的默认值，而非会话的思考强度。固定路由不可用或显式强度不受支持时，摘要会失败，不会回退到其他模型或强度。
+
 ### 压缩运行时会发生什么
 
-最旧的平衡范围会被替换为一条摘要消息，近期尾部保持逐字不变；对话从摘要继续。操作会报告压缩了多少历史项以及估算释放的 token 数。如果没有任何内容可以安全压缩——例如整个对话就是一个不可分单元——则不会有任何改变，也不会向会话日志写入任何内容。如果没有模型可以撰写摘要（既未配置目标，也还没有已路由请求），压缩会失败并给出清晰错误，提示你配置摘要提供方与模型，或先路由一次请求。
+最旧的平衡范围会被替换为一条摘要消息，近期尾部保持逐字不变；对话从摘要继续。操作会报告压缩了多少历史项以及估算释放的 token 数。如果没有任何内容可以安全压缩——例如整个对话就是一个不可分单元——则不会有任何改变，也不会向会话日志写入任何内容。没有可用于撰写摘要的路由时，压缩会失败，错误会提示配置摘要提供方与模型、先路由一次请求，或同时设置两个 `AgentOptions` 字段；固定摘要偏好也能提供该路由。
 
 ### 通过 /compact 按需压缩
 
@@ -116,7 +123,9 @@ kind: "package-reference"
 
 ### 摘要机制
 
-直接 `ctx.llm.stream()` 调用使用已配置的提供方／模型对与上限，回退到最新已记录请求目标，然后再回退到 `AgentOptions` 对，而不运行仅用于 agent loop 的 `agent/request` 扩展点。该调用将 surface 节点 0 处派生的 `system/message` 作为 `messages` 的首项回放，后接已遮蔽区域消息（包括位于其 surface 位置的被遮蔽历史内 `system/message`），并提供 header 的有效工具供路由特定投影使用。所选适配器必须解析回放消息中的图片引用或明确拒绝它们。调用将压缩指令作为最后一条 user 消息追加，在投影允许时保留提供方的热前缀 cache。空内容系统头节点不贡献消息，但仍处于压缩范围之外。最终指令是冻结的 `RequestUserInput`，不含持久身份或来源；回放历史和持久化检查点仍然使用持久消息。调用将 `GenerateOptions.purpose` 设为 `compaction`；只有返回文本进入检查点，推理与工具调用都会被排除。图片输出会以 `UNSUPPORTED_CONTENT` 失败，而不是消失。替换 user 消息用 `<compacted-summary>` 标签框定摘要；原始摘要保留在 `compaction/summary` 事件上。 调用还携带 `Session.toolHistory()`，供运行时投影延迟和保留定义；若前缀缺少更新消息，则使用有效声明且不发送 developer 更新。
+单次调用使用[选定的摘要路由](#summary-model-selection)与后端输出上限，不运行仅用于 agent loop 的 `agent/request` 扩展点。对于固定偏好，后端会在流式调用前准备请求，使生效的适配器默认或显式思考强度可以经 `SummaryResult` 返回并记录在 `compaction/summary` 上；未选择固定偏好时，仍使用现有的 `ctx.llm.stream()` 中间件路径。
+
+该调用将 surface 节点 0 处派生的 `system/message` 作为 `messages` 的首项回放，后接已遮蔽区域消息（包括位于其 surface 位置的被遮蔽历史内 `system/message`），并提供 header 的有效工具供路由特定投影使用。所选适配器必须解析回放消息中的图片引用或明确拒绝它们。调用将压缩指令作为最后一条 user 消息追加，在投影允许时保留提供方的热前缀 cache。空内容系统头节点不贡献消息，但仍处于压缩范围之外。最终指令是冻结的 `RequestUserInput`，不含持久身份或来源；回放历史和持久化检查点仍然使用持久消息。调用将 `GenerateOptions.purpose` 设为 `compaction`；只有返回文本进入检查点，推理与工具调用都会被排除。图片输出会以 `UNSUPPORTED_CONTENT` 失败，而不是消失。替换 user 消息用 `<compacted-summary>` 标签框定摘要；原始摘要保留在 `compaction/summary` 事件上。调用还携带 `Session.toolHistory()`，供运行时投影延迟和保留定义；若前缀缺少更新消息，则使用有效声明且不发送 developer 更新。
 
 ### 区域事务
 
@@ -136,6 +145,7 @@ kind: "package-reference"
 | [`src/region.ts`](src/region.ts) | 保留选择与共享的先记录标记压缩事务 |
 | [`src/summarizer.ts`](src/summarizer.ts) | 默认 `ctx.llm.stream()` 摘要、检查点框定、安全摘要投影 |
 | [`src/config.ts`](src/config.ts) | 加载时验证与路由模型策略解析 |
+| [`src/model-selection-settings.ts`](src/model-selection-settings.ts) | Host 拥有的实时摘要偏好；[服务与设置语义](../../../docs/subsystems/compaction.zh.md#summary-model-preferences) |
 | [`src/types.ts`](src/types.ts) | `BasicCompactionConfig` 与已解析策略词汇 |
 
 </details>
@@ -183,7 +193,7 @@ This is an automatically generated checkpoint condensing an earlier span of the 
 
 #### 模型看到的内容
 
-摘要模型接收系统提示词与已遮蔽区域的历史，其中工具声明和 developer 更新按其路由投影，后面跟随一条最终 user 消息，即下方压缩指令。会话模型绝不会看到该私有请求或其推理；只有返回文本会被存储。
+摘要模型接收系统提示词与已遮蔽区域的历史，其中工具声明和 developer 更新按其路由投影，后面跟随一条最终 user 消息，即下方压缩指令。会话模型绝不会看到该私有请求或其推理；只有返回文本进入会话历史。
 
 ##### 压缩指令（最终 user 消息）
 
@@ -226,7 +236,7 @@ Rules:
 
 #### Token 影响
 
-这是一次独立模型调用：输入是已回放会话前缀加固定指令，输出受 `maxTokens` 限制。收敛重试可能多次支付这项成本。
+这是一次独立模型调用：输入是已回放会话前缀加固定指令，输出受 `maxTokens` 限制。收敛重试可能重复该请求。
 
 #### KV Cache 影响
 

@@ -26,6 +26,7 @@
 - button "Branch into a new conversation"
 - text: {{clock}} Now give the same explanation to a human reader. {{clock}}
 - button "Copy"
+- button "Edit message"
 - status: Completed
 - button "Completed in {{duration}}" [expanded]
 - button "Analysis completed" [expanded]
@@ -34,11 +35,13 @@
 - button "Copy"
 - button "Good response"
 - button "Bad response"
+- button "Regenerate"
 - button "Branch into a new conversation"
 - text: {{clock}}
 - textbox "Message or run a task, / commands, @ files or sessions"
 - button "Add files or run commands"
 - 'button "Access mode, current: Custom"': Custom
+- status "Subagent model and reasoning effort": DeepSeek-V4-Flash
 - button "Send message" [disabled]
 - button "2 turns 2 steps · {{throughput}} tok/s": 2 turns 2 steps{{throughput}} tok/s
 - button "15.7K tok · Cache hit 99%": 15.7K tokCache hit 99%

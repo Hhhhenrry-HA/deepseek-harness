@@ -6,7 +6,7 @@ import type SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { assertAllowedModelRoutes, type AllowedModelRoute } from './model-selection.ts'
 
-/** One session's single medium route and explicit high-tier behavior. */
+/** One session's single default route and explicit high-tier behavior. */
 export interface SubagentModelTierPolicy {
   enabled: boolean
   mediumModel: AllowedModelRoute | null

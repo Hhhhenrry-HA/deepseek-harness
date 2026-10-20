@@ -35,7 +35,7 @@ import { cleanupAcpExampleTest } from './cleanup.ts'
 
 const AGENT: AgentUnderTest = {
   binScript: fileURLToPath(new URL('../../../../src/bin.ts', import.meta.url)),
-  configPath: fileURLToPath(new URL('../cordis.yml', import.meta.url)),
+  configPath: fileURLToPath(new URL('../../../../../../snapshots/acp/escalation-approved/cordis.yml', import.meta.url)),
   profile: 'acp',
   tsconfigPath: fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url)),
 }
@@ -133,7 +133,7 @@ describe('default sandbox composition keyless smoke (real cordis.yml via the Loa
     })
     const { sessionId } = await client.newSession({ cwd: workdir, mcpServers: [] })
     expect(sessionId.length).toBeGreaterThan(0)
-  }, 30_000)
+  })
 
 })
 

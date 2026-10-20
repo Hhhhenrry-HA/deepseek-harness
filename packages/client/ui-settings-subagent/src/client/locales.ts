@@ -50,7 +50,7 @@ export const en: Record<SubagentSettingsLocaleKey, string> = {
   subagentModelSelectionTitle: 'Model selection',
   subagentModelSelectionToggle: 'Use tiered Subagent models',
   subagentModelSelectionChoose: 'Applies to new conversations.',
-  subagentModelSelectionAllowed: 'Medium · default',
+  subagentModelSelectionAllowed: 'Default',
   subagentModelSelectionLoading: 'Loading models…',
   subagentModelSelectionLoadFailed: 'Models could not be loaded.',
   subagentModelSelectionRetry: 'Retry',
@@ -58,13 +58,13 @@ export const en: Record<SubagentSettingsLocaleKey, string> = {
   subagentModelSelectionUnavailable: 'Currently unavailable',
   subagentModelSelectionUnavailableGroup: 'Saved but currently unavailable',
   subagentModelSelectionEmpty: 'No model provider currently advertises a model.',
-  subagentModelSelectionRequired: 'Select one medium-tier model before saving.',
+  subagentModelSelectionRequired: 'Select one default model before saving.',
   subagentModelSelectionConflict: 'Settings changed elsewhere. Discard your draft and try again.',
   subagentModelSelectionEffort: 'Reasoning effort',
   subagentModelSelectionDefaultEffort: 'Model default',
   subagentModelSelectionHigh: 'High',
   subagentModelSelectionFollowMain: 'Follows the main agent',
-  subagentModelSelectionReselect: 'Multiple models were saved. Select one medium-tier model.',
+  subagentModelSelectionReselect: 'Multiple models were saved. Select one default model.',
 }
 
 /** Simplified Chinese copy. */
@@ -93,7 +93,7 @@ export const zh: Record<SubagentSettingsLocaleKey, string> = {
   subagentModelSelectionTitle: '模型选择',
   subagentModelSelectionToggle: '启用子智能体分级模型',
   subagentModelSelectionChoose: '新会话生效',
-  subagentModelSelectionAllowed: '中级 · 默认',
+  subagentModelSelectionAllowed: '默认',
   subagentModelSelectionLoading: '正在加载模型…',
   subagentModelSelectionLoadFailed: '无法加载模型。',
   subagentModelSelectionRetry: '重试',
@@ -101,13 +101,13 @@ export const zh: Record<SubagentSettingsLocaleKey, string> = {
   subagentModelSelectionUnavailable: '当前不可用',
   subagentModelSelectionUnavailableGroup: '已保存但当前不可用',
   subagentModelSelectionEmpty: '当前没有模型提供方公布模型。',
-  subagentModelSelectionRequired: '请选择一个中级模型',
+  subagentModelSelectionRequired: '请选择一个默认模型',
   subagentModelSelectionConflict: '设置已在其他位置更新。请放弃修改后重试。',
   subagentModelSelectionEffort: '思考强度',
   subagentModelSelectionDefaultEffort: '模型默认',
   subagentModelSelectionHigh: '高级',
   subagentModelSelectionFollowMain: '跟随主智能体',
-  subagentModelSelectionReselect: '之前保存了多个模型，请重新选择一个中级模型',
+  subagentModelSelectionReselect: '之前保存了多个模型，请重新选择一个默认模型',
 }
 
 /**

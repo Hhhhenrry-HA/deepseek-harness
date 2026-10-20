@@ -533,7 +533,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolSubagent, { provider: 'mock' })
     },
     note:
-      'The registered delegation name is the load-time `toolName` config (default `subagent`). The default schema above has model tiers off. Enabled Web sessions expose `model_tier`: medium uses the user-selected model by default, while high follows the main Agent. Spawn, fork, and workflow starts share the same policy. Each instance selects its backend through `provider` and reads model settings through `modelSelectionSettings`. Every delegation returns a child id promptly; local children accept follow-ups, while external backends report their single execution automatically.',
+      'The registered delegation name is the load-time `toolName` config (default `subagent`). The default schema above has model tiers off. Enabled Web sessions expose `model_tier`: default uses the user-selected model by default, while high follows the main Agent. Spawn, fork, and workflow starts share the same policy. Each instance selects its backend through `provider` and reads model settings through `modelSelectionSettings`. Every delegation returns a child id promptly; local children accept follow-ups, while external backends report their single execution automatically.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-subagent-control',

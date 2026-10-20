@@ -64,6 +64,8 @@ kind: "package-library"
 | `Toast` | 顶部居中的瞬时横幅，保持时长由所有者的 `holdMs` 决定。 |
 | `SettingsForm`、`SettingsValueField`、`SettingsSecretField` | 插件设置页的框架与控件：框架以 `labels` 接收文案，只在按钮点击时保存，卸载即丢弃；值字段显示暂存文本以及已覆盖标签和重置；密文字段每次为空，请求浏览器不要自动填入已保存的密码，只报告是否已配置。 |
 | `SettingsFormModel`、`settingsNumberField`、`settingsTextField` | 基于设置 scope 的暂存编辑模型：草稿在保存时写入，字段是否被覆盖取决于用户层是否含有它，失败时保留草稿。保存反馈显示成功或失败及返回的原因；共享的 `settingsSaveEn` / `settingsSaveZh` 字典提供本地化反馈文案。 |
+| `ModelRouteFields` | 按提供方分组的模型单选项，可选默认项，并提供所选模型的思考强度控件。调用方传入本地化 label、候选项和暂存操作；不可用的路由与强度值仍然可见。目录加载与保存仍由调用方负责。 |
+| `modelRouteCandidates`、`modelRouteKey` | 将已公布模型与目录中缺失的已保存或草稿路由合并，并在不解析显示名称的情况下标识精确的提供方／模型对。由 Subagent 与上下文压缩设置页共用。 |
 | `JsonTree`、`JsonBlock` | 只读 JSON 查看。 |
 | `MarkdownText`、`MarkdownDelegateProvider`、`CodeBlock` | 不可信 GFM 与 TeX 数学、owner 委托的 HTTP(S) 导航，以及高亮代码。`CodeBlock` 可通过 `lineNumbers` 开启行号；复制的源码不含行号栏，`contentRef` 则向需要把稳定源码包装节点用作滚动区的 owner 提供该节点。调用方提供自己的语言与复制工具栏时，设置 `showHeader={false}`。 |
 | `UserTextRun`、`ReferenceChip` | 不做解析的行内文本，以及业务已解析的引用标签或激活按钮。 |
@@ -151,6 +153,7 @@ kind: "package-library"
 | [`src/input-modality.ts`](src/input-modality.ts) | 全文档输入模态，发布到 `<html>` |
 | [`src/plugin-artwork.tsx`](src/plugin-artwork.tsx) | 固定配色插件插画，SVG def id 按实例生成 |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | 浮动面板与浮层几何钩子 |
+| [`src/ModelRouteFields.tsx`](src/ModelRouteFields.tsx) / [`src/model-route.ts`](src/model-route.ts) | 共享模型路由控件与保留选择的候选项组装 |
 | [`src/settings-form/`](src/settings-form/) | 设置页套件：基于设置 scope 的暂存表单模型、值字段与密文字段、表单框架 |
 
 <a id="input-modality"></a>

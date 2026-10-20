@@ -23,7 +23,7 @@ import { cleanupAcpExampleTest } from './cleanup.ts'
 
 const AGENT: AgentUnderTest = {
   binScript: fileURLToPath(new URL('../../../../src/bin.ts', import.meta.url)),
-  configPath: fileURLToPath(new URL('../cordis.yml', import.meta.url)),
+  configPath: fileURLToPath(new URL('../../../../../../snapshots/acp/escalation-approved/cordis.yml', import.meta.url)),
   profile: 'acp',
   tsconfigPath: fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url)),
 }
@@ -64,7 +64,7 @@ describe('acp-agent over real stdio (no key required)', () => {
       // line means a logger/print leaked onto the protocol channel.
       expect(() => JSON.parse(line) as unknown).not.toThrow()
     }
-  }, 30_000)
+  })
 
   it('session/new succeeds over real stdio (no model call)', async () => {
     // REGRESSION GUARD (this exact RPC exposed the missing-inject Loader bug):
@@ -95,7 +95,7 @@ describe('acp-agent over real stdio (no key required)', () => {
     const { sessionId } = await client.newSession({ cwd: workdir, mcpServers: [] })
     expect(typeof sessionId).toBe('string')
     expect(sessionId.length).toBeGreaterThan(0)
-  }, 60_000)
+  })
 })
 
 describe.skipIf(!process.env.DEEPSEEK_API_KEY)('acp-agent e2e: real prompt over ACP', () => {

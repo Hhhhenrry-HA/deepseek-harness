@@ -27,6 +27,7 @@ import {
   compactSurfaceRegion,
   selectCompactableRange,
 } from './region.ts'
+import type {} from './model-selection-settings.ts'
 import { summarizeWithLlm } from './summarizer.ts'
 import type { SummarizationInput, SummaryResult } from './summarizer.ts'
 import type {
@@ -253,7 +254,14 @@ export class BasicCompactionEngine extends CompactionEngine {
     const config = target === undefined
       ? this.config
       : resolveTargetPolicy(this.config, target)
-    return summarizeWithLlm(this.ctx, config, input, agent, signal)
+    const preference = this.ctx.get('compactionModelSelection')?.current()
+    const summaryConfig = preference?.model == null ? config : {
+      ...config,
+      summarizationProvider: preference.model.provider,
+      summarizationModel: preference.model.model,
+      reasoningEffort: preference.reasoningEffort,
+    }
+    return summarizeWithLlm(this.ctx, summaryConfig, input, agent, signal)
   }
 
   /**

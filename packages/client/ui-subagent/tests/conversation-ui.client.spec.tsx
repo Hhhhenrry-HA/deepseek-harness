@@ -1219,18 +1219,26 @@ describe('SubagentHeaderLineage', () => {
 })
 
 describe('SubagentReadOnlyComposer', () => {
+  it.each(['one-shot', 'parent-unavailable', 'unknown'] as const)('reuses the model display for %s histories', (reason) => {
+    const renderFactorySlot = vi.fn(() => <span data-model-id="recorded-model">Recorded model</span>)
+    render(<SubagentReadOnlyComposer matched={{ reason }} t={t} renderFactorySlot={renderFactorySlot} />)
+    expect(renderFactorySlot).toHaveBeenCalledWith('conversation.model', { locked: true })
+    expect(screen.getByText('Recorded model')).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('explains the exact missing-parent recovery path', () => {
-    render(<SubagentReadOnlyComposer matched={{ reason: 'parent-unavailable' }} t={t} />)
+    render(<SubagentReadOnlyComposer renderFactorySlot={() => null} matched={{ reason: 'parent-unavailable' }} t={t} />)
     expect(screen.getByRole('status').textContent).toContain('父会话当前不在线')
   })
 
   it('keeps an unknown child read-only until its descriptor is available', () => {
-    render(<SubagentReadOnlyComposer matched={{ reason: 'unknown' }} t={t} />)
+    render(<SubagentReadOnlyComposer renderFactorySlot={() => null} matched={{ reason: 'unknown' }} t={t} />)
     expect(screen.getByRole('status').textContent).toContain('读取子会话后才能确定是否可继续')
   })
 
   it('explains that one-shot histories never accept follow-ups', () => {
-    render(<SubagentReadOnlyComposer matched={{ reason: 'one-shot' }} t={t} />)
+    render(<SubagentReadOnlyComposer renderFactorySlot={() => null} matched={{ reason: 'one-shot' }} t={t} />)
     expect(screen.getByRole('status').textContent).toContain('一次性任务不支持后续消息')
   })
 })

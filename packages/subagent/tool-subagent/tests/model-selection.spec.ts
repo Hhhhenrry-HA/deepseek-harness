@@ -28,7 +28,7 @@ const REASONING = {
 }
 
 describe('subagent model tiers', () => {
-  it('defaults all starts to medium and takes high from the root rather than a medium parent', async () => {
+  it('uses the default tier for omitted starts and takes high from the root rather than a default-tier parent', async () => {
     const requests: SubagentStartRequest[] = []
     const ctx = await setup({
       provider: 'mock', withModelSelection: true,
@@ -36,7 +36,7 @@ describe('subagent model tiers', () => {
     }, { onStart: (request) => { requests.push(request) } })
     ctx.llm.registerAdapter(['alpha'], new MockAdapter([], REASONING))
     const root = modelSelectionSetupAgent(ctx)
-    for (const model_tier of [undefined, null, 'medium', 'high']) {
+    for (const model_tier of [undefined, null, 'default', 'high']) {
       const result = await callSubagent(ctx, { description: 'scoped task', prompt: 'work', ...model_tier === undefined ? {} : { model_tier } })
       if (result.isError) throw new Error(text(result))
     }
@@ -110,7 +110,7 @@ describe('subagent model tiers', () => {
     expect(adapter.requests.map(request => request.reasoningEffort)).toEqual([undefined, undefined])
   })
 
-  it('does not create or fall back to an expensive child on missing, unsupported, or failing medium routes', async () => {
+  it('does not create or fall back to an expensive child on missing, unsupported, or failing default routes', async () => {
     const started = vi.fn()
     const ctx = await setup({ provider: 'mock', withModelSelection: true }, { onStart: started })
     const missing = await callSubagent(ctx, { description: 'work', prompt: 'work' })

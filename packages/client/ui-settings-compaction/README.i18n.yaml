@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-settings-compaction/README.md
+/:
+  en: 879603193ab84393
+  zh: 218fe6fdde58f2c5
+/deepseek-ai-dsh-client-ui-settings-compaction:
+  en: 35ede872ad753a15
+  zh: 2c6277c653097cc0
+/deepseek-ai-dsh-client-ui-settings-compaction/summary:
+  en: 10c421e43a0f15c6
+  zh: 54a302dcb85cba96
+/deepseek-ai-dsh-client-ui-settings-compaction/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: bda879a892f240f0
+/deepseek-ai-dsh-client-ui-settings-compaction/use-this-package:
+  en: 57bf3e48c62ebc28
+  zh: db9f10e45f926c85
+/deepseek-ai-dsh-client-ui-settings-compaction/use-this-package/model-and-reasoning-effort:
+  en: e8ff52d537302bf9
+  zh: 54d579e208d64d8e
+/deepseek-ai-dsh-client-ui-settings-compaction/use-this-package/save-or-discard-edits:
+  en: 2c780097198ced79
+  zh: 3c4714cc23e2ad44
+/deepseek-ai-dsh-client-ui-settings-compaction/use-this-package/model-directory-feedback:
+  en: e36bd81ed2552874
+  zh: be6c3c22e0a84a30
+/deepseek-ai-dsh-client-ui-settings-compaction/understand-the-implementation:
+  en: c31f3ffe035ea314
+  zh: aa4263bcde2db1f2
+/deepseek-ai-dsh-client-ui-settings-compaction/further-exploration:
+  en: 04f231405787c983
+  zh: 797c797094122aaf
+/deepseek-ai-dsh-client-ui-settings-compaction/model-experience:
+  en: 6b7c6f82ab6c8435
+  zh: eacacb9561ac7958
+/deepseek-ai-dsh-client-ui-settings-compaction/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: de54f3467ef3b9be
+/deepseek-ai-dsh-client-ui-settings-compaction/known-limitations-and-deferred-work:
+  en: d924d9a13fdd9495
+  zh: f82a4196a2222df4
+/deepseek-ai-dsh-client-ui-settings-compaction/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

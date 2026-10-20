@@ -115,6 +115,7 @@ flowchart LR
   pkg_settings["settings"]
   pkg_agent_default_model["agent-default-model"]
   svc_settings["ctx.settings<br/>Plugin configuration forms"]
+  svc_compactionModelSelection["ctx.compactionModelSelection<br/>Compaction summary-model preference"]
   pkg_tool_subagent["tool-subagent"]
   svc_subagentModelSelection["ctx.subagentModelSelection<br/>Subagent model-selection preference"]
   pkg_credentials["credentials"]
@@ -326,6 +327,7 @@ flowchart LR
   pkg_commands --> svc_commands
   pkg_compaction --> svc_compaction
   pkg_compaction_basic --> svc_compaction
+  pkg_compaction_basic --> svc_compactionModelSelection
   pkg_compaction_tool_result_pruner --> svc_toolResultPruner
   pkg_computer_use --> svc_computerUse
   pkg_config_editor --> svc_configEditor
@@ -472,6 +474,7 @@ flowchart LR
   svc_browserUse --> pkg_experimental_browser_use_stagehand_native
   svc_clientModules --> pkg_client_hmr
   svc_compaction --> pkg_compaction_basic
+  svc_compactionModelSelection --> pkg_compaction_basic
   svc_computerUse --> pkg_experimental_computer_use_cua_driver_mcp
   svc_computerUse --> pkg_experimental_computer_use_cua_driver_native
   svc_configEditor --> pkg_agent_default_model
@@ -650,6 +653,7 @@ flowchart LR
 | `ctx.sessionPersistence` | `seam` | [`session-persistence`](../packages/session/session-persistence) | [`session-persistence-jsonl`](../packages/session/session-persistence-jsonl) | [`agent-loop`](../packages/core/agent-loop), [`tool-bash`](../packages/shell/tool-bash), [`hooks-claude-code`](../packages/experimental/hooks-claude-code), [`hooks-codex`](../packages/experimental/hooks-codex), [`session-query`](../packages/session-query/session-query), [`session-query-sqlite`](../packages/session-query/session-query-sqlite), [`message-feedback`](../packages/feedback/message-feedback) | - | The JSONL backend persists the SessionEvent vocabulary as one artifact per Session. |
 | `ctx.configEditor` | `core` | [`config-editor`](../packages/boot/config-editor) | - | [`settings`](../packages/settings/settings), [`agent-default-model`](../packages/core/agent-default-model) | - | Persists profile config patches under the application file lock and HMR queue, then reconciles Loader entries. |
 | `ctx.settings` | `core` | [`settings`](../packages/settings/settings) | - | [`api-settings-controller`](../packages/api/settings-controller) | - | Forms project volatile Config fields from active profile entries and delegate validated edits to config-editor. Plugins consume their own Config references. |
+| `ctx.compactionModelSelection` | `core` | [`compaction-basic`](../packages/compaction/compaction-basic) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | Owns live summary-model and reasoning-effort preferences sampled before the next summary without changing the conversation model. |
 | `ctx.subagentModelSelection` | `core` | [`tool-subagent`](../packages/subagent/tool-subagent) | - | [`tool-subagent`](../packages/subagent/tool-subagent) | - | Owns the default-off settings namespace that Agent-scoped delegation tools sample when composing a new top-level Session. |
 | `ctx.credentials` | `seam` | [`credentials`](../packages/credentials/credentials) | [`credentials-local`](../packages/credentials/credentials-local) | [`api-settings-controller`](../packages/api/settings-controller), [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | Configuration carries references to secrets; providers own the values. Consumers resolve per operation, so a rotated credential reaches the very next request; the settings controller exposes value-free views and write-only storage. |
 | `ctx.deepseekAccount` | `seam` | [`deepseek-account`](../packages/credentials/deepseek-account) | [`deepseek-account-platform`](../packages/credentials/deepseek-account-platform) | [`api-account-controller`](../packages/api/account-controller), [`llm-deepseek`](../packages/llm/llm-deepseek) | - | The Host owns browser authorization and local credentials; UI consumers receive state without tokens. |

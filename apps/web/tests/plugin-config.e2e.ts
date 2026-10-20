@@ -92,13 +92,13 @@ describe('web e2e: plugin configuration pages', () => {
     const panel = await openPlugins()
 
     // Every page the shipped web composition exposes: the shell executor, the
-    // agent loop, subagent selection, and the Exa search provider.
+    // agent loop, subagent selection, compaction, and the Exa search provider.
     await panel.getByRole('button', { name: '查看 EXA 网页搜索', exact: true }).waitFor({ timeout: 20_000 })
     const basic = panel.locator('[data-plugin-group="basic"]')
-    expect(await basic.locator('[data-plugin-item]').count()).toBe(4)
+    expect(await basic.locator('[data-plugin-item]').count()).toBe(5)
     expect(await basic.locator(':scope > ul > li').evaluateAll(cards => cards.map(card => card.getAttribute('data-plugin-item'))))
-      .toEqual(['subagent', 'web-search', 'agent-loop', 'shell'])
-    for (const title of ['子智能体', 'EXA 网页搜索', 'Agent 循环', '终端']) {
+      .toEqual(['subagent', 'compaction', 'web-search', 'agent-loop', 'shell'])
+    for (const title of ['子智能体', '上下文压缩', 'EXA 网页搜索', 'Agent 循环', '终端']) {
       expect(await basic.getByRole('button', { name: `查看 ${title}`, exact: true }).count()).toBe(1)
     }
     // A card carries the one-liner; the fields wait for the page.
@@ -137,6 +137,41 @@ describe('web e2e: plugin configuration pages', () => {
     await compareOrRefreshGolden(OFFICIAL_EXPECTED, snapshot, MODE)
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
+
+  it('persists the independent summary model and effort, then restores default routing', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-compaction'))
+    const panel = await openPlugins()
+    await openPage(panel, '上下文压缩')
+    const models = panel.getByRole('group', { name: '总结模型', exact: true })
+    await expect.poll(() => models.getByRole('radio').count(), { timeout: 10_000 }).toBeGreaterThan(1)
+    await models.getByRole('radio', { name: /deepseek-official\/deepseek-v4-flash-vision-exp/ }).check()
+    await panel.getByLabel('思考强度', { exact: true }).selectOption('low')
+    const save = panel.getByRole('button', { name: '保存', exact: true })
+    await save.click()
+    await expect.poll(() => save.isDisabled(), { timeout: 10_000 }).toBe(true)
+    await expect.poll(settingsDocument).toContain('id: compaction-model-selection-settings')
+    await expect.poll(settingsDocument).toContain('reasoningEffort: low')
+    await page.reload({ waitUntil: 'load' })
+    await openPlugins()
+    await openPage(panel, '上下文压缩')
+    await expect.poll(() => panel.getByLabel('思考强度', { exact: true }).inputValue(), { timeout: 10_000 }).toBe('low')
+    expect(await models.getByRole('radio', { checked: true }).count()).toBe(1)
+    const snapshot = await captureStableAria(page, '[data-plugin-panel]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'compaction.expected.md'), snapshot, MODE)
+    await page.setViewportSize({ width: 390, height: 844 })
+    try {
+      expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+      await models.getByRole('radio').first().check()
+      await save.click()
+      await expect.poll(() => save.isDisabled(), { timeout: 10_000 }).toBe(true)
+      await expect.poll(settingsDocument).toContain('model: null')
+      await expect.poll(settingsDocument).toContain('reasoningEffort: null')
+      expect(await panel.getByLabel('思考强度', { exact: true }).count()).toBe(0)
+    } finally {
+      await page.setViewportSize({ width: 1680, height: 1000 })
+    }
+    expect(tripwire.pageErrors).toEqual([])
+  })
 
   it('shows the integrated Exa settings without the official provider switch', async () => {
     const panel = await openPlugins()
@@ -210,7 +245,7 @@ describe('web e2e: plugin configuration pages', () => {
     expect(await depth.inputValue()).toBe('1')
   })
 
-  it('saves limits and one medium model together from the shared card', async () => {
+  it('saves limits and one default model together from the shared card', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plugin-config-subagent-model-selection'))
     const panel = await openPlugins()
     await openPage(panel, '子智能体')
@@ -218,7 +253,7 @@ describe('web e2e: plugin configuration pages', () => {
 
     await panel.getByLabel('最大递归深度', { exact: true }).fill('2')
     await toggle.click()
-    const models = panel.getByRole('group', { name: '中级 · 默认' })
+    const models = panel.getByRole('group', { name: '默认', exact: true })
     await models.waitFor({ timeout: 10_000 })
     const firstModel = models.getByRole('radio').first()
     await firstModel.check()
@@ -407,7 +442,7 @@ describe('web e2e: plugin configuration pages', () => {
 
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
     expect(tripwire.warnings).toEqual([])
-    await assertFixtureInventory(SNAPSHOT_DIR, ['bundle.expected.md', 'official.expected.md', 'row.expected.md', 'subagent.expected.md', 'web-search.expected.md'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['bundle.expected.md', 'compaction.expected.md', 'official.expected.md', 'row.expected.md', 'subagent.expected.md', 'web-search.expected.md'])
   })
 
 

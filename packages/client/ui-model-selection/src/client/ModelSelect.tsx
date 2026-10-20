@@ -1,5 +1,5 @@
 /**
- * ModelSelect: the composer's named model seat (`conversation.input.model`).
+ * Shared composer model control; addressed subagents show recorded values read-only.
  * Two-level selection per figma 496:26454's MenuDropdown: the root menu is
  * the Model / Effort row pair (label + current value + a right chevron),
  * each drilling into its own list — the provider-grouped model list over
@@ -37,8 +37,8 @@ import {
   IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconCloseFillRegular,
   IconDataOutlineRegular, IconWarningOutlineRegular, Input, rankByName, StateDot, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ModelLabelOwner, ModelSelectInjected } from './slots.ts'
+import type { FactoryComponentPropsOf } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ModelLabelOwner } from './slots.ts'
 import css from './ModelSelect.module.css'
 import { orderModelProviders } from './provider-order.ts'
 
@@ -59,12 +59,11 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * Render the composer model seat.
  * @param props - owner share (locked) + injected face (shared directory
  * store/verbs) + the standard locale seat.
- * @returns the trigger and, while open, the two-level menu.
+ * @returns Read-only request values for subagents, otherwise the trigger and open menu.
  */
 export function ModelSelect(
   { locked, available, directory, load, select, t, renderSlot }:
-  ModelSelectInjected & Pick<PropsRuntime<'conversation.input.model'>, 'locked'> & PropsLocale<'model'>
-    & Omit<PropsRenderSlots<'conversation.input.model.label'>, 'SessionProvider'>,
+  Pick<FactoryComponentPropsOf<'conversation.model'>, 'locked' | 'available' | 'directory' | 'load' | 'select' | 't' | 'renderSlot'>,
 ) {
   const state = useSyncExternalStore(
     fn => directory.subscribe(fn),
@@ -245,7 +244,22 @@ export function ModelSelect(
     }
   }, [available, open, pane, state, query])
 
-  if (!available) return null
+  if (!available) {
+    const model = state.current
+    const effort = state.retainedEffort
+    return (
+      <div className={clsx(css.trigger, css.readOnly)} role="status" aria-label={t('readonly.label')}>
+        <span className={css.triggerLabel}>
+          {model === null ? t(state.status === 'loading' ? 'trigger.loading' : 'readonly.unrecorded') : renderModelLabel(
+            currentChoice?.group.provider ?? { id: model.provider, name: model.provider },
+            currentChoice?.model ?? { id: model.model, name: model.model },
+            'trigger', true,
+          )}
+        </span>
+        {effort !== undefined && <span className={css.triggerEffort}>{effort}</span>}
+      </div>
+    )
+  }
 
   const show = (): void => {
     setSelectionFocus(false)
@@ -373,7 +387,7 @@ export function ModelSelect(
     close()
   }
 
-  const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>): void => {
+  const settleSelection = (result: Awaited<ReturnType<typeof select>>): void => {
     if (result === undefined) return
     if (result.ok) {
       if (rootRef.current !== null) closeAfterSelection()
@@ -432,16 +446,18 @@ export function ModelSelect(
       : effortLabel === undefined
         ? t('trigger.aria', { model: modelLabel })
         : t('trigger.ariaEffort', { model: modelLabel, effort: effortLabel })
-  const renderModelLabel = (
+  function renderModelLabel(
     provider: ModelLabelOwner['provider'], model: ModelLabelOwner['model'],
     placement: ModelLabelOwner['placement'], selected: boolean,
-  ) => (
-    <span data-provider-id={provider.id} data-model-id={model.id}>
-      {renderSlot('conversation.input.model.label', {
-        provider, model, placement, selected,
-      }, { fallback: model.name })}
-    </span>
-  )
+  ) {
+    return (
+      <span data-provider-id={provider.id} data-model-id={model.id}>
+        {renderSlot('conversation.input.model.label', {
+          provider, model, placement, selected,
+        }, { fallback: model.name })}
+      </span>
+    )
+  }
   let itemIndex = 0
   let modelIndex = 0
   const itemRef = () => {

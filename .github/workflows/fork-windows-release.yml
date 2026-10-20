@@ -98,11 +98,7 @@ jobs:
 
           本次更新：
 
-          - 子智能体支持中级、高级两档模型：中级只能单选一个模型，并可设置思考强度；默认委派使用中级。
-          - 高级跟随主智能体当前模型与思考强度；普通子智能体、继承上下文的 fork 和 workflow 统一执行分级设置，中级失败不会自动改用高级模型。
-          - 工具说明指导模型：明确、确定性较高的任务使用中级，需要主智能体同等判断力时使用高级。
-
-          更新后在“插件 → 子智能体”中启用分级模型，选择中级模型并保存，新会话生效。旧版若勾选过多个模型，需要重新单选；只有一个的配置自动沿用。
+          - “插件 → 上下文压缩”可单独选择摘要模型和思考强度；保存后，自动、手动和区域摘要均使用此选择，包括已有会话。清除模型选择可恢复默认路由。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -117,7 +113,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 子智能体分级模型" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 上下文压缩模型设置" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

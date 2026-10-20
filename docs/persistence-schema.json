@@ -5964,7 +5964,7 @@
       "kind": "event",
       "event": "compaction/summary",
       "surface": false,
-      "digest": "e2f9a41e0989f54ed8cee80f8db2bcf9d60a5c810dc9d45b83fa050b9dce7602",
+      "digest": "8cd2f19c03f77ae26dcd90dd62951c19d425a1a88f6695ff51372b7e9c117747",
       "schema": {
         "root": 0,
         "nodes": [
@@ -6038,6 +6038,11 @@
                 "name": "rawOutput",
                 "type": 6,
                 "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 3,
+                "optional": true
               },
               {
                 "name": "shadowedRange",
@@ -6449,6 +6454,11 @@
               {
                 "name": "rawOutput",
                 "type": 6,
+                "optional": true
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 3,
                 "optional": true
               },
               {
@@ -22678,6 +22688,11 @@
       "sources": []
     },
     {
+      "digest": "05ab186a03fbe6f072d66fc7043cd1c76ca14c9bc0c2d9cf28cd5798b47aa1fe",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "05d2ae1e0c7f8770f83f9a09047afb39a335d8ac986df3193659aa1e581472cf",
       "names": [
         "packages/interaction/user-approval/src/index.ts#ApprovalPolicy"
@@ -23387,6 +23402,11 @@
       ]
     },
     {
+      "digest": "310ca33c8fbf1ccbda272fdf1f0cc7c5d0b7f2b3aba175973f19042092b5e3b4",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "312aee2f0c42aabbae6cc60d92d596d8453c0aeb061c5868d1755a69ef49e69a",
       "names": [],
       "sources": []
@@ -23976,11 +23996,6 @@
       "sources": []
     },
     {
-      "digest": "576a2de8355eb09850963ff5953420b172e274d9283666eb7d889097db120796",
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "5776e5553ff2dfe3f5bc202dbb1e7c9f93e35a531aebb7764c23b2b6153b2ccc",
       "names": [],
       "sources": []
@@ -24095,7 +24110,7 @@
       "digest": "5dd766ccd1702a1142ad8b4bd44f2242f8e8a6752669ad3de0a5d224329b1438",
       "names": [],
       "sources": [
-        "packages/compaction/compaction/src/types.ts:82"
+        "packages/compaction/compaction/src/types.ts:84"
       ]
     },
     {
@@ -24152,6 +24167,11 @@
     },
     {
       "digest": "616f93a5047de668e1c30d57b1786abd76beeb4123599637ec1dc5290320ede5",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "6242b9ad92da759d1197a5614aff07bcddec3b9ef06fdf990c6581f64dd71397",
       "names": [],
       "sources": []
     },
@@ -24764,6 +24784,11 @@
       "sources": []
     },
     {
+      "digest": "8cd2f19c03f77ae26dcd90dd62951c19d425a1a88f6695ff51372b7e9c117747",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "8cdd3fdd295cee53035de16a1b23411716f75e9f994fe9510cac5d7fef605c76",
       "names": [],
       "sources": []
@@ -24910,11 +24935,6 @@
       "sources": []
     },
     {
-      "digest": "9947aa5938fe19a895298da412917acbf9ffb5093a73ab8baa257e6ae9e63a07",
-      "names": [],
-      "sources": []
-    },
-    {
       "digest": "998f22585a5d73ec005365e203f07fc3b3a029e82323fdda3fd7f13b0a9639d0",
       "names": [],
       "sources": []
@@ -24987,7 +25007,7 @@
       "names": [],
       "sources": [
         "packages/compaction/compaction/src/types.ts:38",
-        "packages/compaction/compaction/src/types.ts:84"
+        "packages/compaction/compaction/src/types.ts:86"
       ]
     },
     {
@@ -25159,11 +25179,6 @@
       "sources": [
         "packages/schedule/schedule/src/types.ts:173"
       ]
-    },
-    {
-      "digest": "a99ec0993c62c058e50af9f68922202a3b54f5e259bc2abf1915a73381d2316d",
-      "names": [],
-      "sources": []
     },
     {
       "digest": "a99f76fd149051c363f960bfeeb5b9509587ecaf7591a42797e4bfe810d8987a",
@@ -25705,7 +25720,7 @@
       "digest": "ca59530d1a4f3e191b4032bc4a20eded0d827db8b5a7efb27b3af9e9b456c6f2",
       "names": [],
       "sources": [
-        "packages/compaction/compaction/src/types.ts:72"
+        "packages/compaction/compaction/src/types.ts:74"
       ]
     },
     {
@@ -25967,11 +25982,6 @@
     },
     {
       "digest": "e2d0367e5716bc188435e51718ebff8ce873190625fa93b1c5331102d98758fa",
-      "names": [],
-      "sources": []
-    },
-    {
-      "digest": "e2f9a41e0989f54ed8cee80f8db2bcf9d60a5c810dc9d45b83fa050b9dce7602",
       "names": [],
       "sources": []
     },

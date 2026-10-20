@@ -64,6 +64,8 @@ Check this table before writing a control in a feature package. A plugin cannot 
 | `Toast` | Transient top-center banner held for the owner's `holdMs`. |
 | `SettingsForm`, `SettingsValueField`, `SettingsSecretField` | The frame and the controls of a plugin's settings page: the frame takes its copy as `labels`, saves only on its button, and discards on unmount; a value field shows staged text with the overridden badge and reset; a secret field starts blank, requests no saved-password autofill, and reports only whether a value is configured. |
 | `SettingsFormModel`, `settingsNumberField`, `settingsTextField` | The staged-edit model over a settings scope: drafts are written on save, overrides follow user-layer presence, and failures keep drafts. Save feedback reports success or failure with the returned reason; the shared `settingsSaveEn` / `settingsSaveZh` dictionaries supply localized feedback labels. |
+| `ModelRouteFields` | Provider-grouped model radios with an optional default choice and the selected model's reasoning-effort control. Callers supply localized labels, candidates, and staged actions; unavailable routes and effort values stay visible. Directory loading and saving remain caller-owned. |
+| `modelRouteCandidates`, `modelRouteKey` | Join advertised models with saved or draft routes missing from the directory, and identify exact provider/model pairs without parsing display names. Shared by the Subagent and Context compaction settings pages. |
 | `JsonTree`, `JsonBlock` | Read-only JSON inspection. |
 | `MarkdownText`, `MarkdownDelegateProvider`, `CodeBlock` | Untrusted GFM with TeX math, owner-delegated HTTP(S) navigation, and highlighted code. `CodeBlock` accepts opt-in `lineNumbers`; copied source excludes the gutter, and `contentRef` exposes its stable source wrapper to an owner that uses it as a scrollport. Set `showHeader={false}` when the owner supplies its own language and copy toolbar. |
 | `UserTextRun`, `ReferenceChip` | Uninterpreted inline text and business-resolved reference labels or activation buttons. |
@@ -151,6 +153,7 @@ The package enforces one separation: presentational React atoms with zero Cordis
 | [`src/input-modality.ts`](src/input-modality.ts) | Document-wide input modality published on `<html>` |
 | [`src/plugin-artwork.tsx`](src/plugin-artwork.tsx) | Fixed-palette plugin artwork with per-instance SVG def ids |
 | [`src/useAnchoredPosition.ts`](src/useAnchoredPosition.ts) / [`src/useAnchoredMaxHeight.ts`](src/useAnchoredMaxHeight.ts) | Floating-panel and overlay geometry hooks |
+| [`src/ModelRouteFields.tsx`](src/ModelRouteFields.tsx) / [`src/model-route.ts`](src/model-route.ts) | Shared model-route controls and retained-choice candidate assembly |
 | [`src/settings-form/`](src/settings-form/) | The settings page kit: the staged form model over a settings scope, the value and secret fields, and the form frame |
 
 <a id="input-modality"></a>

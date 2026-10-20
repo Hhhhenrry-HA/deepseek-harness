@@ -14,5 +14,5 @@ export function cordisConfigFiles(root: string): string[] {
   return globSync(['**/*cordis*.yml', '**/*cordis*.yaml'], {
     cwd: root,
     exclude: ['.claude/**', 'node_modules/**', 'vendor/**', '**/*.i18n.yaml'],
-  }).sort()
+  }).map(path => path.replaceAll('\\', '/')).sort()
 }

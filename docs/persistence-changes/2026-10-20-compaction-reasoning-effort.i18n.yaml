@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-20-compaction-reasoning-effort.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-20-compaction-reasoning-effort.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-20-compaction-reasoning-effort:
+  en: c684210953d85b97
+  zh: dcc5a12d0ae7ed68
+/2026-10-20-compaction-reasoning-effort/summary:
+  en: a8c9ab05eafb9ccd
+  zh: 4848cdcffdb2ebb4
+/2026-10-20-compaction-reasoning-effort/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-20-compaction-reasoning-effort/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-20-compaction-reasoning-effort/compatibility:
+  en: 0c7ff1d8fdf96a4d
+  zh: 1930c9fce6435cab
+/2026-10-20-compaction-reasoning-effort/verification:
+  en: 1b0822276fa8b44a
+  zh: d2edc0c96b5ba021
+/2026-10-20-compaction-reasoning-effort/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

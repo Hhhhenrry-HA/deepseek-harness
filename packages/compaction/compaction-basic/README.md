@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package keeps long agent conversations working near the model's context limit. As token pressure builds, it condenses the oldest history into a summary while preserving recent messages; after a context-overflow error, it condenses and retries. You can also request condensation with `/compact` and optionally trim oversized tool outputs first. Condensation uses one extra model request and retains only its summary text. It cannot reduce the system prompt, tools, or session prefix, or split one indivisible unit such as a single huge tool call.
+This package keeps long agent conversations working near the model's context limit. As token pressure builds, it condenses the oldest history into a summary while preserving recent messages; after a context-overflow error, it condenses and retries. You can also request condensation with `/compact` and optionally trim oversized tool outputs first. Condensation makes an extra model request; only its summary text enters future history. It cannot reduce the system prompt, tools, or session prefix, or split one indivisible unit such as a single huge tool call.
 
 ## Table of Contents
 
@@ -77,9 +77,16 @@ All settings are optional. With context window `W`, effective request output cap
 
 Misconfiguration fails fast: unknown settings, duplicate per-model overrides, invalid token counts, both retention forms together, or a retention ratio at least as large as the threshold ratio reject the plugin at load. When the model is first used, `W − O − B` must be positive and the resolved retained budget must be below the trigger. Zero headroom requires an explicit positive `maxTokens`, globally or in that model policy. Small-window deployments must configure headroom that fits their capacity; lower `thresholdRatio` to compact earlier.
 
+<a id="summary-model-selection"></a>
+### Choose the summary model
+
+The [Context compaction settings page](../../client/ui-settings-compaction/README.md) lets you save a summary model and reasoning effort independently of the conversation model. The backend reads the live preference at the start of each automatic, `/compact`, or explicit-region summary, including summaries in existing conversations. An in-flight summary keeps its captured preference. This choice does not change the conversation model, pressure thresholds, retention, pruning, or the compaction instruction.
+
+**Default (follow conversation model)** stores `model: null` and preserves the backend's configured summary route: `summarizationProvider` and `summarizationModel` take precedence; an empty pair uses the latest routed request target, then the `AgentOptions` pair. A fixed `{ provider, model }` preference overrides that configured route. For a fixed model, **Model default** stores `reasoningEffort: null` and resolves the selected adapter's default, not the conversation's effort. An unavailable fixed route or unsupported explicit effort fails the summary without falling back to another model or effort.
+
 ### What happens when condensation runs
 
-The oldest balanced span is replaced by one summary message and the recent tail stays verbatim; the conversation continues from the summary. The operation reports how many history items were condensed and the estimated tokens freed. If nothing can be condensed safely — for example the whole conversation is one indivisible unit — nothing changes and nothing is written to the session log. If no model is available to write the summary (no configured target and no routed request yet), condensation fails with a clear error telling you to configure the summarization provider and model or route one request.
+The oldest balanced span is replaced by one summary message and the recent tail stays verbatim; the conversation continues from the summary. The operation reports how many history items were condensed and the estimated tokens freed. If nothing can be condensed safely — for example the whole conversation is one indivisible unit — nothing changes and nothing is written to the session log. If no route is available to write the summary, condensation fails with an error asking you to configure the summarization provider and model, route one request, or set both `AgentOptions` fields; a fixed summary preference also supplies that route.
 
 ### On-demand condensation with /compact
 
@@ -116,7 +123,9 @@ Pressure policy resolves capacity from the adapter that owns the durable route. 
 
 ### Summarization mechanics
 
-A direct `ctx.llm.stream()` call uses the configured provider/model pair and cap, falling back to the latest logged request target and then the `AgentOptions` pair, without running the loop-only `agent/request` extension point. The call replays the derived `system/message` at surface node 0 as the leading entry of `messages`, followed by the shadowed-region messages (including a shadowed in-history `system/message` in its surface position), and supplies the header's active tools for route-specific projection. The selected adapter must resolve image references in the replayed messages or explicitly reject them. The call appends the compaction instruction as the final user message, preserving the provider's warm prefix where projection permits. An empty-content system head contributes no message but remains outside the compacted range. The final instruction is a frozen `RequestUserInput` without durable identity or source; the replayed history and persisted checkpoint remain durable messages. The call sets `GenerateOptions.purpose` to `compaction`; only returned text enters the checkpoint, excluding reasoning and tool calls. Image output fails with `UNSUPPORTED_CONTENT` rather than disappearing. The replacement user message frames the summary with `<compacted-summary>` tags; the raw summary remains on the `compaction/summary` event. The call also carries `Session.toolHistory()` so the runtime can project deferred and retained definitions; a prefix missing update messages uses active declarations without developer updates.
+The one-shot call uses the [selected summary route](#summary-model-selection) and backend output cap without running the loop-only `agent/request` extension point. For a fixed preference, the backend prepares the call before streaming so its effective adapter-default or explicit reasoning effort can be returned in `SummaryResult` and recorded on `compaction/summary`; without a fixed preference, the existing `ctx.llm.stream()` middleware path remains in use.
+
+The call replays the derived `system/message` at surface node 0 as the leading entry of `messages`, followed by the shadowed-region messages (including a shadowed in-history `system/message` in its surface position), and supplies the header's active tools for route-specific projection. The selected adapter must resolve image references in the replayed messages or explicitly reject them. The call appends the compaction instruction as the final user message, preserving the provider's warm prefix where projection permits. An empty-content system head contributes no message but remains outside the compacted range. The final instruction is a frozen `RequestUserInput` without durable identity or source; the replayed history and persisted checkpoint remain durable messages. The call sets `GenerateOptions.purpose` to `compaction`; only returned text enters the checkpoint, excluding reasoning and tool calls. Image output fails with `UNSUPPORTED_CONTENT` rather than disappearing. The replacement user message frames the summary with `<compacted-summary>` tags; the raw summary remains on the `compaction/summary` event. The call also carries `Session.toolHistory()` so the runtime can project deferred and retained definitions; a prefix missing update messages uses active declarations without developer updates.
 
 ### The region transaction
 
@@ -136,6 +145,7 @@ The transaction validates the surface span and the durable lock, appends `compac
 | [`src/region.ts`](src/region.ts) | Retention selection and the shared bracket-first compaction transaction |
 | [`src/summarizer.ts`](src/summarizer.ts) | Default `ctx.llm.stream()` summarization, checkpoint framing, safe-summary projection |
 | [`src/config.ts`](src/config.ts) | Load-time validation and routed-model policy resolution |
+| [`src/model-selection-settings.ts`](src/model-selection-settings.ts) | Host-owned live summary preference; [service and settings semantics](../../../docs/subsystems/compaction.md#summary-model-preferences) |
 | [`src/types.ts`](src/types.ts) | `BasicCompactionConfig` and resolved policy vocabulary |
 
 </details>
@@ -183,7 +193,7 @@ Replacing rather than append-only. Each checkpoint invalidates reuse from the fi
 
 #### What the model sees
 
-The summarization model receives the system prompt and shadowed-region history, with tool declarations and developer updates projected for its route, followed by one final user message: the compaction instruction below. The conversation model never sees this private request or its reasoning; only returned text is stored.
+The summarization model receives the system prompt and shadowed-region history, with tool declarations and developer updates projected for its route, followed by one final user message: the compaction instruction below. The conversation model never sees this private request or its reasoning; only returned text enters conversation history.
 
 ##### Compaction instruction (final user message)
 
@@ -226,7 +236,7 @@ Rules:
 
 #### Token effect
 
-This is a separate model call: the replayed conversation prefix plus the fixed instruction as input, with `maxTokens`-capped output. Convergence retries can pay this cost more than once.
+This is a separate model call: the replayed conversation prefix plus the fixed instruction as input, with `maxTokens`-capped output. Convergence retries can repeat this request.
 
 #### KV Cache effect
 

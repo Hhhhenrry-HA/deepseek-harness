@@ -412,6 +412,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Forms project volatile Config fields from active profile entries and delegate validated edits to config-editor. Plugins consume their own Config references.',
   },
   {
+    key: 'compactionModelSelection',
+    pkg: 'compaction-basic',
+    title: 'Compaction summary-model preference',
+    mode: 'core',
+    consumers: ['compaction-basic'],
+    note: 'Owns live summary-model and reasoning-effort preferences sampled before the next summary without changing the conversation model.',
+  },
+  {
     key: 'subagentModelSelection',
     pkg: 'tool-subagent',
     title: 'Subagent model-selection preference',
