@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.8/openai-gateway-defaults/guide.md
+/:
+  en: 2af9b2210c0ee86c
+  zh: a1b3153056a07429
+/gemini-and-deepseek-gateway-defaults:
+  en: f2bced6b7372719a
+  zh: 0375bf9c33b8a534
+/gemini-and-deepseek-gateway-defaults/change:
+  en: 6646f31fac4fb86a
+  zh: 6a4eaae2b1351ebf
+/gemini-and-deepseek-gateway-defaults/migration:
+  en: 5c727b97c9f6c7a4
+  zh: db32adee8422a183

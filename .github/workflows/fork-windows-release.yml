@@ -98,7 +98,11 @@ jobs:
 
           本次更新：
 
-          - “插件 → 上下文压缩”可单独选择摘要模型和思考强度；保存后，自动、手动和区域摘要均使用此选择，包括已有会话。清除模型选择可恢复默认路由。
+          - 自定义渠道的 Gemini、DeepSeek 模型使用对应请求参数，原生工具和 JSON 工具模式均适用。
+          - DeepSeek 补齐思考开关和工具调用回放需要的 reasoning_content。
+          - Gemini 原生工具签名随会话保存，支持并行调用和重开会话，切换模型时不会串用签名。
+
+          本次不包含“以模型发言结尾”的自动续跑 400 修复。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -113,7 +117,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 上下文压缩模型设置" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · Gemini / DeepSeek 渠道兼容修复" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

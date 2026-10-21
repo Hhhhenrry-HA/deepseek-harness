@@ -103,6 +103,8 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 `reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。
 
+未收录于已安装提供方目录的 `openai-completions` 路由中，id 包含 `deepseek` 或 `gemini`（不区分大小写）的模型使用 `max_tokens`、省略 `store`，并用 `system` 承载指令。DeepSeek 工具调用回放需要 `reasoning_content`，即使模型未声明思考能力。模型声明了推理能力且该兼容开关启用时，通用端点还会推断其 `thinking` 格式；已识别的非标准端点保留 pi-ai 的检测结果。设置 `compat.thinkingFormat` 可独立于回放开关选择格式。这些默认值同时适用于原生与 tagged-JSON 工具模式；它们不会启用思考或新增努力级别。显式路由与模型 `compat` 值依次覆盖默认值；已安装目录模型保留自身设置。其他模型家族继续使用 pi-ai 的检测。
+
 确切模型元数据将 `reasoning.efforts` 按可选强度从低到高排列。配置函数可从该列表中选择，再由 `prepareCall()` 校验具体强度。适配器只接收解析后的控制项。选择 `off` 不保证禁用推理：以省略推理字段表达该值的协议会沿用网关默认行为。所选等级下产生的推理 token 都计入该请求的输出上限。
 
 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
@@ -188,6 +190,8 @@ git add packages/llm/llm-pi-ai/src/provider-data.generated.ts
 ### 回放与词汇
 
 成功 assistant 响应会存储带版本的、无损 JSON 回放状态，与产生它们的提供方和模型放在一起——响应级事实加每个流式块一条逐块条目。请求时，`LlmRuntime` 仅当同一适配器实例拥有两条路由时才传递回放状态；适配器校验它并恢复原生响应 id、提供方签名与可选的 `providerThinkingLevel` effort 元数据，缺失的 effort 元数据仍保持缺失。回放会对照 assistant 来源校验请求模型身份，并用它保留同模型签名；提供方报告的响应模型仅作为诊断元数据。回放状态缺失或无法使用时会降级为提供方无关内容，并保留 assistant 来源中必需的提供方和模型。pi-ai 工具调用参数是解析后的对象，因此适配器解析输入并重新字符串化输出，以符合 harness 原始 JSON 约定；pi-ai 流内错误事件映射为终止 `finish` 分片。 协议转换仅作用于请求副本。从 A 切换到 B 再切回 A 时，存储的内容保持完整，包括空文本块、工具 id、原始块顺序和原生回放元数据；不受支持的签名仅从发给其他协议的请求中省略。
+
+OpenAI 兼容的 Google 工具调用签名在现有回放信封中保留原有拼写及逐调用关联。签名仅回传给同一提供方、API 与模型；并行调用中未签名的项保持未签名。签名值无效时，回复失败且不执行其中的调用。已安装的 pi-ai 补丁负责捕获与序列化；升级 pi-ai 时需重新应用或移除这部分行为。
 
 </details>
 

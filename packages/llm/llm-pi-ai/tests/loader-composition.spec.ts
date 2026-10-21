@@ -32,6 +32,31 @@ const truncatedToolCallEvents = [
   '[DONE]',
 ]
 
+const SIGNATURE_A = 'gemini-signature-a'
+const SIGNATURE_C = 'gemini-signature-c'
+
+/** Chat Completions chunks for the given deltas, then a final chunk with `finish`. */
+function chunkEvents(deltas: readonly object[], finish: string): string[] {
+  return [
+    ...deltas.map(delta => JSON.stringify({ choices: [{ delta, index: 0, finish_reason: null }] })),
+    JSON.stringify({ choices: [{ delta: {}, index: 0, finish_reason: finish }], usage: { prompt_tokens: 3, completion_tokens: 4 } }),
+    '[DONE]',
+  ]
+}
+
+/** The request-body fields this suite reads from Chat Completions history. */
+interface GeminiWire {
+  messages: {
+    role: string
+    tool_calls?: { id: string; extra_content?: { google: { thought_signature: string } } }[]
+  }[]
+}
+
+/** Every replayed assistant tool call in one request, in history order. */
+function wireCalls(request: GeminiWire): NonNullable<GeminiWire['messages'][number]['tool_calls']> {
+  return request.messages.flatMap(message => message.role === 'assistant' ? message.tool_calls ?? [] : [])
+}
+
 let root: string | undefined
 let context: Context | undefined
 
@@ -189,6 +214,123 @@ describe('llm-pi-ai real dormant composition', () => {
       expect(restored.agent.session.deriveMessages().at(-1)?.content).toEqual([{ type: 'text', text: 'hello' }])
     } finally {
       await restored.dispose()
+    }
+  })
+
+  it('replays Gemini thought signatures through parallel calls, later steps, a reopened Session, and a model switch', { timeout: 60_000 }, async () => {
+    const server = await mockServer([
+      // Step 1: two parallel calls. Only the first is signed, and its signature arrives in a later
+      // chunk that names neither the id nor the function, only the stream index.
+      {
+        events: chunkEvents([
+          { role: 'assistant', content: '' },
+          { tool_calls: [{ index: 0, id: 'call-a', type: 'function', function: { name: 'echo', arguments: '{"text":"one"}' } }] },
+          { tool_calls: [{ index: 1, id: 'call-b', type: 'function', function: { name: 'echo', arguments: '{"text":"two"}' } }] },
+          { tool_calls: [{ index: 0, extra_content: { google: { thought_signature: SIGNATURE_A } } }] },
+        ], 'tool_calls'),
+      },
+      // Step 2: a single call carrying its own signature in its first chunk.
+      {
+        events: chunkEvents([
+          { role: 'assistant', content: '' },
+          {
+            tool_calls: [{
+              index: 0, id: 'call-c', type: 'function',
+              extra_content: { google: { thought_signature: SIGNATURE_C } },
+              function: { name: 'echo', arguments: '{"text":"three"}' },
+            }],
+          },
+        ], 'tool_calls'),
+      },
+      { events: textEvents },
+      { events: textEvents },
+      { events: textEvents },
+    ])
+    const { ctx, settingsPath } = await loadComposition(true)
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai', '  config:', '    providers:', '      gateway:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY', '        api: openai-completions',
+      `        baseURL: ${server.url}`, '        models:',
+      '          - id: gemini-3-flash', '          - id: other-model', '',
+    ].join('\n'))
+    await vi.waitFor(() => { expect(ctx.llm.listProviders().map(row => row.id)).toEqual(['gateway']) }, { timeout: 5000 })
+    let executions = 0
+    ctx.tools.register(defineContentToolFixture({
+      name: 'echo', description: 'Return text.', parameters: { text: { type: 'string', required: true } },
+      execute(args) {
+        executions++
+        return Promise.resolve([{ type: 'text', text: args.text }])
+      },
+    }))
+    // Changes after every tool run, so each later request admits a user-role context message after the tool results.
+    ctx.systemPrompt.context({ name: 'test:tool-state', order: 100, text: () => `Executed tool calls: ${executions}` })
+
+    const agentOptions = { provider: 'gateway', model: 'gemini-3-flash' }
+    const agent = await ctx.agentLoop.create(SessionId('gemini-signatures'), agentOptions)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Use echo' }], source: { kind: 'user' } }))
+    await agent.whenIdle()
+    expect(executions).toBe(3)
+    expect(server.requests).toHaveLength(3)
+
+    const wire = (index: number): GeminiWire => server.requests[index] as GeminiWire
+    // Every request ends on the user's turn or its context, never on a replayed assistant message.
+    for (const index of [0, 1, 2]) expect(wire(index).messages.at(-1)?.role).toBe('user')
+    // The context admitted after the tool results is the request's final message.
+    for (const index of [1, 2]) expect(wire(index).messages.at(-2)?.role).toBe('tool')
+
+    expect(wireCalls(wire(0))).toEqual([])
+    const afterStepOne = wireCalls(wire(1))
+    expect(afterStepOne).toHaveLength(2)
+    expect(afterStepOne[0]).toMatchObject({ id: 'call-a', extra_content: { google: { thought_signature: SIGNATURE_A } } })
+    expect(afterStepOne[1]).toMatchObject({ id: 'call-b' })
+    expect(afterStepOne[1]).not.toHaveProperty('extra_content')
+
+    const afterStepTwo = wireCalls(wire(2))
+    expect(afterStepTwo.map(call => call.id)).toEqual(['call-a', 'call-b', 'call-c'])
+    expect(afterStepTwo.map(call => call.extra_content?.google.thought_signature)).toEqual([SIGNATURE_A, undefined, SIGNATURE_C])
+    // Pin the exact Chat Completions history Gemini validates.
+    expect(wire(2).messages.filter(message => message.role === 'assistant')).toMatchSnapshot()
+
+    // The Session keeps each signature beside its own call; the unsigned call stores none.
+    const events = agent.session.snapshotEvents()
+    const toolBlocks = events.filter(event => event.type === 'assistant/message').map((event) => {
+      const replay = event.data.message.source.kind === 'model'
+        ? event.data.message.source.replayState as { blocks: { type: string; thoughtSignature?: string }[] }
+        : undefined
+      return replay?.blocks.filter(block => block.type === 'tool-call') ?? []
+    }).filter(blocks => blocks.length > 0)
+    expect(toolBlocks).toHaveLength(2)
+    expect(toolBlocks[0]?.[0]?.thoughtSignature).toContain(SIGNATURE_A)
+    expect(toolBlocks[0]?.[1]).not.toHaveProperty('thoughtSignature')
+    expect(toolBlocks[1]?.[0]?.thoughtSignature).toContain(SIGNATURE_C)
+
+    const seed = JSON.parse(JSON.stringify(events)) as typeof events
+    const restored = await ctx.agents.create({ sessionId: SessionId('restored-gemini-signatures'), seed, agentOptions })
+    try {
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(4)
+      expect(wire(3).messages.at(-1)?.role).toBe('user')
+      expect(wireCalls(wire(3))).toEqual(afterStepTwo)
+    } finally {
+      await restored.dispose()
+    }
+
+    // Another model on the same route must not receive Gemini's signatures.
+    const switched = await ctx.agents.create({
+      sessionId: SessionId('switched-gemini-signatures'), seed,
+      agentOptions: { provider: 'gateway', model: 'other-model' },
+    })
+    try {
+      switched.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue elsewhere' }], source: { kind: 'user' } }))
+      await switched.agent.whenIdle()
+      expect(server.requests).toHaveLength(5)
+      expect(wire(4).messages.at(-1)?.role).toBe('user')
+      const foreign = wireCalls(wire(4))
+      expect(foreign.map(call => call.id)).toEqual(['call-a', 'call-b', 'call-c'])
+      for (const call of foreign) expect(call).not.toHaveProperty('extra_content')
+    } finally {
+      await switched.dispose()
     }
   })
 

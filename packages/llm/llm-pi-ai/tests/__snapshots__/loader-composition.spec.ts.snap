@@ -1,5 +1,56 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`llm-pi-ai real dormant composition > replays Gemini thought signatures through parallel calls, later steps, a reopened Session, and a model switch 1`] = `
+[
+  {
+    "content": null,
+    "role": "assistant",
+    "tool_calls": [
+      {
+        "extra_content": {
+          "google": {
+            "thought_signature": "gemini-signature-a",
+          },
+        },
+        "function": {
+          "arguments": "{"text":"one"}",
+          "name": "echo",
+        },
+        "id": "call-a",
+        "type": "function",
+      },
+      {
+        "function": {
+          "arguments": "{"text":"two"}",
+          "name": "echo",
+        },
+        "id": "call-b",
+        "type": "function",
+      },
+    ],
+  },
+  {
+    "content": null,
+    "role": "assistant",
+    "tool_calls": [
+      {
+        "extra_content": {
+          "google": {
+            "thought_signature": "gemini-signature-c",
+          },
+        },
+        "function": {
+          "arguments": "{"text":"three"}",
+          "name": "echo",
+        },
+        "id": "call-c",
+        "type": "function",
+      },
+    ],
+  },
+]
+`;
+
 exports[`llm-pi-ai real dormant composition > runs text tool calls through policy and transient retries, retaining the request format in Session history 1`] = `
 {
   "content": "You are an AI agent powered by DeepSeek Harness.

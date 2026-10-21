@@ -1,0 +1,8 @@
+version: 1
+scenario: pi-ai-google-tool-signature
+profile: headless
+composition: pi-ai-google-tool-signature
+recording: authored
+header:
+  class: pi-ai-google-tool-signature
+  pin: true

@@ -29,6 +29,7 @@ import type {
   Provider,
   ThinkingLevelMap,
 } from '@earendil-works/pi-ai'
+import { openAiCompletionsNameCompat } from './openai-compat.ts'
 
 /**
  * Pricing for a model the installed catalog does not describe. The harness
@@ -782,7 +783,9 @@ type ModelCompat = OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMe
  *
  * A model switch wins over the route switch field by field; whatever neither
  * sets keeps the installed entry's value, and a field no layer decides falls
- * through to pi-ai's own detection. A model-level switch its protocol does not
+ * through to pi-ai's own detection. On a custom `openai-completions` route the
+ * model-name defaults of {@link openAiCompletionsNameCompat} sit beneath every
+ * other layer. A model-level switch its protocol does not
  * take fails resolution — about one named model it can only be a mistake —
  * while a route-level one skips past such models, since a route default must
  * stay settable on a route whose models do not all speak one protocol. Every
@@ -793,6 +796,7 @@ type ModelCompat = OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMe
  * @param route - the route-level switches, when any.
  * @param base - the installed catalog entry of the same id, when one exists.
  * @param api - the model's resolved wire protocol.
+ * @param catalogRoute - whether the installed catalog describes this route.
  * @returns a `compat` field to spread into the model, or nothing.
  */
 function resolveModelCompat(
@@ -801,6 +805,7 @@ function resolveModelCompat(
   route: PiAiCompatProfile | undefined,
   base: Model<Api> | undefined,
   api: string,
+  catalogRoute: boolean,
 ): { compat: ModelCompat } | Record<string, never> {
   const gate = compatGate(api)
   const configured: Record<string, unknown> = {}
@@ -817,7 +822,11 @@ function resolveModelCompat(
     }
     configured[field] = value
   }
-  if (Object.keys(configured).length === 0) return {}
+  // A route the installed catalog describes already has its facts from the
+  // catalog or pi-ai's route detection; only a custom route's model is named
+  // by id alone.
+  const byName = api === 'openai-completions' && !catalogRoute ? openAiCompletionsNameCompat(entry.id) : {}
+  if (Object.keys(configured).length === 0 && Object.keys(byName).length === 0) return {}
   // The installed entry's compat matches the entry's OWN api — a route-level
   // `api` repoint (an anthropic catalog served through an OpenAI-compatible
   // gateway) leaves `base.compat` in the other protocol's shape, so it is
@@ -825,7 +834,7 @@ function resolveModelCompat(
   // model starts from pi-ai's baseURL-derived detection instead, which is
   // what a protocol change means for every other compat field too.
   const inherited = base?.api === api ? base.compat : undefined
-  return { compat: { ...inherited, ...configured } as ModelCompat }
+  return { compat: { ...byName, ...inherited, ...configured } as ModelCompat }
 }
 
 /** One route's materialized catalog, plus the request caps its profile chose. */
@@ -964,7 +973,7 @@ export function resolveRouteModels(
       contextWindow,
       maxTokens,
       ...resolveModelReasoning(provider, entry, base),
-      ...resolveModelCompat(provider, entry, request.compat, base, api),
+      ...resolveModelCompat(provider, entry, request.compat, base, api, defaults.size > 0),
     }
   }
   const models: Model<Api>[] = []
