@@ -16,6 +16,7 @@ type NameCompat = Pick<
   | 'supportsDeveloperRole'
   | 'maxTokensField'
   | 'requiresReasoningContentOnAssistantMessages'
+  | 'requiresAssistantAfterToolResult'
 >
 
 /** Switches for a gateway that takes `max_tokens`, no `store`, and the `system` role. */
@@ -23,6 +24,12 @@ const GATEWAY_WIRE: NameCompat = {
   supportsStore: false,
   supportsDeveloperRole: false,
   maxTokensField: 'max_tokens',
+}
+
+/** Gemini gateways may require an assistant turn between tool results and new user input. */
+const GEMINI: NameCompat = {
+  ...GATEWAY_WIRE,
+  requiresAssistantAfterToolResult: true,
 }
 
 /** DeepSeek tool replay requires `reasoning_content`; the native transport resolves its thinking dialect. */
@@ -42,6 +49,6 @@ const DEEPSEEK: NameCompat = {
 export function openAiCompletionsNameCompat(modelId: string): NameCompat {
   const id = modelId.toLowerCase()
   if (id.includes('deepseek')) return { ...DEEPSEEK }
-  if (id.includes('gemini')) return { ...GATEWAY_WIRE }
+  if (id.includes('gemini')) return { ...GEMINI }
   return {}
 }

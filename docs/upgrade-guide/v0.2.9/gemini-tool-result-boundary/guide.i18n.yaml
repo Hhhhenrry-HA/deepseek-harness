@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.9/gemini-tool-result-boundary/guide.md
+/:
+  en: 5c199cb7a6354e2c
+  zh: 534c23cf9ce47130
+/gemini-tool-result-continuation:
+  en: 9e7ec463beeedd75
+  zh: b8c8672a72202bc0
+/gemini-tool-result-continuation/change:
+  en: cbbbdf456a219021
+  zh: 5600f90c6f32ba6b
+/gemini-tool-result-continuation/migration:
+  en: 44ce89322e09cc10
+  zh: bec9674dba28b604

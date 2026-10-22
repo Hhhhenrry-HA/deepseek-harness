@@ -1,0 +1,15 @@
+- id: llm-deepseek
+  disabled: true
+
+- id: tool-skill
+  disabled: true
+
+- id: llm-pi-ai
+  config:
+    providers:
+      gateway:
+        api: openai-completions
+        baseURL: https://gateway.invalid/v1
+        apiKeyEnv: SNAPSHOT_UNUSED_KEY
+        models:
+          - id: gemini-test

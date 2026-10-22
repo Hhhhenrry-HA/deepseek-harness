@@ -105,6 +105,8 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 未收录于已安装提供方目录的 `openai-completions` 路由中，id 包含 `deepseek` 或 `gemini`（不区分大小写）的模型使用 `max_tokens`、省略 `store`，并用 `system` 承载指令。DeepSeek 工具调用回放需要 `reasoning_content`，即使模型未声明思考能力。模型声明了推理能力且该兼容开关启用时，通用端点还会推断其 `thinking` 格式；已识别的非标准端点保留 pi-ai 的检测结果。设置 `compat.thinkingFormat` 可独立于回放开关选择格式。这些默认值同时适用于原生与 tagged-JSON 工具模式；它们不会启用思考或新增努力级别。显式路由与模型 `compat` 值依次覆盖默认值；已安装目录模型保留自身设置。其他模型家族继续使用 pi-ai 的检测。
 
+同样的路由中，id 包含 `gemini` 且不含 `deepseek` 的模型还会将 `compat.requiresAssistantAfterToolResult` 默认为 `true`。在原生工具模式下，紧跟工具结果的用户消息之前会插入一条协议 assistant 消息，其空内容序列化为 `''` 而非 `null`；否则转发到 Gemini 的网关可能因历史以模型发言结尾而拒绝请求。该桥接不添加用户内容和签名，`toolMode: tagged-json` 的工具结果是文本，无需桥接。显式路由与模型 `compat` 值优先，已安装目录模型保留自身设置。
+
 确切模型元数据将 `reasoning.efforts` 按可选强度从低到高排列。配置函数可从该列表中选择，再由 `prepareCall()` 校验具体强度。适配器只接收解析后的控制项。选择 `off` 不保证禁用推理：以省略推理字段表达该值的协议会沿用网关默认行为。所选等级下产生的推理 token 都计入该请求的输出上限。
 
 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。

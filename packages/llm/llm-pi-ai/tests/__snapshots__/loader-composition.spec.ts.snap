@@ -3,7 +3,7 @@
 exports[`llm-pi-ai real dormant composition > replays Gemini thought signatures through parallel calls, later steps, a reopened Session, and a model switch 1`] = `
 [
   {
-    "content": null,
+    "content": "",
     "role": "assistant",
     "tool_calls": [
       {
@@ -30,7 +30,11 @@ exports[`llm-pi-ai real dormant composition > replays Gemini thought signatures 
     ],
   },
   {
-    "content": null,
+    "content": "I have processed the tool results.",
+    "role": "assistant",
+  },
+  {
+    "content": "",
     "role": "assistant",
     "tool_calls": [
       {
@@ -47,6 +51,10 @@ exports[`llm-pi-ai real dormant composition > replays Gemini thought signatures 
         "type": "function",
       },
     ],
+  },
+  {
+    "content": "I have processed the tool results.",
+    "role": "assistant",
   },
 ]
 `;

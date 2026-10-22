@@ -1,0 +1,12 @@
+version: 1
+scenario: pi-ai-gemini-tool-user-boundary
+profile: headless
+composition: pi-ai-gemini-tool-user-boundary
+recording: authored
+header:
+  class: pi-ai-gemini-tool-user-boundary
+  pin: true
+  systemPromptSource: pi-ai-google-tool-signature
+  toolSchemasSource: pi-ai-google-tool-signature
+workspace:
+  final: true

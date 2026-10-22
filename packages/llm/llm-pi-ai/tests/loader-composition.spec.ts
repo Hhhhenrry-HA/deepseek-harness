@@ -48,6 +48,7 @@ function chunkEvents(deltas: readonly object[], finish: string): string[] {
 interface GeminiWire {
   messages: {
     role: string
+    content?: unknown
     tool_calls?: { id: string; extra_content?: { google: { thought_signature: string } } }[]
   }[]
 }
@@ -275,8 +276,11 @@ describe('llm-pi-ai real dormant composition', () => {
     const wire = (index: number): GeminiWire => server.requests[index] as GeminiWire
     // Every request ends on the user's turn or its context, never on a replayed assistant message.
     for (const index of [0, 1, 2]) expect(wire(index).messages.at(-1)?.role).toBe('user')
-    // The context admitted after the tool results is the request's final message.
-    for (const index of [1, 2]) expect(wire(index).messages.at(-2)?.role).toBe('tool')
+    // The context follows a protocol assistant turn that closes the tool-result boundary.
+    for (const index of [1, 2]) {
+      expect(wire(index).messages.slice(-3).map(message => message.role)).toEqual(['tool', 'assistant', 'user'])
+      expect(wire(index).messages.at(-2)?.content).toBeTypeOf('string')
+    }
 
     expect(wireCalls(wire(0))).toEqual([])
     const afterStepOne = wireCalls(wire(1))

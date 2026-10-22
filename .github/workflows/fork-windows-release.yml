@@ -98,11 +98,8 @@ jobs:
 
           本次更新：
 
-          - 自定义渠道的 Gemini、DeepSeek 模型使用对应请求参数，原生工具和 JSON 工具模式均适用。
-          - DeepSeek 补齐思考开关和工具调用回放需要的 reasoning_content。
-          - Gemini 原生工具签名随会话保存，支持并行调用和重开会话，切换模型时不会串用签名。
-
-          本次不包含“以模型发言结尾”的自动续跑 400 修复。
+          - 自定义渠道的 Gemini 模型在原生工具结果与随后的用户或系统续跑消息之间自动插入协议 assistant 桥接，解决自动续跑或工具结果后继续发言报 `Requests ending with a model turn are not supported.`（HTTP 400）的问题。
+          - 上下文压缩生成摘要时保留会话取消信号，中途停止会话可立即中断正在进行的压缩摘要请求。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -117,7 +114,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · Gemini / DeepSeek 渠道兼容修复" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · Gemini 工具续跑桥接与压缩取消修复" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

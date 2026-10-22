@@ -24,6 +24,7 @@ const DEEPSEEK_WIRE = {
   ...GATEWAY_WIRE,
   requiresReasoningContentOnAssistantMessages: true,
 }
+const GEMINI_WIRE = { ...GATEWAY_WIRE, requiresAssistantAfterToolResult: true }
 
 type Providers = NonNullable<Options['providers']>
 
@@ -47,8 +48,8 @@ describe('openAiCompletionsNameCompat', () => {
   it.each([
     ['deepseek-v4-pro', DEEPSEEK_WIRE],
     ['relay/Experimental-DeepSeek-R1', DEEPSEEK_WIRE],
-    ['gemini-3-pro', GATEWAY_WIRE],
-    ['models/Gemini-2.5-Flash', GATEWAY_WIRE],
+    ['gemini-3-pro', GEMINI_WIRE],
+    ['models/Gemini-2.5-Flash', GEMINI_WIRE],
     ['deepseek-gemini-distill', DEEPSEEK_WIRE],
   ])('names %s by family', (id, expected) => {
     expect(openAiCompletionsNameCompat(id)).toEqual(expected)
@@ -63,7 +64,7 @@ describe('compat resolution on a custom completions route', () => {
   it('applies each family default and nothing to other models', () => {
     expect(compatOf(custom([{ id: 'deepseek-v4' }, { id: 'gemini-3-pro' }, { id: 'gpt-5' }, { id: 'kimi-k3' }]))).toEqual({
       'deepseek-v4': DEEPSEEK_WIRE,
-      'gemini-3-pro': GATEWAY_WIRE,
+      'gemini-3-pro': GEMINI_WIRE,
       'gpt-5': undefined,
       'kimi-k3': undefined,
     })
@@ -71,8 +72,13 @@ describe('compat resolution on a custom completions route', () => {
 
   it('lets explicit route compat win field by field', () => {
     expect(compatOf(custom([{ id: 'gemini-3-pro' }], { compat: { supportsStore: true } }))).toEqual({
-      'gemini-3-pro': { ...GATEWAY_WIRE, supportsStore: true },
+      'gemini-3-pro': { ...GEMINI_WIRE, supportsStore: true },
     })
+  })
+
+  it('lets an explicit false beat the Gemini tool-result bridge default', () => {
+    expect(compatOf(custom([{ id: 'gemini-3-pro', compat: { requiresAssistantAfterToolResult: false } }])))
+      .toEqual({ 'gemini-3-pro': { ...GEMINI_WIRE, requiresAssistantAfterToolResult: false } })
   })
 
   it('lets explicit model compat win over route compat and defaults', () => {
@@ -243,5 +249,83 @@ describe('request body of a custom completions route', () => {
     })) { /* drain */ }
     const body = server.requests[0] as { messages: Record<string, unknown>[] }
     expect(body.messages.find(message => message['role'] === 'assistant')).toHaveProperty('reasoning_content', '')
+  })
+})
+
+describe('tool results followed directly by user messages on a custom completions route', () => {
+  const signature = { thought_signature: 'opaque-gemini-signature' }
+  type WireMessage = Record<string, unknown>
+
+  function assistantCalling(model: string, signed: boolean) {
+    const content = [{ type: 'tool-call' as const, id: ToolCallId('call_echo'), name: 'echo', arguments: '{"text":"x"}' }]
+    if (!signed) return createAssistantMessage({ content, source: { provider: 'gateway', model } })
+    return createAssistantMessage({
+      content,
+      source: {
+        provider: 'gateway',
+        model,
+        replayState: {
+          response: { kind: 'pi-ai', version: 2, api: 'openai-completions', provider: 'gateway', model, stopReason: 'toolUse' },
+          blocks: [{ type: 'tool-call', thoughtSignature: JSON.stringify({ type: 'google-thought-signature', google: signature }) }],
+        },
+      },
+    })
+  }
+
+  /** The wire messages of one request whose history ends in a tool result and two consecutive user messages. */
+  async function wireOf(models: NonNullable<Providers[string]['models']>, model: string, signed = false): Promise<WireMessage[]> {
+    const server = await mockServer([{ events: textEvents }])
+    const providers = custom(models, { baseURL: `${server.url}/v1` })
+    const adapter = new PiAiAdapter({
+      profiles: () => resolveProfiles(providers),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+    })
+    const user = (text: string) => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+    for await (const _chunk of adapter.stream({
+      provider: 'gateway',
+      model,
+      tools: [echoTool],
+      messages: [
+        user('first request'),
+        assistantCalling(model, signed),
+        createToolResultMessage({ callId: ToolCallId('call_echo'), content: [{ type: 'text', text: 'x' }], isError: false }),
+        user('second note'),
+        user('third note'),
+      ],
+    })) { /* drain */ }
+    return (server.requests[0] as { messages: WireMessage[] }).messages
+  }
+
+  const roles = (messages: WireMessage[]): unknown[] => messages.map(message => message['role'])
+  const textOf = (message: WireMessage | undefined): string => {
+    const content = message?.['content']
+    return typeof content === 'string'
+      ? content
+      : Array.isArray(content) ? content.map(part => (part as { text?: string }).text ?? '').join('') : ''
+  }
+
+  it('bridges a Gemini tool result with an assistant turn, keeping user text, call id and signature', async () => {
+    const messages = await wireOf([{ id: 'gemini-3-pro' }], 'gemini-3-pro', true)
+    expect(roles(messages)).toEqual(['user', 'assistant', 'tool', 'assistant', 'user', 'user'])
+    expect(messages.filter(message => message['role'] === 'user').map(textOf)).toEqual(['first request', 'second note', 'third note'])
+    expect(typeof messages[3]?.['content']).toBe('string')
+    expect(messages[1]?.['tool_calls']).toEqual([
+      { id: 'call_echo', type: 'function', function: { name: 'echo', arguments: '{"text":"x"}' }, extra_content: { google: signature } },
+    ])
+    expect(messages[2]).toMatchObject({ role: 'tool', tool_call_id: 'call_echo' })
+  })
+
+  it('sends no bridge for Gemini when its compat explicitly declines one', async () => {
+    const messages = await wireOf(
+      [{ id: 'gemini-3-pro', compat: { requiresAssistantAfterToolResult: false } }], 'gemini-3-pro', true,
+    )
+    expect(roles(messages)).toEqual(['user', 'assistant', 'tool', 'user', 'user'])
+    expect(messages[1]?.['tool_calls']).toMatchObject([{ id: 'call_echo', extra_content: { google: signature } }])
+  })
+
+  it.each(['deepseek-v4-pro', 'gpt-5', 'kimi-k3'])('sends no bridge for %s', async (model) => {
+    const messages = await wireOf([{ id: model }], model)
+    expect(roles(messages)).toEqual(['user', 'assistant', 'tool', 'user', 'user'])
   })
 })
