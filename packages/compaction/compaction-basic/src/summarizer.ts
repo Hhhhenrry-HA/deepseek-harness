@@ -8,7 +8,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { contentHasImage, BlockAssembler, LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
-  ContentBlock, FinishReason, GenerateOptions, Message, RequestMessage, TokenUsage, ToolSchema,
+  ContentBlock, FinishReason, GenerateOptions, LlmCallConfig, Message, RequestMessage, TokenUsage, ToolSchema,
 } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
@@ -151,19 +151,22 @@ export async function summarizeWithLlm(
       content: [{ type: 'text', text: COMPACTION_INSTRUCTION }],
     }),
   ]
-  const options: GenerateOptions = {
+  const callConfig: LlmCallConfig = {
     provider: target.provider,
     model: target.model,
+    maxTokens: config.maxTokens,
+    ...config.reasoningEffort == null ? {} : { reasoningEffort: ReasoningEffortId(config.reasoningEffort) },
+  }
+  const options: GenerateOptions = {
+    ...callConfig,
     messages,
     toolHistory: agent.session.toolHistory(),
     ...input.tools === undefined ? {} : { tools: [...input.tools] },
-    maxTokens: config.maxTokens,
-    ...config.reasoningEffort == null ? {} : { reasoningEffort: ReasoningEffortId(config.reasoningEffort) },
     sessionId: agent.session.id,
     purpose: 'compaction',
     ...signal === undefined ? {} : { signal },
   }
-  const prepared = config.reasoningEffort === undefined ? undefined : await ctx.llm.prepareCall(options, signal)
+  const prepared = config.reasoningEffort === undefined ? undefined : await ctx.llm.prepareCall(callConfig, signal)
   const request = prepared === undefined ? options : { ...options, ...prepared.config }
   const stream = prepared === undefined ? ctx.llm.stream(request) : prepared.stream(request)
   for await (const chunk of stream) assembler.push(chunk)

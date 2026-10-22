@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
@@ -113,6 +114,38 @@ describe('live compaction model selection', () => {
       expect(main.requests.every(request => request.provider === 'main'
         && request.model === 'conversation' && request.maxTokens === 128
         && request.reasoningEffort === ReasoningEffortId('high'))).toBe(true)
+    },
+  )
+
+  it.each([null, 'high'])(
+    'forwards caller cancellation to a fixed summary with effort %s without replacing history',
+    async (reasoningEffort) => {
+      const { ctx, agent, preference } = await harness()
+      await turn(agent)
+      const controller = new AbortController()
+      const reason = new Error('summary cancelled by the caller')
+      const adapter = new class extends SelectionAdapter {
+        override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+          const signal = AbortSignal.any([options.signal!])
+          controller.abort(reason)
+          signal.throwIfAborted()
+          yield * super.stream(options)
+        }
+      }()
+      ctx.llm.registerAdapter(['cancellable'], adapter)
+      Object.assign(preference, {
+        model: { provider: 'cancellable', model: 'summary' }, reasoningEffort,
+      })
+      const before = [...agent.session.surface.nodes]
+
+      await expect(ctx.compaction.compactNow(agent, controller.signal)).rejects.toBe(reason)
+
+      expect(adapter.requests).toHaveLength(0)
+      expect(agent.session.surface.nodes).toEqual(before)
+      const events = agent.session.snapshotEvents()
+      expect(events.filter(event => event.type === 'compaction/summary')).toEqual([])
+      expect(events.filter(event => event.type === 'compaction/start')).toHaveLength(1)
+      expect(events.filter(event => event.type === 'compaction/end')).toHaveLength(1)
     },
   )
 

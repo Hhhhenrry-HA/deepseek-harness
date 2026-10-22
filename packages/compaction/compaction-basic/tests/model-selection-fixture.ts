@@ -23,6 +23,8 @@ export class SelectionAdapter extends LlmAdapter {
   }
 
   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    const signal = options.signal === undefined ? undefined : AbortSignal.any([options.signal])
+    signal?.throwIfAborted()
     this.requests.push(options)
     yield { type: 'block-start', index: 0, blockType: 'text' }
     yield { type: 'block-end', index: 0, block: { type: 'text', text: 'checkpoint' } }
