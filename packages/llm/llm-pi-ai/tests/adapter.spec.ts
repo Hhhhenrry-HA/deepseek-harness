@@ -9,7 +9,7 @@ import type {
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
-import LlmRuntime, { createToolResultMessage, createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createAssistantMessage, createToolResultMessage, createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, ToolCallId, userAgent } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -112,6 +112,94 @@ describe('PiAiAdapter provider routing', () => {
     expect(chunks.length).toBeGreaterThan(0)
     expect(first.requests).toHaveLength(1)
     expect(second.requests).toHaveLength(0)
+  })
+
+  it.each([
+    { mode: 'manual', provider: 'manual-gateway', model: 'claude-sonnet-4-5', adaptive: false, forced: false },
+    { mode: 'forced adaptive', provider: 'adaptive-gateway', model: 'custom-adaptive', adaptive: true, forced: true },
+    { mode: 'catalog adaptive', provider: 'anthropic', model: 'claude-opus-5-5', adaptive: true, forced: false },
+  ])('preserves required thinking for manual replay and captures compaction before credentials in $mode mode', async ({ provider, model, adaptive, forced }) => {
+    const server = await mockServer([{ events: anthropicTextEvents }])
+    const credentialEntered = Promise.withResolvers<undefined>()
+    const credential = Promise.withResolvers<string>()
+    const callId = ToolCallId('toolu_before_compaction')
+    const historical = createAssistantMessage({
+      content: [
+        { type: 'reasoning', text: 'saved thinking' },
+        { type: 'text', text: 'saved answer' },
+        { type: 'tool-call', id: callId, name: 'echo', arguments: '{"text":"saved result"}' },
+      ],
+      source: {
+        provider, model,
+        replayState: {
+          response: { kind: 'pi-ai', version: 2, api: 'anthropic-messages', provider, model, stopReason: 'toolUse' },
+          blocks: [{ type: 'reasoning', thinkingSignature: 'saved-signature' }, { type: 'text' }, { type: 'tool-call' }],
+        },
+      },
+    })
+    const stale = new Set([historical.id])
+    const order: string[] = []
+    const resolveCompactedThinking = vi.fn(() => {
+      order.push('compaction')
+      return new Set(stale)
+    })
+    const resolveApiKey = vi.fn(() => {
+      order.push('credentials')
+      credentialEntered.resolve(undefined)
+      return credential.promise
+    })
+    const ctx = new Context()
+    onTestFinished(async () => { await ctx.fiber.dispose() })
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter([provider], new PiAiAdapter({
+      profiles: () => resolveProfiles({
+        [provider]: {
+          api: 'anthropic-messages', baseURL: server.url, cacheRetention: 'none',
+          ...forced ? { compat: { forceAdaptiveThinking: true } } : {},
+          models: [{ id: model, reasoningEfforts: { off: null, high: 'high' } }],
+        },
+      }),
+      resolveApiKey, resolveCompactedThinking, auth: memoryAuth(),
+    }))
+    const pending = assemble(ctx, {
+      provider, model, reasoningEffort: ReasoningEffortId('high'),
+      tools: [{ name: 'echo', description: 'Return text.', parameters: { type: 'object', properties: { text: { type: 'string' } } } }],
+      messages: [
+        createUserMessage({ content: [{ type: 'text', text: 'checkpoint' }], source: { kind: 'user' } }),
+        historical,
+        createToolResultMessage({ callId, content: [{ type: 'text', text: 'saved result' }], isError: false }),
+      ],
+    })
+    try {
+      await Promise.race([
+        credentialEntered.promise,
+        pending.then(() => { throw new Error('Adapter finished before credential resolution') }),
+      ])
+      expect(resolveCompactedThinking).toHaveBeenCalledTimes(adaptive ? 1 : 0)
+      expect(order).toEqual(adaptive ? ['compaction', 'credentials'] : ['credentials'])
+      stale.clear()
+      credential.resolve('test-key')
+      expect((await pending).finish).toEqual({ kind: 'stop' })
+      expect(server.requests).toHaveLength(1)
+      const wire = server.requests[0] as {
+        messages: { role: string; content: { type: string; signature?: string; text?: string; id?: string; tool_use_id?: string }[] }[]
+      }
+      const assistant = wire.messages.find(message => message.role === 'assistant')
+      expect(assistant?.content.filter(block => block.type === 'thinking')).toEqual(adaptive ? [] : [
+        { type: 'thinking', thinking: 'saved thinking', signature: 'saved-signature' },
+      ])
+      expect(assistant?.content[0]?.type).toBe(adaptive ? 'text' : 'thinking')
+      expect(assistant?.content).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'text', text: 'saved answer' }),
+        expect.objectContaining({ type: 'tool_use', id: callId }),
+      ]))
+      expect(wire.messages.flatMap(message => message.content)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'tool_result', tool_use_id: callId }),
+      ]))
+    } finally {
+      credential.resolve('test-key')
+      await pending
+    }
   })
 
   it('merges profile headers with Harness attribution winning', async () => {

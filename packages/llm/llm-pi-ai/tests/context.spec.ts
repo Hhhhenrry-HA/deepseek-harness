@@ -82,6 +82,50 @@ function history(role: 'system' | 'assistant', content: ContentBlock[]): Message
 }
 
 describe('pi-ai request context conversion', () => {
+  it.each([false, true])('omits only invalidated Anthropic thinking, with image conversion=%s', async (withImages) => {
+    const callId = ToolCallId('compacted-call')
+    const assistant = (api: 'anthropic-messages' | 'google-generative-ai', signature: string, onlyThinking = false) => createAssistantMessage({
+      content: [
+        { type: 'reasoning', text: '' },
+        ...onlyThinking ? [] : [
+          { type: 'text' as const, text: 'retained answer' },
+          { type: 'tool-call' as const, id: callId, name: 'lookup', arguments: '{}' },
+        ],
+      ],
+      source: {
+        provider: 'gateway', model: 'model',
+        replayState: {
+          response: { kind: 'pi-ai', version: 2, api, provider: 'gateway', model: 'model', stopReason: onlyThinking ? 'stop' : 'toolUse' },
+          blocks: [
+            { type: 'reasoning', thinkingSignature: signature, redacted: true },
+            ...onlyThinking ? [] : [{ type: 'text', textSignature: 'text-id' }, { type: 'tool-call', thoughtSignature: 'tool-signature' }],
+          ],
+        },
+      },
+    })
+    const stale = assistant('anthropic-messages', 'stale')
+    const fresh = assistant('anthropic-messages', 'fresh')
+    const google = assistant('google-generative-ai', 'google')
+    const empty = assistant('anthropic-messages', 'stale-empty', true)
+    const options = request([
+      stale,
+      createToolResultMessage({ callId, content: [{ type: 'text', text: 'retained result' }], isError: false }),
+      fresh, google, empty,
+    ])
+    const original = structuredClone(options)
+    const omitted = new Set([stale.id, google.id, empty.id])
+    const converted = withImages
+      ? await toPiContext(options, imageContext(attachments), undefined, omitted)
+      : toPiContext(options, undefined, undefined, omitted)
+    expect(converted.messages).toHaveLength(4)
+    expect(converted.messages[0]).toEqual({ ...toPiAssistant(stale), content: toPiAssistant(stale).content.filter(block => block.type !== 'thinking') })
+    expect(converted.messages[1]).toMatchObject({ role: 'toolResult', toolCallId: callId, toolName: 'lookup', content: [{ type: 'text', text: 'retained result' }] })
+    expect(converted.messages[2]).toEqual(toPiAssistant(fresh))
+    expect(converted.messages[3]).toEqual(toPiAssistant(google))
+    expect(options).toEqual(original)
+    expect(toPiContext(options).messages[0]).toEqual(toPiAssistant(stale))
+  })
+
   it.each(['user', 'system', 'assistant', 'tool'] as const)('rejects tool-change blocks in %s history', (role) => {
     for (const type of ['tool-addition', 'tool-removal'] as const) {
       const message = { id: 'invalid', role, source: { kind: 'test' }, content: [{ type, toolName: 'search' }] } as unknown as Message

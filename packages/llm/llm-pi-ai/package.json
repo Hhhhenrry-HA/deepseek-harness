@@ -36,6 +36,9 @@
     "@deepseek-ai/dsh-fs": "workspace:*",
     "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-projection": "workspace:*",
     "@deepseek-ai/dsh-timeout": "workspace:*",
     "@deepseek-ai/cordis-plugin-loader": "workspace:~"
   },
@@ -43,11 +46,13 @@
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
-    "@earendil-works/pi-ai": "^1.1.0"
+    "@earendil-works/pi-ai": "^1.1.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:*",
     "@deepseek-ai/dsh-agent-loop": "workspace:*",
+    "@deepseek-ai/dsh-compaction": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-session-projection": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",

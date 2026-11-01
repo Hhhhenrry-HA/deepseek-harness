@@ -193,6 +193,8 @@ git add packages/llm/llm-pi-ai/src/provider-data.generated.ts
 
 成功 assistant 响应会存储带版本的、无损 JSON 回放状态，与产生它们的提供方和模型放在一起——响应级事实加每个流式块一条逐块条目。请求时，`LlmRuntime` 仅当同一适配器实例拥有两条路由时才传递回放状态；适配器校验它并恢复原生响应 id、提供方签名与可选的 `providerThinkingLevel` effort 元数据，缺失的 effort 元数据仍保持缺失。回放会对照 assistant 来源校验请求模型身份，并用它保留同模型签名；提供方报告的响应模型仅作为诊断元数据。回放状态缺失或无法使用时会降级为提供方无关内容，并保留 assistant 来源中必需的提供方和模型。pi-ai 工具调用参数是解析后的对象，因此适配器解析输入并重新字符串化输出，以符合 harness 原始 JSON 约定；pi-ai 流内错误事件映射为终止 `finish` 分片。 协议转换仅作用于请求副本。从 A 切换到 B 再切回 A 时，存储的内容保持完整，包括空文本块、工具 id、原始块顺序和原生回放元数据；不受支持的签名仅从发给其他协议的请求中省略。
 
+对于关联会话且配置为自适应思考的 Anthropic 路由，已提交的压缩检查点会使检查点之前生成的思考失效。适配器仅在请求副本中省略这些 `thinking` 与 `redacted_thinking` 块，保留正文、工具调用、工具结果以及之后新生成的全部思考。仅主机侧的 `piAiCompactionReplay` 投影在重启或派生会话后从已有会话事件重建这一决定，因此已经压缩过的会话无需数据迁移。存储的响应保持不变。按预算启用的手动思考与其他提供方 API 保留原有回放；没有关联会话的独立调用保留传入的历史。这遵循 Anthropic 的[客户端压缩规则](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking#custom-compaction-on-the-client)：替换较早的消息会使保留部分的思考签名失效。模型在每个检查点之后重新思考；不需要 beta 请求头，也不会永久关闭思考。
+
 OpenAI 兼容的 Google 工具调用签名在现有回放信封中保留原有拼写及逐调用关联。签名仅回传给同一提供方、API 与模型；并行调用中未签名的项保持未签名。签名值无效时，回复失败且不执行其中的调用。已安装的 pi-ai 补丁负责捕获与序列化；升级 pi-ai 时需重新应用或移除这部分行为。
 
 </details>

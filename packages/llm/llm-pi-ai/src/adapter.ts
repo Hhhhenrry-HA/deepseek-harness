@@ -46,6 +46,7 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
+  MessageId,
   ImageAttachmentAccess,
   LlmModelInfo,
   LlmProviderInfo,
@@ -116,6 +117,8 @@ export interface PiAiAdapterOptions {
    * conversion because its stored replay state is unusable by this build.
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
+  /** Resolve pre-checkpoint assistant identities for adaptive Anthropic requests; absent preserves standalone history. */
+  resolveCompactedThinking?: (options: GenerateOptions) => ReadonlySet<MessageId> | undefined
 }
 
 /** The two auth injectables a pi-ai collection is built with. */
@@ -386,6 +389,11 @@ export class PiAiAdapter extends LlmAdapter {
       model,
       options.reasoningEffort ?? profile.reasoning,
     )
+    const anthropicCompat = model.api === 'anthropic-messages' ? (model as Model<'anthropic-messages'>).compat : undefined
+    // Manual thinking requires the final tool-use turn to retain its leading thinking block.
+    const omitThinkingFor = anthropicCompat?.forceAdaptiveThinking === true || anthropicCompat?.supportsMidConvoEffort === true
+      ? this.config.resolveCompactedThinking?.(options)
+      : undefined
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
 
     const consumer = new AbortController()
@@ -408,7 +416,7 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-        ? toPiContext(request, undefined, onReplayDegrade)
+        ? toPiContext(request, undefined, onReplayDegrade, omitThinkingFor)
         : await toPiContext({ ...request, signal: watchdog.signal }, {
           attachments,
           resolveImageAccess: ref => this.config.resolveImageAccess?.(attachments, ref),
@@ -417,7 +425,7 @@ export class PiAiAdapter extends LlmAdapter {
             maxPixels: profile.requestImagePixelBudget,
             maxBytes: profile.requestImageMaxBytes,
           },
-        }, onReplayDegrade)
+        }, onReplayDegrade, omitThinkingFor)
       const format = options.requestFormat ?? (profile.toolModes.get(model.id) === 'tagged-json' ? TAGGED_JSON_FORMAT : undefined)
       const wireContext = format === undefined ? context : taggedJsonContext(context, format)
       const events = snapshot.models.streamSimple(model, wireContext, {

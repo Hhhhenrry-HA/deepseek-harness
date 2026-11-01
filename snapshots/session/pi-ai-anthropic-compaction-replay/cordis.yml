@@ -1,0 +1,24 @@
+- id: llm-deepseek
+  disabled: true
+
+- id: tool-skill
+  disabled: true
+
+- id: llm-pi-ai
+  config:
+    providers:
+      gateway:
+        api: anthropic-messages
+        baseURL: https://snapshot-anthropic.invalid
+        apiKeyEnv: SNAPSHOT_ANTHROPIC_KEY
+        reasoning: high
+        compat:
+          forceAdaptiveThinking: true
+        models:
+          - id: claude-test
+            reasoningEfforts:
+              high: high
+
+- insert:
+    - id: anthropic-compaction-fixture
+      name: './anthropic-compaction-fixture.mjs'

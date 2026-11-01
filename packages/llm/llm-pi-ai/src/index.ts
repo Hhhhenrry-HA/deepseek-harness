@@ -69,6 +69,9 @@ import { authContextFrom, credentialStoreFrom } from './auth.ts'
 import { catalogProvider, catalogProviderIds } from './catalog.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
+import { compactionReplayProjectionDefinition } from './compaction-replay.ts'
+import type {} from '@deepseek-ai/dsh-session-projection'
+import type {} from '@deepseek-ai/dsh-session'
 import { discoverModels } from './discovery.ts'
 import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
@@ -152,6 +155,9 @@ function directoryEntries(
 
 /** Register one generic pi-ai adapter for all configured provider routes. */
 export function apply(ctx: Context, config: Config): void {
+  ctx.inject(['sessionProjections'], (child) => {
+    child.effect(() => child.sessionProjections.register(compactionReplayProjectionDefinition))
+  })
   ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
   const settingsNs = ctx.fiber.entry?.options.id ?? NS
   let lastRaw: ReturnType<Config['providers']['get']> | undefined
@@ -224,6 +230,20 @@ export function apply(ctx: Context, config: Config): void {
       hostPath => ctx.get('fs')?.processPathFromHostPath(hostPath),
       ref,
     ),
+    resolveCompactedThinking: (options) => {
+      const session = options.sessionId === undefined ? undefined : ctx.get('sessions')?.get(options.sessionId)
+      if (session === undefined) return undefined
+      const projections = ctx.get('sessionProjections')
+      if (projections === undefined) throw new Error('llm-pi-ai: session replay requires sessionProjections')
+      const state = projections.stateOf(session, 'piAiCompactionReplay')
+      if (state === undefined) throw new Error('llm-pi-ai: compaction replay projection is not registered')
+      const cutoff = state.checkpointSeq
+      return new Set(options.messages.flatMap((message) => {
+        if (message.role !== 'assistant' || cutoff === null) return []
+        const seq = state.assistantSeqById[message.id]
+        return seq !== undefined && seq < cutoff ? [message.id] : []
+      }))
+    },
     onReplayDegrade: ({ provider, model, reason }) => {
       ctx.logger.warn(
         `llm-pi-ai: unusable replay state on assistant history for route "${provider}/${model}";`

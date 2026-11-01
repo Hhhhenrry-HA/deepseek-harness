@@ -48,6 +48,15 @@
       "path": "../../../vendor/loader"
     },
     {
+      "path": "../../compaction/compaction"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
       "path": "../../settings/settings"
     }
   ]

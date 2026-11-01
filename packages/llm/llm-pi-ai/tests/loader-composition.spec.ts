@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader, { type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import LlmRuntime, { createMessage, createUserMessage, userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createMessage, createSystemMessage, createToolResultMessage, createUserMessage, userAgent } from '@deepseek-ai/dsh-llm'
+import { CompactionId, compactCheckpointSource } from '@deepseek-ai/dsh-compaction'
+import type { Session, SessionEvent, SessionSeq } from '@deepseek-ai/dsh-session'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -21,7 +23,7 @@ import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import { profileComposition } from '../../../settings/settings/tests/profile-composition.ts'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { assemble } from './assemble.ts'
-import { closeMockServers, mockServer, taggedEvents, textEvents } from './mock-server.ts'
+import { anthropicFrame, anthropicMessageStart, anthropicTextEvents, closeMockServers, mockServer, taggedEvents, textEvents } from './mock-server.ts'
 
 /** One text block, then a tool call truncated by the output-token ceiling. */
 const truncatedToolCallEvents = [
@@ -336,6 +338,141 @@ describe('llm-pi-ai real dormant composition', () => {
     } finally {
       await switched.dispose()
     }
+  })
+
+  it('recovers compacted Claude sessions while retaining new thinking and tool pairs', { timeout: 60_000 }, async () => {
+    const reply = (signature: string, text: string, tools = false): ReturnType<typeof anthropicFrame>[] => {
+      const blocks = [
+        { type: 'thinking', thinking: `reasoning ${signature}`, signature },
+        ...tools ? [{ type: 'redacted_thinking', data: 'stale-redacted-signature' }] : [],
+        { type: 'text', text },
+        ...tools ? [{ type: 'tool_use', id: 'toolu_saved', name: 'echo', input: { text: 'saved result' } }] : [],
+      ]
+      return [
+        anthropicMessageStart,
+        ...blocks.flatMap((content_block, index) => [
+          anthropicFrame({ type: 'content_block_start', index, content_block }),
+          anthropicFrame({ type: 'content_block_stop', index }),
+        ]),
+        anthropicFrame({ type: 'message_delta', delta: { stop_reason: tools ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: 1 } }),
+        anthropicFrame({ type: 'message_stop' }),
+      ]
+    }
+    const server = await mockServer([
+      { events: reply('stale-signature', 'saved answer', true) },
+      { events: reply('fresh-signature', 'fresh answer') },
+      { events: anthropicTextEvents },
+      { events: reply('newest-signature', 'newest answer') },
+      { events: anthropicTextEvents },
+    ])
+    const { ctx, settingsPath } = await loadComposition(true)
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai', '  config:', '    providers:', '      gateway:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY', '        api: anthropic-messages',
+      `        baseURL: ${server.url}`, '        cacheRetention: none',
+      '        compat:', '          forceAdaptiveThinking: true',
+      '        models:', '          - id: claude-opus-5-5', '',
+    ].join('\n'))
+    await vi.waitFor(() => { expect(ctx.llm.listProviders().map(row => row.id)).toEqual(['gateway']) }, { timeout: 5000 })
+    const tool = { name: 'echo', description: 'Return text.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }
+    ctx.tools.register(defineContentToolFixture({
+      name: 'echo', description: 'Return text.', parameters: { text: { type: 'string', required: true } },
+      execute: args => Promise.resolve([{ type: 'text', text: args.text }]),
+    }))
+    const agentOptions = { provider: 'gateway', model: 'claude-opus-5-5' }
+    const original = await assemble(ctx, { ...agentOptions, messages: [], tools: [tool] })
+    if (original.message.role !== 'assistant') throw new Error('Expected an assistant response')
+    const historicalMessage = original.message
+    const savedMessage = JSON.stringify(historicalMessage)
+    const call = historicalMessage.content.find(block => block.type === 'tool-call')
+    if (call?.type !== 'tool-call') throw new Error('Expected the saved tool call')
+    const seedSession = ctx.sessions.create(SessionId('pre-upgrade-compaction'))
+    const seed: SessionEvent[] = []
+    const stopRecording = ctx.on('session/event', (session, event) => { if (session === seedSession) seed.push(event) })
+    const commitCheckpoint = (session: Session, replaced: SessionSeq, id: string): SessionSeq => {
+      const compactionId = CompactionId(id)
+      const start = session.append('compaction/start', { compactionId, turn: null })
+      const summary = [{ type: 'text' as const, text: `summary ${id}` }]
+      const summaryEvent = session.append('compaction/summary', {
+        compactionId, summary, shadowedRange: { start: replaced, end: replaced },
+        shadowedSeqs: [replaced], shadowedTokenCount: 20, ...agentOptions,
+      })
+      const checkpoint = session.append('user/message', createUserMessage({
+        content: summary, source: compactCheckpointSource(compactionId),
+      }), {
+        surfaceOp: { op: 'replace', startSeq: replaced, endSeq: replaced },
+        sourceEventSeqs: [start.seq, summaryEvent.seq, replaced],
+      })
+      session.append('compaction/end', { compactionId, turn: null })
+      return checkpoint.seq
+    }
+    seedSession.append('turn/start', { turn: 1 })
+    seedSession.append('step/start', { turn: 1, step: 1 })
+    seedSession.append('system/message', { turn: 1, step: 1, message: createSystemMessage('') }, { surfaceOp: 'append' })
+    const oldPrompt = seedSession.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'older context' }], source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    seedSession.append('assistant/message', { turn: 1, step: 1, message: historicalMessage, stream: [] }, { surfaceOp: 'append' })
+    seedSession.append('tool/call', { turn: 1, step: 1, callId: call.id, name: call.name, arguments: call.arguments })
+    seedSession.append('tool/result', {
+      turn: 1, step: 1, message: createToolResultMessage({ callId: call.id, content: [{ type: 'text', text: 'saved result' }], isError: false }),
+    }, { surfaceOp: 'append' })
+    seedSession.append('step/end', { turn: 1, step: 1 })
+    seedSession.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const firstCheckpoint = commitCheckpoint(seedSession, oldPrompt.seq, 'first-checkpoint')
+    stopRecording()
+
+    const restored = await ctx.agents.create({
+      sessionId: SessionId('reopened-compacted-claude'),
+      seed: JSON.parse(JSON.stringify(seed)) as SessionEvent[], agentOptions,
+    })
+    type AnthropicWire = {
+      messages: { role: string; content: { type: string; signature?: string; id?: string; tool_use_id?: string; text?: string }[] }[]
+    }
+    const wireBlocks = (index: number): AnthropicWire['messages'][number]['content'] =>
+      (server.requests[index] as AnthropicWire).messages.flatMap(message => message.content)
+    try {
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue after reopening' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(2)
+      expect(wireBlocks(1).filter(block => block.type === 'thinking' || block.type === 'redacted_thinking')).toEqual([])
+      expect(wireBlocks(1)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'text', text: 'saved answer' }),
+        expect.objectContaining({ type: 'tool_use', id: 'toolu_saved' }),
+        expect.objectContaining({ type: 'tool_result', tool_use_id: 'toolu_saved' }),
+      ]))
+
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Keep going' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(3)
+      expect(wireBlocks(2).filter(block => block.type === 'thinking')).toEqual([
+        expect.objectContaining({ signature: 'fresh-signature' }),
+      ])
+      commitCheckpoint(restored.agent.session, firstCheckpoint, 'second-checkpoint')
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue after the next checkpoint' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(4)
+      expect(wireBlocks(3).filter(block => block.type === 'thinking' || block.type === 'redacted_thinking')).toEqual([])
+
+      const auxiliary = await assemble(ctx, {
+        ...agentOptions, sessionId: restored.agent.session.id, purpose: 'compaction', tools: [tool],
+        messages: [...restored.agent.session.deriveMessages(), { role: 'user', content: [{ type: 'text', text: 'Summarize this conversation' }] }],
+      })
+      expect(auxiliary.finish).toEqual({ kind: 'stop' })
+      expect(server.requests).toHaveLength(5)
+      expect(wireBlocks(4).filter(block => block.type === 'thinking')).toEqual([
+        expect.objectContaining({ signature: 'newest-signature' }),
+      ])
+      expect(JSON.stringify(historicalMessage)).toBe(savedMessage)
+      expect(restored.agent.session.deriveMessages().find(message => message.id === historicalMessage.id)).toEqual(historicalMessage)
+    } finally {
+      await restored.dispose()
+    }
+    expect(ctx.sessionProjections.stateOf(seedSession, 'piAiCompactionReplay')).toBeDefined()
+    const adapterEntry = [...ctx.loader.entries()].find(entry => entry.options.id === 'llm-pi-ai')
+    if (adapterEntry?.fiber === undefined) throw new Error('Expected the loaded adapter plugin')
+    await adapterEntry.fiber.dispose()
+    expect(ctx.sessionProjections.stateOf(seedSession, 'piAiCompactionReplay')).toBeUndefined()
   })
 
   it('boots with zero routes and registers one the moment settings supply a profile', async () => {

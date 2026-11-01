@@ -6,7 +6,7 @@
 
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { contentHasImage, IMAGE_OFFLOAD_REQUIRED_CODE, LlmError, offloadedImageText, projectOffloadedImages, requestImageHandleText, requiredImageOffload } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, MessageId, RequestMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {
   AttachmentId,
   AttachmentStore,
@@ -205,10 +205,15 @@ function appendAssistant(
   messages: PiMessage[],
   toolNames: Map<ToolCallId, string>,
   onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
 ): void {
   const assistant = toPiAssistant(message, onReplayDegrade)
   for (const block of assistant.content) {
     if (block.type === 'toolCall') toolNames.set(brandString<ToolCallId>(block.id), block.name)
+  }
+  if (assistant.api === 'anthropic-messages' && omitThinkingFor?.has(message.id)) {
+    assistant.content = assistant.content.filter(block => block.type !== 'thinking')
+    if (assistant.content.length === 0) return
   }
   messages.push(assistant)
 }
@@ -220,6 +225,7 @@ function appendSharedHistory(
   messages: PiMessage[],
   toolNames: Map<ToolCallId, string>,
   onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
 ): boolean {
   if (message.role === 'developer') {
     appendDeveloper(message, options, messages)
@@ -231,13 +237,17 @@ function appendSharedHistory(
     return true
   }
   if (message.role === 'assistant') {
-    appendAssistant(message, messages, toolNames, onReplayDegrade)
+    appendAssistant(message, messages, toolNames, onReplayDegrade, omitThinkingFor)
     return true
   }
   return false
 }
 
-function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: string) => void): PiContext {
+function textOnlyContext(
+  options: GenerateOptions,
+  onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
+): PiContext {
   assertSupportedHistory(options.messages)
   const split = splitSystemPrompt(options)
   const toolNames = new Map<ToolCallId, string>()
@@ -246,7 +256,7 @@ function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: st
     if (contentHasImage(message.content)) {
       throw new LlmError('pi-ai image conversion requires the durable attachment service', 'UNSUPPORTED_CONTENT')
     }
-    if (appendSharedHistory(message, options, messages, toolNames, onReplayDegrade)) continue
+    if (appendSharedHistory(message, options, messages, toolNames, onReplayDegrade, omitThinkingFor)) continue
     if (message.role === 'tool') {
       messages.push(toolResultOf(message, toolNames, flattenText(message)))
       continue
@@ -292,6 +302,7 @@ export function requestImageTarget(ref: ImageAttachmentRef, budget: PiImageReque
  * @param options - projected request; one-shot system text precedes the leading history prompt.
  * @param images - absent; selects the synchronous conversion.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
+ * @param omitThinkingFor - assistant identities whose Anthropic thinking predates a committed compaction; absent preserves thinking.
  * @returns the pi-ai context; `tools` is omitted when the request declares none.
  * @throws {LlmError} `UNSUPPORTED_CONTENT` for images in any history role, including a leading system message.
  */
@@ -299,6 +310,7 @@ export function toPiContext(
   options: GenerateOptions,
   images?: undefined,
   onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
 ): PiContext
 /**
  * Convert harness history to a pi-ai Context while resolving durable images.
@@ -310,27 +322,31 @@ export function toPiContext(
  * @param options - projected request; one-shot system text precedes the leading history prompt.
  * @param images - attachment provider, current path resolver, and request limits.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
+ * @param omitThinkingFor - assistant identities whose Anthropic thinking predates a committed compaction; absent preserves thinking.
  * @returns the asynchronously resolved pi-ai context.
  */
 export function toPiContext(
   options: GenerateOptions,
   images: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
 ): Promise<PiContext>
 export function toPiContext(
   options: GenerateOptions,
   images?: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
 ): PiContext | Promise<PiContext> {
   return images === undefined
-    ? textOnlyContext(options, onReplayDegrade)
-    : toPiContextWithImages(options, images, onReplayDegrade)
+    ? textOnlyContext(options, onReplayDegrade, omitThinkingFor)
+    : toPiContextWithImages(options, images, onReplayDegrade, omitThinkingFor)
 }
 
 async function toPiContextWithImages(
   options: GenerateOptions,
   images: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
+  omitThinkingFor?: ReadonlySet<MessageId>,
 ): Promise<PiContext> {
   const { attachments, resolveImageAccess, maxRequestImageBytes } = images
   const requestImagePolicy = images.requestImagePolicy ?? {
@@ -362,7 +378,7 @@ async function toPiContextWithImages(
   const messages: PiMessage[] = []
 
   for (const message of exactMessages) {
-    if (appendSharedHistory(message, options, messages, toolNames, onReplayDegrade)) continue
+    if (appendSharedHistory(message, options, messages, toolNames, onReplayDegrade, omitThinkingFor)) continue
     if (message.role === 'tool') {
       messages.push(toolResultOf(message, toolNames, userContent(message.content, requestImages, resolveImageAccess)))
       continue
