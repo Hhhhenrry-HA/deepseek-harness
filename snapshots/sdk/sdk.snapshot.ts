@@ -12,7 +12,7 @@
 import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, delimiter, join } from 'node:path'
+import { basename, delimiter, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
@@ -133,6 +133,9 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
   },
   'session-title-stability': { waitForProviderTitle: true },
   'dynamic-tool-updates': {
+    expectedFinalResponse: 'DONE',
+  },
+  'tool-invalid-arguments': {
     expectedFinalResponse: 'DONE',
   },
   'tool-scheduler-recovery': {
@@ -347,14 +350,17 @@ function contextOf(logs: readonly { content: string; header: Record<string, unkn
   return {
     sessionIds: logs.flatMap(log => typeof log.header.id === 'string' ? [log.header.id] : []),
     cwd,
+    cwdAliases: [JSON.stringify(cwd).slice(1, -1), cwd.split(sep).join('/')],
   }
 }
 
 function contextOfContents(contents: readonly string[]): NormalizeContext {
   const headers = contents.map(content => JSON.parse(content.slice(0, content.indexOf('\n'))) as Record<string, unknown>)
+  const cwd = typeof headers[0]?.cwd === 'string' ? headers[0].cwd : '\0no-cwd\0'
   return {
     sessionIds: headers.flatMap(header => typeof header.id === 'string' ? [header.id] : []),
-    cwd: typeof headers[0]?.cwd === 'string' ? headers[0].cwd : '\0no-cwd\0',
+    cwd,
+    cwdAliases: [JSON.stringify(cwd).slice(1, -1), cwd.split(sep).join('/')],
   }
 }
 
@@ -370,9 +376,10 @@ async function fixtureFiles(scenario: CorpusScenario): Promise<string[]> {
 async function hydrateReplayFixtures(scenario: CorpusScenario, cwd: string): Promise<string[]> {
   const root = join(cwd, '.replay-fixtures')
   await mkdir(root, { recursive: true })
+  const fixtureCwd = cwd.split(sep).join('/')
   return Promise.all((await fixtureFiles(scenario)).map(async (source) => {
     const destination = join(root, basename(source))
-    await writeFile(destination, (await readFile(source, 'utf8')).replaceAll('{{cwd}}', cwd))
+    await writeFile(destination, (await readFile(source, 'utf8')).replaceAll('{{cwd}}', fixtureCwd))
     return destination
   }))
 }
@@ -1036,6 +1043,17 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         expect(events.filter(event => event.type === 'tool/result').at(-1)).toMatchObject({ data: { message: {
           toolCallId: 'call_dynamic_ping', isError: false, content: [{ type: 'text', text: 'pong' }],
         } } })
+      }
+      if (scenario.name === 'tool-invalid-arguments') {
+        const events = results.flatMap(result => result.events)
+        expect(events.filter(event => event.type === 'assistant/attempt')).toEqual([])
+        const toolResults = events.filter(event => event.type === 'tool/result')
+        expect(toolResults.map(event => [event.data.message.toolCallId, event.data.message.isError ?? false, event.data.error?.code]))
+          .toEqual([
+            ['call_valid_a', false, undefined],
+            ['call_invalid_b', true, 'INVALID_ARGS'],
+            ['call_recovered_c', false, undefined],
+          ])
       }
       if (scenario.name === 'tool-scheduler-recovery') {
         expect(results).toHaveLength(2)

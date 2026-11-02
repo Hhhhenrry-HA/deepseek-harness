@@ -244,7 +244,7 @@ describe('toPiContext', () => {
     })
   })
 
-  it('parses malformed tool-call arguments to {}', () => {
+  it('retains malformed tool-call arguments beside an internal object placeholder', () => {
     const context = toPiContext({
       provider: 'deepseek',
       model: 'm',
@@ -255,10 +255,10 @@ describe('toPiContext', () => {
       })],
     })
     const message = context.messages[0] as AssistantMessage
-    expect(message.content[0]).toEqual({ type: 'toolCall', id: 'c1', name: 'f', arguments: {} })
+    expect(message.content[0]).toEqual({ type: 'toolCall', id: 'c1', name: 'f', arguments: {}, rawArguments: '{broken' })
   })
 
-  it('parses non-object argument JSON (arrays, scalars) to {}', () => {
+  it('retains non-object argument JSON rather than treating the placeholder as the original arguments', () => {
     const context = toPiContext({
       provider: 'deepseek',
       model: 'm',
@@ -268,7 +268,24 @@ describe('toPiContext', () => {
         source: { kind: 'model', provider: 'deepseek', model: 'm' },
       })],
     })
-    expect((context.messages[0] as AssistantMessage).content[0]).toMatchObject({ arguments: {} })
+    expect((context.messages[0] as AssistantMessage).content[0]).toMatchObject({ arguments: {}, rawArguments: '[1,2]' })
+  })
+
+  it.each(['', '{"key":0}{"key":1}', 'null'])('reconstructs malformed argument bytes from durable content with native replay metadata: %j', (rawArguments) => {
+    const replayState = toPiReplayState(assistant({
+      model: 'm', stopReason: 'toolUse',
+      content: [{ type: 'toolCall', id: 'c1', name: 'f', arguments: {}, rawArguments }],
+    }))
+    const message = createMessage({
+      role: 'assistant',
+      content: [{ type: 'tool-call', id: ToolCallId('c1'), name: 'f', arguments: rawArguments }],
+      source: { kind: 'model', provider: 'deepseek', model: 'm', replayState },
+    })
+    const context = toPiContext({ provider: 'deepseek', model: 'm', messages: [message] })
+    expect((context.messages[0] as AssistantMessage).content[0]).toEqual({
+      type: 'toolCall', id: 'c1', name: 'f', arguments: {}, rawArguments,
+    })
+    expect(replayState.blocks).toEqual([{ type: 'tool-call' }])
   })
 
   it('recovers toolName for tool results from the preceding assistant call', () => {

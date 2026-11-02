@@ -1,8 +1,8 @@
 /**
  * pi-ai assistant event translation into the Harness streaming protocol.
  *
- * pi-ai tool-call arguments are parsed objects while the Harness keeps their
- * raw JSON representation. pi-ai also reports failures as terminal stream
+ * pi-ai returns parsed arguments or preserved malformed argument bytes; the
+ * Harness keeps argument strings. pi-ai reports failures as terminal stream
  * events, which this module maps into Harness finish chunks.
  *
  * @module dsh-llm-pi-ai/stream
@@ -199,9 +199,8 @@ export async function* toStreamChunks(
             type: 'tool-call',
             id: brandString<ToolCallId>(event.toolCall.id),
             name: event.toolCall.name,
-            // pi-ai hands back the PARSED arguments; the harness vocabulary
-            // keeps the raw string.
-            arguments: JSON.stringify(event.toolCall.arguments),
+            // Malformed argument bytes remain available for per-call validation.
+            arguments: event.toolCall.rawArguments ?? JSON.stringify(event.toolCall.arguments),
           },
         }
         break

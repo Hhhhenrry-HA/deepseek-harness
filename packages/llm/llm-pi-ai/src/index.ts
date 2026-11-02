@@ -237,7 +237,7 @@ export function apply(ctx: Context, config: Config): void {
       if (projections === undefined) throw new Error('llm-pi-ai: session replay requires sessionProjections')
       const state = projections.stateOf(session, 'piAiCompactionReplay')
       if (state === undefined) throw new Error('llm-pi-ai: compaction replay projection is not registered')
-      const cutoff = state.checkpointSeq
+      const cutoff = state.replacementSeq
       return new Set(options.messages.flatMap((message) => {
         if (message.role !== 'assistant' || cutoff === null) return []
         const seq = state.assistantSeqById[message.id]

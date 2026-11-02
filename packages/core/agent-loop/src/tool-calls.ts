@@ -14,21 +14,18 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, ToolArgsError, type ToolExecutionFailure, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
-/** One tool call after argument parsing, ready to schedule. */
-interface PlannedCall {
-  block: ToolCallBlock
-  exec: ToolExecutionInput
-}
+/** One model call after JSON-object validation, or its per-call failure. */
+type PlannedCall =
+  | { kind: 'ready'; block: ToolCallBlock; exec: ToolExecutionInput }
+  | { kind: 'invalid'; block: ToolCallBlock; result: ToolExecutionFailure }
 
-/** Settled dispatch awaiting model-order finalization. */
-interface Slot {
-  exec: ToolRunContext
-  result: ToolExecutionResult
-  needsPost: boolean
-}
+/** Settled dispatch or argument failure awaiting model-order finalization. */
+type Slot =
+  | { kind: 'registry'; exec: ToolRunContext; result: ToolExecutionResult; needsPost: boolean }
+  | { kind: 'invalid'; result: ToolExecutionFailure }
 
 /** One scheduler group outcome, including a drained cancellation. */
 interface GroupOutcome {
@@ -48,7 +45,10 @@ interface GroupOutcome {
  * already-started dispatches, and rejects with the first failure. The owning
  * step supplies error results for requests without a committed outcome.
  * The committed step's AgentLoop driver boundary supplies the initiating Agent
- * that becomes each explicit {@link ToolExecutionInput.agent}.
+ * that becomes each explicit {@link ToolExecutionInput.agent}. Malformed or
+ * non-object argument JSON receives an ordered `INVALID_ARGS` result without
+ * registry policy, concurrency classification, or tool execution; these calls
+ * form exclusive barriers and retain their raw arguments in the session log.
  *
  * @param ctx - loop context that owns the tool registry and carries the initiating Agent.
  * @param turn - current turn number.
@@ -69,16 +69,15 @@ export async function executeToolCalls(
   const { session } = agent
 
   // Inputs are distinct because tools/execute wrappers may replace `exec.signal`.
-  const planned: PlannedCall[] = toolCalls.map(block => ({
-    block,
-    exec: {
-      callId: block.id,
-      name: block.name,
-      arguments: parseArguments(block.arguments),
-      agent,
-      signal,
-    },
-  }))
+  const planned: PlannedCall[] = toolCalls.map((block) => {
+    const parsed = parseArguments(block.arguments)
+    if (parsed.kind === 'invalid') return { kind: 'invalid', block, result: parsed.result }
+    return {
+      kind: 'ready',
+      block,
+      exec: { callId: block.id, name: block.name, arguments: parsed.arguments, agent, signal },
+    }
+  })
 
   let next = 0
   let concluded = false
@@ -86,7 +85,7 @@ export async function executeToolCalls(
     // Commit before classifying again so registry changes affect unstarted calls.
     // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
     const first = planned[next]!
-    const mode = ctx.tools.executionMode(first.exec).kind
+    const mode = first.kind === 'invalid' ? 'exclusive' : ctx.tools.executionMode(first.exec).kind
     const group = mode === 'parallel' ? planned.slice(next) : [first]
     const outcome = await runGroup(
       ctx, turn, step, group, mode, signal, acceptContext,
@@ -101,12 +100,28 @@ export async function executeToolCalls(
   return { concluded }
 }
 
-/** Parse model arguments, preserving invalid JSON as text and mapping empty input to `{}`. */
-function parseArguments(raw: string): unknown {
+/** Validate model arguments without exposing malformed bytes in diagnostics. */
+function parseArguments(raw: string):
+  | { kind: 'ready'; arguments: Record<string, unknown> }
+  | { kind: 'invalid'; result: ToolExecutionFailure } {
+  let parsed: unknown
   try {
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return raw
+    parsed = JSON.parse(raw)
+  } catch (_invalidJson) {
+    return { kind: 'invalid', result: invalidArgumentsResult() }
+  }
+  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    ? { kind: 'ready', arguments: parsed as Record<string, unknown> }
+    : { kind: 'invalid', result: invalidArgumentsResult() }
+}
+
+/** Construct a per-call failure before registry policy or tool code can run. */
+function invalidArgumentsResult(): ToolExecutionFailure {
+  const error = new ToolArgsError(['arguments must be a JSON object'])
+  return {
+    content: [{ type: 'text', text: `Error: ${error.message}` }],
+    isError: true,
+    error: { message: error.message, info: { name: error.name, code: error.code } },
   }
 }
 
@@ -149,9 +164,11 @@ async function runGroup(
       const slot = slots[committed]
       if (slot === undefined) break
       const call = group[committed]
-      const result = slot.needsPost
-        ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result)
-        : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result)
+      const result = slot.kind === 'invalid'
+        ? slot.result
+        : slot.needsPost
+          ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result)
+          : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result)
       // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded index
       appendToolResult(session, turn, step, call!.block, result, callSeqs[committed]!)
       for (const context of result.additionalContexts ?? []) acceptContext(context)
@@ -167,13 +184,17 @@ async function runGroup(
     const call = group[index]!
     callSeqs[index] = appendToolCall(session, turn, step, call.block)
     started++
+    if (call.kind === 'invalid') {
+      slots[index] = { kind: 'invalid', result: signal.aborted ? abortedBeforeDispatchResult() : call.result }
+      return
+    }
     const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(call.exec)
     throwSchedulerFailure()
     switch (prepared.kind) {
       case 'dispatch': {
         const promise = ctx.tools[TOOL_RUNTIME_SCHEDULER].dispatch(prepared.exec).then(
           (outcome) => {
-            slots[index] = { exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' }
+            slots[index] = { kind: 'registry', exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' }
             return index
           },
           (error: unknown) => {
@@ -185,10 +206,10 @@ async function runGroup(
         break
       }
       case 'post-result':
-        slots[index] = { exec: prepared.exec, result: prepared.result, needsPost: true }
+        slots[index] = { kind: 'registry', exec: prepared.exec, result: prepared.result, needsPost: true }
         break
       case 'final-result':
-        slots[index] = { exec: prepared.exec, result: prepared.result, needsPost: false }
+        slots[index] = { kind: 'registry', exec: prepared.exec, result: prepared.result, needsPost: false }
         break
       /* v8 ignore next -- closed-union exhaustiveness guard */
       default:
@@ -202,7 +223,7 @@ async function runGroup(
       // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
       const nextCall = group[nextToStart]!
       if (nextToStart > 0 && mode === 'parallel'
-        && ctx.tools.executionMode(nextCall.exec).kind !== 'parallel') break
+        && (nextCall.kind === 'invalid' || ctx.tools.executionMode(nextCall.exec).kind !== 'parallel')) break
       await startCall(nextToStart)
       nextToStart++
       throwSchedulerFailure()
@@ -249,14 +270,19 @@ async function runGroup(
 /** Append the durable call/result pair for a model call skipped after cancellation. */
 function appendSkippedToolCall(session: Session, turn: number, step: number, block: ToolCallBlock): void {
   const callSeq = appendToolCall(session, turn, step, block)
-  appendToolResult(session, turn, step, block, {
+  appendToolResult(session, turn, step, block, abortedBeforeDispatchResult(), callSeq)
+}
+
+/** Canonical cancellation result for a call whose body never ran. */
+function abortedBeforeDispatchResult(): ToolExecutionFailure {
+  return {
     content: [{ type: 'text', text: 'Error: tool call aborted before dispatch' }],
     isError: true,
     error: {
       message: 'tool call aborted before dispatch',
       info: { name: 'AbortError', code: TOOL_ABORTED_BEFORE_DISPATCH },
     },
-  }, callSeq)
+  }
 }
 
 /** Append a started call and return the event seq that its result must cite. */

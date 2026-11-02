@@ -35,10 +35,18 @@ index 2fc3ad343af090a919f5b71454b29f23b009fc21..64aa8a4ab2461484f22066913455518f
                  type: "toolcall_delta",
                  contentIndex: toolBlocksByKey.get(key),
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6eeb64ea3f 100644
+index a60f39352b776d71497e55b33b3334bacfbeb2f5..8df1db2c05749d5aff5617f8f377be3856d84ad5 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
-@@ -135,6 +135,35 @@ function appendOpenAIReasoningDetail(details, detail) {
+@@ -4,7 +4,6 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
+ import { AssistantMessageEventStream } from "../utils/event-stream.js";
+ import { shortHash } from "../utils/hash.js";
+ import { headersToRecord } from "../utils/headers.js";
+-import { parseStreamingJson } from "../utils/json-parse.js";
+ import { getPiUserAgent } from "../utils/pi-user-agent.js";
+ import { getProviderEnvValue } from "../utils/provider-env.js";
+ import { retryProviderRequest } from "../utils/provider-retry.js";
+@@ -135,6 +134,47 @@ function appendOpenAIReasoningDetail(details, detail) {
      }
      details.push({ ...detail });
  }
@@ -71,21 +79,152 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6e
 +    if (!google) throw new Error("Invalid Google tool-call replay metadata");
 +    return { google };
 +}
++function parseFunctionArguments(json) {
++    let value;
++    try {
++        value = JSON.parse(json);
++    }
++    catch (error) {
++        // Provider argument bytes must not appear in diagnostics or error causes.
++        if (!(error instanceof SyntaxError)) throw error;
++        return undefined;
++    }
++    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : undefined;
++}
  const OPENAI_COMPLETIONS_REASONING_FIELDS = ["reasoning", "reasoning_content", "reasoning_text"];
  function isOpenAICompletionsReasoningField(field) {
      return OPENAI_COMPLETIONS_REASONING_FIELDS.includes(field);
-@@ -426,6 +455,10 @@ export const stream = (model, context, options) => {
+@@ -246,6 +286,9 @@ export const stream = (model, context, options) => {
+                     });
+                 }
+                 else if (block.type === "toolCall") {
++                    if (output.stopReason !== "length" && (!block.id || !block.name)) {
++                        throw new Error("Incomplete OpenAI tool-call identity");
++                    }
+                     if (block.customInput) {
+                         const delta = appendCustomToolCallInput(block, getCustomToolCallInput(block), true);
+                         if (delta !== undefined) {
+@@ -258,13 +301,22 @@ export const stream = (model, context, options) => {
+                         }
+                     }
+                     else {
+-                        block.arguments = parseStreamingJson(block.partialArgs);
++                        const arguments_ = parseFunctionArguments(block.partialArgs);
++                        if (arguments_ === undefined && output.stopReason === "length") {
++                            // Truncated calls remain unfinished; consumers retain the length outcome.
++                            delete block.partialArgs;
++                            delete block.streamIndex;
++                            delete block.streamType;
++                            return;
++                        }
++                        block.arguments = arguments_ ?? {};
++                        if (arguments_ === undefined) block.rawArguments = block.partialArgs;
+                     }
+-                    // Finalize in-place and strip the scratch buffers so replay only
+-                    // carries parsed arguments.
++                    // Finalize in-place and strip the streaming scratch buffers.
+                     delete block.partialArgs;
+                     delete block.customInput;
+                     delete block.streamIndex;
++                    delete block.streamType;
+                     stream.push({
+                         type: "toolcall_end",
+                         contentIndex,
+@@ -294,11 +346,31 @@ export const stream = (model, context, options) => {
+                 return thinkingBlock;
+             };
+             const ensureToolCallBlock = (toolCall) => {
+-                const streamIndex = typeof toolCall.index === "number" ? toolCall.index : undefined;
++                const streamIndex = toolCall.index;
++                const id = toolCall.id;
+                 const name = toolCall.function?.name ?? toolCall.custom?.name ?? "";
+-                let block = streamIndex !== undefined ? toolCallBlocksByIndex.get(streamIndex) : undefined;
+-                if (!block && toolCall.id) {
+-                    block = toolCallBlocksById.get(toolCall.id);
++                const streamType = toolCall.type || (toolCall.function ? "function" : toolCall.custom ? "custom" : undefined);
++                if ((streamIndex !== undefined && (!Number.isSafeInteger(streamIndex) || streamIndex < 0)) ||
++                    (id !== undefined && typeof id !== "string") ||
++                    (streamIndex === undefined && !id) ||
++                    (toolCall.function?.name !== undefined && typeof toolCall.function.name !== "string") ||
++                    (toolCall.custom?.name !== undefined && typeof toolCall.custom.name !== "string") ||
++                    (toolCall.function?.arguments !== undefined && typeof toolCall.function.arguments !== "string") ||
++                    (toolCall.custom?.input !== undefined && typeof toolCall.custom.input !== "string") ||
++                    (toolCall.type !== undefined && toolCall.type !== "" && toolCall.type !== "function" && toolCall.type !== "custom") ||
++                    (toolCall.function && streamType !== "function") ||
++                    (toolCall.custom && streamType !== "custom")) {
++                    throw new Error("Malformed OpenAI tool-call identity or delta");
++                }
++                const byIndex = streamIndex !== undefined ? toolCallBlocksByIndex.get(streamIndex) : undefined;
++                const byId = id ? toolCallBlocksById.get(id) : undefined;
++                let block = byIndex ?? byId;
++                if ((byIndex && byId && byIndex !== byId) ||
++                    (byIndex && id && byIndex.id && byIndex.id !== id) ||
++                    (byId && streamIndex !== undefined && byId.streamIndex !== undefined && byId.streamIndex !== streamIndex) ||
++                    (block && ((name && block.name && block.name !== name) ||
++                        (streamType && block.streamType && block.streamType !== streamType)))) {
++                    throw new Error("Inconsistent OpenAI tool-call identity");
+                 }
+                 if (!block) {
+                     // Note: the "input" fallback here should/must not be taken.  in case the LLM makes up
+@@ -307,7 +379,7 @@ export const stream = (model, context, options) => {
+                     const hasCustomInput = customInputProperty !== undefined;
+                     block = {
+                         type: "toolCall",
+-                        id: toolCall.id || "",
++                        id: id || "",
+                         name,
+                         arguments: hasCustomInput ? { [customInputProperty]: "" } : {},
+                         partialArgs: hasCustomInput ? undefined : "",
+@@ -315,13 +387,8 @@ export const stream = (model, context, options) => {
+                             ? { property: customInputProperty, jsonBuffer: { input: "", started: false, closed: false } }
+                             : undefined,
+                         streamIndex,
++                        streamType,
+                     };
+-                    if (streamIndex !== undefined) {
+-                        toolCallBlocksByIndex.set(streamIndex, block);
+-                    }
+-                    if (toolCall.id) {
+-                        toolCallBlocksById.set(toolCall.id, block);
+-                    }
+                     blocks.push(block);
+                     stream.push({
+                         type: "toolcall_start",
+@@ -329,13 +396,15 @@ export const stream = (model, context, options) => {
+                         partial: output,
+                     });
+                 }
+-                if (streamIndex !== undefined && block.streamIndex === undefined) {
++                if (streamIndex !== undefined) {
+                     block.streamIndex = streamIndex;
+                     toolCallBlocksByIndex.set(streamIndex, block);
+                 }
+-                if (toolCall.id) {
+-                    toolCallBlocksById.set(toolCall.id, block);
++                if (id) {
++                    block.id = id;
++                    toolCallBlocksById.set(id, block);
+                 }
++                block.streamType ??= streamType;
+                 if (!block.name && name) {
+                     block.name = name;
+                 }
+@@ -426,19 +495,14 @@ export const stream = (model, context, options) => {
                      if (choice?.delta?.tool_calls) {
                          for (const toolCall of choice.delta.tool_calls) {
                              const block = ensureToolCallBlock(toolCall);
+-                            if (!block.id && toolCall.id) {
+-                                block.id = toolCall.id;
+-                                toolCallBlocksById.set(toolCall.id, block);
+-                            }
+-                            const name = toolCall.function?.name ?? toolCall.custom?.name;
+-                            if (!block.name && name) {
+-                                block.name = name;
 +                            const google = googleThoughtSignature(toolCall.extra_content?.google);
 +                            if (google) {
 +                                block.thoughtSignature = JSON.stringify({ type: "google-thought-signature", google });
-+                            }
-                             if (!block.id && toolCall.id) {
-                                 block.id = toolCall.id;
-                                 toolCallBlocksById.set(toolCall.id, block);
-@@ -438,7 +471,6 @@ export const stream = (model, context, options) => {
+                             }
+                             let delta = "";
                              if (toolCall.function?.arguments) {
                                  delta = toolCall.function.arguments;
                                  block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
@@ -93,7 +232,35 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6e
                              }
                              else if (toolCall.custom?.input) {
                                  const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
-@@ -1031,6 +1063,7 @@ export function convertMessages(model, context, compat, options) {
+@@ -467,9 +531,6 @@ export const stream = (model, context, options) => {
+                     }
+                 }
+             }
+-            for (const block of blocks) {
+-                finishBlock(block);
+-            }
+             if (options?.signal?.aborted) {
+                 throw new Error("Request was aborted");
+             }
+@@ -485,6 +546,9 @@ export const stream = (model, context, options) => {
+             if ((compat.supportsFinishReason && !hasFinishReason) || output.stopReason === "pending") {
+                 throw new Error("Stream ended without finish_reason");
+             }
++            for (const block of blocks) {
++                finishBlock(block);
++            }
+             stream.push({ type: "done", reason: output.stopReason, message: output });
+             stream.end();
+         }
+@@ -498,6 +562,7 @@ export const stream = (model, context, options) => {
+                 delete block.partialArgs;
+                 delete block.customInput;
+                 delete block.streamIndex;
++                delete block.streamType;
+             }
+             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+             output.errorMessage = formatProviderError(normalizeProviderError(error));
+@@ -1031,13 +1096,15 @@ export function convertMessages(model, context, compat, options) {
                              },
                          };
                      }
@@ -101,15 +268,16 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6e
                      return {
                          id: tc.id,
                          type: "function",
-@@ -1038,6 +1071,7 @@ export function convertMessages(model, context, compat, options) {
+                         function: {
                              name: tc.name,
-                             arguments: JSON.stringify(tc.arguments),
+-                            arguments: JSON.stringify(tc.arguments),
++                            arguments: tc.rawArguments ?? JSON.stringify(tc.arguments),
                          },
 +                        ...(extraContent ? { extra_content: extraContent } : {}),
                      };
                  });
              }
-@@ -1045,7 +1079,7 @@ export function convertMessages(model, context, compat, options) {
+@@ -1045,7 +1112,7 @@ export function convertMessages(model, context, compat, options) {
                  assistantMsg.reasoning_details = preservedReasoningDetails;
              }
              if (compat.requiresReasoningContentOnAssistantMessages &&
@@ -118,7 +286,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6e
                  assistantMsg.reasoning_content === undefined) {
                  assistantMsg.reasoning_content = "";
              }
-@@ -1234,6 +1268,8 @@ function detectCompat(model) {
+@@ -1234,6 +1301,8 @@ function detectCompat(model) {
      const isAntLing = provider === "ant-ling" || baseUrl.includes("api.ant-ling.com");
      const isCerebras = provider === "cerebras" || baseUrl.includes("cerebras.ai");
      const isDeepSeek = provider === "deepseek" || baseUrl.toLowerCase().includes("deepseek.com");
@@ -127,7 +295,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6e
      const isNonStandard = isNvidia ||
          isCerebras ||
          provider === "xai" ||
-@@ -1280,7 +1316,7 @@ function detectCompat(model) {
+@@ -1280,7 +1349,7 @@ function detectCompat(model) {
                          ? "ant-ling"
                          : isOpenRouter
                              ? "openrouter"
@@ -137,9 +305,18 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..db7e6cfe50d5f55ba15a8b9fa03cef6e
          vercelGatewayRouting: {},
          chatTemplateKwargs: {},
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..108f599ae1d985d2f465e8cdf99ce0624acea6aa 100644
+index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..9ff4c611d79ef097164a928b67c22df740e55d05 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
+@@ -233,7 +233,7 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
+                             id: itemId,
+                             call_id: callId,
+                             name: toolCall.name,
+-                            arguments: JSON.stringify(toolCall.arguments),
++                            arguments: toolCall.rawArguments ?? JSON.stringify(toolCall.arguments),
+                             ...(isSameModel && toolCall.namespace !== undefined ? { namespace: toolCall.namespace } : {}),
+                         });
+                     }
 @@ -548,7 +548,6 @@ export async function processResponsesStream(openaiStream, output, stream, model
              if (!slot || slot.block.partialJson === undefined)
                  continue;
@@ -161,3 +338,34 @@ index 7da1c45de8a106a68411cf79bec75f553534a1c7..296d131b59b1cf75f2516c39e85bba72
                  break;
              }
              case "toolcall_end":
+diff --git a/dist/api/transform-messages.js b/dist/api/transform-messages.js
+index 1e7873e4948eb28051c8157aa89737070b223ad7..9ad6e277efe794df2bb5dc45b1bfa97aba8eab35 100644
+--- a/dist/api/transform-messages.js
++++ b/dist/api/transform-messages.js
+@@ -99,6 +99,13 @@ export function transformMessages(messages, model, normalizeToolCallId) {
+                 }
+                 if (block.type === "toolCall") {
+                     const toolCall = block;
++                    if (toolCall.rawArguments !== undefined &&
++                        model.api !== "openai-completions" &&
++                        model.api !== "openai-responses" &&
++                        model.api !== "azure-openai-responses" &&
++                        model.api !== "openai-codex-responses") {
++                        throw new Error("Cannot replay malformed function arguments with this API");
++                    }
+                     let normalizedToolCall = toolCall;
+                     if (!isSameModel && toolCall.thoughtSignature) {
+                         normalizedToolCall = { ...toolCall };
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index b01603bff2e8dbaedcd4aa9ef5b2d3d1192697f8..63a77b626fa4e5e0afdadfa5b47f6a63092e7a77 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -284,6 +284,8 @@ export interface ToolCall {
+     id: string;
+     name: string;
+     arguments: JsonObject;
++    /** Exact malformed function-argument bytes; arguments is an internal placeholder when present. */
++    rawArguments?: string;
+     thoughtSignature?: string;
+     /** OpenAI Responses namespace for calls to dynamically loaded or namespaced tools. */
+     namespace?: string;

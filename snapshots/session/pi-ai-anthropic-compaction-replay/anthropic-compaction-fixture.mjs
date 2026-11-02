@@ -1,4 +1,4 @@
-/** Anthropic transport replay with a committed checkpoint between signed tool steps. */
+/** Anthropic transport replay across checkpoint and historical tool-result replacements. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -47,27 +47,36 @@ function responseFor(message) {
 
 /**
  * Mock only the private provider endpoint; the shipped loop, pi-ai conversion, and Session persistence remain real.
- * @param ctx - Cordis context owning the transport interception and checkpoint fixture.
+ * @param ctx - Cordis context owning the transport interception and replacement fixture.
  */
 export function apply(ctx) {
   const assistants = parseSessionLog(readFileSync(process.env.DSH_SNAPSHOT_FILE, 'utf8'))
     .filter(event => event.type === 'assistant/message').map(event => event.data.message)
-  assert.equal(assistants.length, 3)
+  assert.equal(assistants.length, 5)
   assert.deepEqual(nativeBlocks(assistants[0]).slice(0, 2).map(block => block.type), ['thinking', 'redacted_thinking'])
-  assert.equal(nativeBlocks(assistants[1])[0].type, 'thinking')
+  for (const message of assistants.slice(1, 4)) assert.equal(nativeBlocks(message)[0].type, 'thinking')
+  const historicalCall = assistants[1].content.find(block => block.type === 'tool-call')
+  assert.ok(historicalCall)
+  const replacementContent = [{ type: 'text', text: 'The task still requires the single word DONE.' }]
   let calls = 0
   let checkpointCommitted = false
+  let toolResultReplaced = false
   let original
+  let historicalResult
   ctx.on('session/event', (session, event) => {
     if (original === undefined && event.type === 'user/message' && event.data.source.kind === 'user') {
       original = { sessionId: session.id, seq: event.seq }
+    }
+    if (event.type === 'tool/result' && event.surfaceOp === 'append'
+      && event.data.message.toolCallId === historicalCall.id) {
+      historicalResult = { sessionId: session.id, seq: event.seq, data: event.data }
     }
   })
   ctx.effect(() => {
     const originalFetch = globalThis.fetch
     const fixtureFetch = async (input, init) => {
       const url = new URL(input instanceof Request ? input.url : String(input))
-      if (url.hostname !== 'snapshot-anthropic.invalid') return originalFetch(input, init)
+      if (url.origin !== 'https://snapshot-anthropic.invalid') return originalFetch(input, init)
       const request = new Request(input, init)
       try {
         assert.equal(url.pathname, '/v1/messages')
@@ -77,20 +86,22 @@ export function apply(ctx) {
         assert.equal(body.model, assistants[0].source.model)
         const history = body.messages.filter(message => message.role === 'assistant')
         assert.equal(history.length, calls)
-        if (calls > 0) {
-          assert.equal(checkpointCommitted, true)
-          const stale = history[0].content
-          assert.equal(stale.some(block => block.type === 'thinking' || block.type === 'redacted_thinking'), false)
-          const retained = nativeBlocks(assistants[0]).filter(block => block.type === 'text' || block.type === 'tool_use')
-          assert.deepEqual(stale.map(({ cache_control: _cache, ...block }) => block), retained)
-          const results = body.messages.flatMap(message => message.content)
-            .filter(block => block.type === 'tool_result')
-          assert.deepEqual(results.map(block => block.tool_use_id),
-            assistants.slice(0, calls).flatMap(message => message.content)
-              .filter(block => block.type === 'tool-call').map(block => block.id))
+        if (calls > 0) assert.equal(checkpointCommitted, true)
+        assert.equal(toolResultReplaced, calls >= 3)
+        for (const [index, message] of history.entries()) {
+          const stale = index === 0 || (toolResultReplaced && index < 3)
+          const expected = nativeBlocks(assistants[index]).filter(block =>
+            !stale || (block.type !== 'thinking' && block.type !== 'redacted_thinking'))
+          const actual = message.content.map(({ cache_control: _cache, ...block }) => block)
+          assert.deepEqual(actual, expected, `Request ${calls + 1}, assistant ${index + 1}: signed thinking replay`)
         }
-        if (calls === 2) {
-          assert.deepEqual(history[1].content.map(({ cache_control: _cache, ...block }) => block), nativeBlocks(assistants[1]))
+        const results = body.messages.flatMap(message => message.content)
+          .filter(block => block.type === 'tool_result')
+        assert.deepEqual(results.map(block => block.tool_use_id),
+          assistants.slice(0, calls).flatMap(message => message.content)
+            .filter(block => block.type === 'tool-call').map(block => block.id))
+        if (toolResultReplaced) {
+          assert.deepEqual(results.find(block => block.tool_use_id === historicalCall.id).content, replacementContent[0].text)
         }
         const reply = assistants[calls++]
         assert.ok(reply, 'Recorded Anthropic responses exhausted')
@@ -107,23 +118,36 @@ export function apply(ctx) {
     }
   })
   ctx.on('agent/pre-step', async ({ agent }, next) => {
-    if (calls !== 1 || checkpointCommitted) return next()
-    assert.ok(original)
-    assert.equal(original.sessionId, agent.session.id)
-    const compactionId = 'anthropic-checkpoint-fixture'
-    const content = [{ type: 'text', text: 'Earlier context was compacted for this snapshot.' }]
-    agent.session.append('compaction/start', { compactionId, turn: 1 })
-    agent.session.append('compaction/summary', {
-      compactionId, summary: content, shadowedRange: { start: original.seq, end: original.seq },
-      shadowedSeqs: [original.seq], shadowedTokenCount: 1, provider: 'gateway', model: assistants[0].source.model,
-    })
-    agent.session.append('user/message', {
-      content, source: { kind: 'compact-checkpoint', compactionId }, role: 'user', id: randomUUID(),
-    }, {
-      surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq }, sourceEventSeqs: [original.seq],
-    })
-    agent.session.append('compaction/end', { compactionId, turn: 1 })
-    checkpointCommitted = true
+    if (calls === 1 && !checkpointCommitted) {
+      assert.ok(original)
+      assert.equal(original.sessionId, agent.session.id)
+      const compactionId = 'anthropic-checkpoint-fixture'
+      const content = [{ type: 'text', text: 'Earlier context was compacted for this snapshot.' }]
+      agent.session.append('compaction/start', { compactionId, turn: 1 })
+      agent.session.append('compaction/summary', {
+        compactionId, summary: content, shadowedRange: { start: original.seq, end: original.seq },
+        shadowedSeqs: [original.seq], shadowedTokenCount: 1, provider: 'gateway', model: assistants[0].source.model,
+      })
+      agent.session.append('user/message', {
+        content, source: { kind: 'compact-checkpoint', compactionId }, role: 'user', id: randomUUID(),
+      }, {
+        surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq }, sourceEventSeqs: [original.seq],
+      })
+      agent.session.append('compaction/end', { compactionId, turn: 1 })
+      checkpointCommitted = true
+    }
+    if (calls === 3 && !toolResultReplaced) {
+      assert.ok(historicalResult)
+      assert.equal(historicalResult.sessionId, agent.session.id)
+      const { seq, data } = historicalResult
+      agent.session.append('compaction/prune', {
+        shadowedRange: { start: seq, end: seq }, shadowedSeqs: [seq], shadowedTokenCount: 1,
+      })
+      agent.session.append('tool/result', {
+        ...data, message: { ...data.message, content: replacementContent },
+      }, { surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq }, sourceEventSeqs: [seq] })
+      toolResultReplaced = true
+    }
     return next()
   })
 }

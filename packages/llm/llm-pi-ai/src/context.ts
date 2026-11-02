@@ -302,7 +302,7 @@ export function requestImageTarget(ref: ImageAttachmentRef, budget: PiImageReque
  * @param options - projected request; one-shot system text precedes the leading history prompt.
  * @param images - absent; selects the synchronous conversion.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @param omitThinkingFor - assistant identities whose Anthropic thinking predates a committed compaction; absent preserves thinking.
+ * @param omitThinkingFor - assistant identities invalidated by committed history replacements; absent preserves thinking.
  * @returns the pi-ai context; `tools` is omitted when the request declares none.
  * @throws {LlmError} `UNSUPPORTED_CONTENT` for images in any history role, including a leading system message.
  */
@@ -322,7 +322,7 @@ export function toPiContext(
  * @param options - projected request; one-shot system text precedes the leading history prompt.
  * @param images - attachment provider, current path resolver, and request limits.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @param omitThinkingFor - assistant identities whose Anthropic thinking predates a committed compaction; absent preserves thinking.
+ * @param omitThinkingFor - assistant identities invalidated by committed history replacements; absent preserves thinking.
  * @returns the asynchronously resolved pi-ai context.
  */
 export function toPiContext(

@@ -3,7 +3,7 @@
  * ACP expected outputs own transcript-facing coverage.
  */
 
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId, StreamChunk  } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionEvent, SessionId, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
@@ -53,12 +53,12 @@ function events(agent: Agent): readonly SessionEvent[] {
 }
 
 /** Build one assistant response containing the supplied tool calls. */
-function multiCall(calls: { id: string; name: string; args: object }[]): StreamChunk[] {
+function multiCall(calls: ({ id: string; name: string } & ({ args: object } | { arguments: string }))[]): StreamChunk[] {
   const chunks: StreamChunk[] = []
   calls.forEach((call, index) => {
     chunks.push(
       { type: 'block-start', index, blockType: 'tool-call' },
-      { type: 'block-end', index, block: { type: 'tool-call', id: ToolCallId(call.id), name: call.name, arguments: JSON.stringify(call.args) } },
+      { type: 'block-end', index, block: { type: 'tool-call', id: ToolCallId(call.id), name: call.name, arguments: 'arguments' in call ? call.arguments : JSON.stringify(call.args) } },
     )
   })
   chunks.push(
@@ -104,6 +104,126 @@ async function until(predicate: () => boolean): Promise<void> {
   for (let i = 0; i < 1000 && !predicate(); i++) await new Promise(r => setTimeout(r, 0))
   if (!predicate()) throw new Error('until: condition never held')
 }
+
+describe('model tool-call JSON arguments', () => {
+  it.each([
+    ['invalid JSON', 'not json'],
+    ['concatenated objects', '{"secret":"secret_500"}{"next":2}'],
+    ['incomplete object', '{"secret":'],
+    ['empty arguments', ''],
+    ['whitespace', ' \n\t '],
+    ['array', '[{}]'],
+    ['null', 'null'],
+    ['string', '"secret_500"'],
+    ['number', '500'],
+    ['boolean', 'false'],
+  ])('returns a per-call error for %s before any tool policy or body', async (_label, raw) => {
+    const adapter = new MockAdapter([
+      multiCall([
+        { id: 'before', name: 'raw', args: {} },
+        { id: 'invalid', name: 'raw', arguments: raw },
+        { id: 'after', name: 'raw', args: { value: 'kept' } },
+      ]),
+      textResponse('recovered'),
+    ])
+    const ctx = await harness(adapter)
+    onTestFinished(() => ctx.fiber.dispose())
+    const classify = vi.fn((_args: unknown) => true)
+    const execute = vi.fn(async (_args: unknown) => 'executed')
+    ctx.tools.register({
+      name: 'raw', description: 'low-level tool', parameters: { type: 'object', properties: {} },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+      isConcurrencySafe: classify,
+      execute,
+    })
+    const prepared: string[] = []
+    const completed: string[] = []
+    ctx.on('tools/pre-execute', (exec, next) => { prepared.push(exec.callId); return next() })
+    ctx.on('tools/result', (exec) => { completed.push(exec.callId) })
+    const agent = await ctx.agentLoop.create(SessionId('invalid-arguments'), { provider: 'mock', model: 'mock' })
+    const idle = waitForIdle(ctx, agent)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await idle
+
+    expect(execute.mock.calls.map(call => call[0])).toEqual([{}, { value: 'kept' }])
+    expect(classify.mock.calls.map(call => call[0])).toEqual([{}, { value: 'kept' }])
+    expect(prepared).toEqual(['before', 'after'])
+    expect(completed).toEqual(['before', 'after'])
+    const results = events(agent).filter(event => event.type === 'tool/result')
+    expect(results.map(event => [event.data.message.toolCallId, event.data.message.isError, event.data.error?.code])).toEqual([
+      ['before', false, undefined],
+      ['invalid', true, 'INVALID_ARGS'],
+      ['after', false, undefined],
+    ])
+    expect(events(agent).find(event => event.type === 'tool/call' && event.data.callId === ToolCallId('invalid'))?.data)
+      .toMatchObject({ arguments: raw })
+    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests[1]?.messages.filter(message => message.role === 'tool').map(message => [message.toolCallId, message.isError]))
+      .toEqual([['before', false], ['invalid', true], ['after', false]])
+    const invalidResult = results[1]?.data.message
+    expect(JSON.stringify(invalidResult)).not.toContain('secret_500')
+  })
+
+  it('drains preceding parallel calls before committing an invalid call and starting later calls', async () => {
+    const adapter = new MockAdapter([
+      multiCall([
+        { id: 'first', name: 'p', args: { id: 'first' } },
+        { id: 'second', name: 'p', args: { id: 'second' } },
+        { id: 'invalid', name: 'p', arguments: '{}{}' },
+        { id: 'last', name: 'p', args: { id: 'last' } },
+      ]),
+      textResponse('recovered'),
+    ])
+    const ctx = await harness(adapter)
+    const gated = gatedParallelTool('p')
+    onTestFinished(async () => {
+      gated.release('first'); gated.release('second'); gated.release('last')
+      await ctx.fiber.dispose()
+    })
+    ctx.tools.register(gated.tool)
+    const agent = await ctx.agentLoop.create(SessionId('argument-barrier'), { provider: 'mock', model: 'mock' })
+    const idle = waitForIdle(ctx, agent)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await until(() => gated.started.length === 2)
+    expect(events(agent).some(event => event.type === 'tool/call' && event.data.callId === ToolCallId('invalid'))).toBe(false)
+    gated.release('second')
+    gated.release('first')
+    await until(() => gated.started.includes('last'))
+    expect(events(agent).filter(event => event.type === 'tool/result').map(event => event.data.message.toolCallId))
+      .toEqual(['first', 'second', 'invalid'])
+    gated.release('last')
+    await idle
+    expect(gated.started).toEqual(['first', 'second', 'last'])
+  })
+
+  it.each(['assistant/message', 'tool/call'] as const)('keeps cancellation before an invalid call dispatch when requested at %s', async (at) => {
+    const adapter = new MockAdapter([
+      multiCall([{ id: 'invalid', name: 'raw', arguments: '' }, { id: 'after', name: 'raw', args: {} }]),
+    ])
+    const ctx = await harness(adapter)
+    onTestFinished(() => ctx.fiber.dispose())
+    const execute = vi.fn(async (_args: unknown) => 'executed')
+    const classify = vi.fn((_args: unknown) => true)
+    ctx.tools.register({
+      name: 'raw', description: 'low-level tool', parameters: { type: 'object', properties: {} },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+      isConcurrencySafe: classify,
+      execute,
+    })
+    const agent = await ctx.agentLoop.create(SessionId('cancel-invalid'), { provider: 'mock', model: 'mock' })
+    ctx.on('session/event', (session, event) => {
+      if (session === agent.session && event.type === at) agent.cancel({ kind: 'user' })
+    })
+    const idle = waitForIdle(ctx, agent)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await idle
+    expect(execute).not.toHaveBeenCalled()
+    expect(classify).not.toHaveBeenCalled()
+    expect(events(agent).filter(event => event.type === 'tool/result').map(event => [event.data.message.toolCallId, event.data.error?.code]))
+      .toEqual([['invalid', TOOL_ABORTED_BEFORE_DISPATCH], ['after', TOOL_ABORTED_BEFORE_DISPATCH]])
+    expect(adapter.requests).toHaveLength(1)
+  })
+})
 
 describe('tool-call scheduler: grouping and barriers', () => {
   it('runs parallel-safe siblings concurrently (all start before any completes)', async () => {

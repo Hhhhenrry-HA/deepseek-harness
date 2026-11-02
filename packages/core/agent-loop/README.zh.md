@@ -74,6 +74,8 @@ const handle = await ctx.agents.create({
 
 每个步骤都会发送会话的派生历史——最新的非空 `system/message` 节点是有效提示词，渲染提示词为空时则没有系统消息——及其可见工具 schema；模型的工具调用经过受守卫的工具流水线，每个被接纳的事实都会在下一步据此派生之前追加到会话日志。并行安全调用最多可重叠 `maxParallelToolCalls` 个；独占调用单独运行并构成排序屏障。取消是协作式的：`agent.cancel()` 中止当前活动，并在未设置 `keepInbox` 时清除待处理工作；被取消的流会终结已送达用户的文本。
 
+每个模型工具调用必须提供恰好一个完整的 JSON 对象，无参数调用也必须提供 `{}`。格式错误、空白或非对象参数会在并发分类、策略、审批或工具代码运行之前获得逐调用的 `INVALID_ARGS` 结果；原始参数保留在日志中。无效调用构成独占屏障：先等待此前调用结算，再按模型顺序提交各个校验错误，之后的有效调用仍可继续。分发前取消的调用改为获得 `ABORTED_BEFORE_DISPATCH`。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -169,7 +171,7 @@ const handle = await ctx.agents.create({
 
 #### 模型看到什么
 
-已接纳的 user 消息、assistant 消息、工具调用与结果、注入上下文与 steering（中途引导）都会记录，并在后续步骤中发送。原始流分片、生命周期边界与其他仅写入日志的事件会被排除。
+已接纳的 user 消息、assistant 消息、工具调用与结果、注入上下文与 steering（中途引导）都会记录，并在后续步骤中发送。因参数 JSON 被拒绝的调用收到的工具结果为 `Error: invalid arguments: arguments must be a JSON object`。原始流分片、生命周期边界与其他仅写入日志的事件会被排除。
 
 #### Token 影响
 

@@ -74,6 +74,8 @@ Every inbox mutation commits one normalized `agent/inbox/spliced` event. The pro
 
 Each step sends the session's derived history — with the latest non-empty `system/message` node as the effective prompt, or no system messages when the rendered prompt is empty — and its visible tool schemas; the model's tool calls run through the guarded tool pipeline and every accepted fact is appended to the session log before the next step derives from it. Parallel-safe calls may overlap up to `maxParallelToolCalls`; exclusive calls run alone as ordering barriers. Cancellation is cooperative: `agent.cancel()` aborts the current activity and, unless `keepInbox` is set, clears pending work; a cancelled stream finalizes the text already delivered to the user.
 
+Each model tool call must supply exactly one complete JSON object, including `{}` for a zero-argument call. Malformed, empty, or non-object arguments receive a per-call `INVALID_ARGS` result before concurrency classification, policy, approval, or tool code; the original arguments remain in the log. Invalid calls form exclusive barriers: preceding calls settle first, each validation error commits in model order, and later valid calls can continue. Calls cancelled before dispatch receive `ABORTED_BEFORE_DISPATCH` instead.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -169,7 +171,7 @@ Prefix reuse requires earlier messages and declarations to stay byte-identical u
 
 #### What the model sees
 
-Accepted user messages, assistant messages, tool calls and results, injected context, and steering are logged and sent on later steps. Raw stream chunks, lifecycle boundaries, and other log-only events are excluded.
+Accepted user messages, assistant messages, tool calls and results, injected context, and steering are logged and sent on later steps. A call rejected for argument JSON receives `Error: invalid arguments: arguments must be a JSON object` as its tool result. Raw stream chunks, lifecycle boundaries, and other log-only events are excluded.
 
 #### Token effect
 

@@ -1,6 +1,6 @@
 /** Profile patch edits and credential updates reach the next real adapter request. */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -220,6 +220,79 @@ describe('llm-pi-ai real dormant composition', () => {
     }
   })
 
+  it('executes valid siblings once, returns invalid arguments as one tool error, then continues with the raw signed history', { timeout: 60_000 }, async () => {
+    const server = await mockServer([
+      {
+        events: chunkEvents([
+          { role: 'assistant', content: '' },
+          { tool_calls: [{ index: 0, id: 'call-valid-a', type: 'function', function: { name: 'echo', arguments: '{"text":"valid-a"}' } }] },
+          { tool_calls: [{ index: 1, id: 'call-invalid-b', type: 'function', function: { name: 'echo', arguments: '{"text":"invalid-b"}' } }] },
+          { tool_calls: [{ index: 1, function: { arguments: '{"text":"concatenated"}' } }] },
+          { tool_calls: [{ index: 1, extra_content: { google: { thought_signature: SIGNATURE_C } } }] },
+        ], 'tool_calls'),
+      },
+      {
+        events: chunkEvents([
+          { tool_calls: [{ index: 0, id: 'call-recovered', type: 'function', function: { name: 'echo', arguments: '{"text":"recovered"}' } }] },
+        ], 'tool_calls'),
+      },
+      { events: textEvents },
+    ])
+    const { ctx, settingsPath } = await loadComposition(true)
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai', '  config:', '    providers:', '      gateway:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY', '        api: openai-completions',
+      `        baseURL: ${server.url}`, '        models:', '          - id: m', '',
+    ].join('\n'))
+    await vi.waitFor(() => { expect(ctx.llm.listProviders().map(row => row.id)).toEqual(['gateway']) }, { timeout: 5000 })
+    const effectsPath = new URL('tool-effects.txt', ctx.baseUrl)
+    await writeFile(effectsPath, '')
+    const executed: string[] = []
+    ctx.tools.register(defineContentToolFixture({
+      name: 'echo', description: 'Return text.', parameters: { text: { type: 'string', required: true } },
+      async execute(args) {
+        executed.push(args.text)
+        await appendFile(effectsPath, `${args.text}\n`)
+        return [{ type: 'text', text: args.text }]
+      },
+    }))
+    const agent = await ctx.agentLoop.create(SessionId('invalid-final-tool-arguments'), { provider: 'gateway', model: 'm' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Use echo' }], source: { kind: 'user' } }))
+    await agent.whenIdle()
+
+    expect(executed).toEqual(['valid-a', 'recovered'])
+    expect(await readFile(effectsPath, 'utf8')).toBe('valid-a\nrecovered\n')
+    expect(server.requests).toHaveLength(3)
+    const events = agent.session.snapshotEvents()
+    expect(events.filter(event => event.type === 'assistant/attempt')).toEqual([])
+    expect(events.filter(event => event.type === 'assistant/message')).toHaveLength(3)
+    expect(events.filter(event => event.type === 'tool/call').map(event => ({ id: event.data.callId, raw: event.data.arguments }))).toEqual([
+      { id: 'call-valid-a', raw: '{"text":"valid-a"}' },
+      { id: 'call-invalid-b', raw: '{"text":"invalid-b"}{"text":"concatenated"}' },
+      { id: 'call-recovered', raw: '{"text":"recovered"}' },
+    ])
+    expect(events.filter(event => event.type === 'tool/result').map(event => ({
+      id: event.data.message.toolCallId, isError: event.data.message.isError ?? false, error: event.data.error,
+    }))).toMatchObject([
+      { id: 'call-valid-a', isError: false },
+      { id: 'call-invalid-b', isError: true, error: { code: 'INVALID_ARGS' } },
+      { id: 'call-recovered', isError: false },
+    ])
+    expect(events.filter(event => event.type === 'turn/end').map(event => event.data.reason.kind)).toEqual(['completed'])
+    expect(events.filter(event => event.type === 'llm/retry')).toEqual([])
+    const recoveryWire = server.requests[1] as GeminiWire
+    expect(wireCalls(recoveryWire)).toMatchObject([
+      { id: 'call-valid-a', function: { arguments: '{"text":"valid-a"}' } },
+      { id: 'call-invalid-b', function: { arguments: '{"text":"invalid-b"}{"text":"concatenated"}' }, extra_content: { google: { thought_signature: SIGNATURE_C } } },
+    ])
+    expect(recoveryWire.messages.filter(message => message.role === 'tool')).toMatchObject([
+      { tool_call_id: 'call-valid-a', content: 'valid-a' },
+      { tool_call_id: 'call-invalid-b' },
+    ])
+    expect(wireCalls(server.requests[2] as GeminiWire).map(call => call.id)).toEqual(['call-valid-a', 'call-invalid-b', 'call-recovered'])
+    expect(agent.session.deriveMessages().at(-1)?.content).toEqual([{ type: 'text', text: 'hello' }])
+  })
+
   it('replays Gemini thought signatures through parallel calls, later steps, a reopened Session, and a model switch', { timeout: 60_000 }, async () => {
     const server = await mockServer([
       // Step 1: two parallel calls. Only the first is signed, and its signature arrives in a later
@@ -364,6 +437,8 @@ describe('llm-pi-ai real dormant composition', () => {
       { events: anthropicTextEvents },
       { events: reply('newest-signature', 'newest answer') },
       { events: anthropicTextEvents },
+      { events: reply('post-rewrite-signature', 'answer after tool-result rewrite') },
+      { events: anthropicTextEvents },
     ])
     const { ctx, settingsPath } = await loadComposition(true)
     await writeFile(settingsPath, [
@@ -414,7 +489,7 @@ describe('llm-pi-ai real dormant composition', () => {
     }), { surfaceOp: 'append' })
     seedSession.append('assistant/message', { turn: 1, step: 1, message: historicalMessage, stream: [] }, { surfaceOp: 'append' })
     seedSession.append('tool/call', { turn: 1, step: 1, callId: call.id, name: call.name, arguments: call.arguments })
-    seedSession.append('tool/result', {
+    const savedResult = seedSession.append('tool/result', {
       turn: 1, step: 1, message: createToolResultMessage({ callId: call.id, content: [{ type: 'text', text: 'saved result' }], isError: false }),
     }, { surfaceOp: 'append' })
     seedSession.append('step/end', { turn: 1, step: 1 })
@@ -463,6 +538,28 @@ describe('llm-pi-ai real dormant composition', () => {
       expect(wireBlocks(4).filter(block => block.type === 'thinking')).toEqual([
         expect.objectContaining({ signature: 'newest-signature' }),
       ])
+      restored.agent.session.append('tool/result', {
+        ...savedResult.data,
+        message: { ...savedResult.data.message, content: [{ type: 'text', text: 'pruned saved result' }] },
+      }, {
+        surfaceOp: { op: 'replace', startSeq: savedResult.seq, endSeq: savedResult.seq },
+        sourceEventSeqs: [savedResult.seq],
+      })
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue after pruning a tool result' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(6)
+      expect(wireBlocks(5).filter(block => block.type === 'thinking' || block.type === 'redacted_thinking')).toEqual([])
+      expect(wireBlocks(5)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'tool_use', id: 'toolu_saved' }),
+        expect.objectContaining({ type: 'tool_result', tool_use_id: 'toolu_saved', content: 'pruned saved result' }),
+      ]))
+      restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Keep the new reasoning' }], source: { kind: 'user' } }))
+      await restored.agent.whenIdle()
+      expect(server.requests).toHaveLength(7)
+      expect(wireBlocks(6).filter(block => block.type === 'thinking')).toEqual([
+        expect.objectContaining({ signature: 'post-rewrite-signature' }),
+      ])
+      expect(savedResult.data.message.content).toEqual([{ type: 'text', text: 'saved result' }])
       expect(JSON.stringify(historicalMessage)).toBe(savedMessage)
       expect(restored.agent.session.deriveMessages().find(message => message.id === historicalMessage.id)).toEqual(historicalMessage)
     } finally {

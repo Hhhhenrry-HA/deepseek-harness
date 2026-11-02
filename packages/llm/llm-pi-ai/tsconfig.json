@@ -48,9 +48,6 @@
       "path": "../../../vendor/loader"
     },
     {
-      "path": "../../compaction/compaction"
-    },
-    {
       "path": "../../core/session"
     },
     {

@@ -1,20 +1,20 @@
-/** Session-derived assistant replay invalidation after committed compaction checkpoints. */
+/** Session-derived assistant replay invalidation after committed history replacements. */
 
 import { z } from 'zod'
-import { isCompactCheckpointSource } from '@deepseek-ai/dsh-compaction/checkpoint'
 import { MessageId } from '@deepseek-ai/dsh-llm'
 import { SessionSeq } from '@deepseek-ai/dsh-session'
+import { isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 
-/** Assistant event positions and the newest committed compaction replacement. */
+/** Assistant event positions and the newest committed history replacement. */
 export interface CompactionReplayState {
   readonly assistantSeqById: Readonly<Record<MessageId, SessionSeq>>
-  readonly checkpointSeq: SessionSeq | null
+  readonly replacementSeq: SessionSeq | null
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** Chronological assistant positions used to invalidate pre-checkpoint thinking replay. */
+    /** Chronological assistant positions used to invalidate pre-replacement thinking replay. */
     piAiCompactionReplay: CompactionReplayState
   }
 }
@@ -22,27 +22,23 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 const eventSeqSchema = z.number().int().nonnegative().transform(SessionSeq)
 const compactionReplayStateSchema: z.ZodType<CompactionReplayState> = z.object({
   assistantSeqById: z.record(z.string().transform(MessageId), eventSeqSchema),
-  checkpointSeq: eventSeqSchema.nullable(),
+  replacementSeq: eventSeqSchema.nullable(),
 }).strict()
 
-/** Host-only fold of assistant identities and committed checkpoint replacements, including inherited history. */
+/** Host-only fold of assistant identities and committed history replacements, including inherited history. */
 export const compactionReplayProjectionDefinition: ProjectionDefinition<'piAiCompactionReplay'> = {
   key: 'piAiCompactionReplay',
-  stateVersion: 1,
+  stateVersion: 2,
   stateSchema: compactionReplayStateSchema,
-  init: () => ({ assistantSeqById: {}, checkpointSeq: null }),
+  init: () => ({ assistantSeqById: {}, replacementSeq: null }),
   apply: (state, event) => {
+    const next = isReplacementSurfaceEvent(event) ? { ...state, replacementSeq: event.seq } : state
     if (event.type === 'assistant/message') {
       return {
-        ...state,
-        assistantSeqById: { ...state.assistantSeqById, [event.data.message.id]: event.seq },
+        ...next,
+        assistantSeqById: { ...next.assistantSeqById, [event.data.message.id]: event.seq },
       }
     }
-    if (event.type === 'user/message'
-      && event.surfaceOp !== 'append'
-      && isCompactCheckpointSource(event.data.source)) {
-      return { ...state, checkpointSeq: event.seq }
-    }
-    return state
+    return next
   },
 }

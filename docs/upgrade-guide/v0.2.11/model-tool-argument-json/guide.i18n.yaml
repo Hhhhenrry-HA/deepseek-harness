@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.11/model-tool-argument-json/guide.md
+/:
+  en: e24caca32529b914
+  zh: f424ddb9194276d1
+/use-json-objects-for-model-tool-call-arguments:
+  en: d160806d23b9b294
+  zh: 3058bebc16978bcd
+/use-json-objects-for-model-tool-call-arguments/change:
+  en: a7e2681b1a654fba
+  zh: 8bcdb5481029aa22
+/use-json-objects-for-model-tool-call-arguments/migration:
+  en: ae1a525156dbfa67
+  zh: de003e77fb3b095a

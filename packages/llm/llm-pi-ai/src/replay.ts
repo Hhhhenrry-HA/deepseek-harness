@@ -40,17 +40,18 @@ interface PiAiReplayState {
   blocks: PiAiReplayBlock[]
 }
 
-/** Parse tool-call argument JSON; tolerate model malformations with {}. */
-function parseArguments(raw: string): ToolCall['arguments'] {
+/** Reconstruct object arguments or preserve malformed bytes for per-call validation and replay. */
+function parseArguments(raw: string): Pick<ToolCall, 'arguments' | 'rawArguments'> {
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as ToolCall['arguments']
-    }
-  } catch {
-    // fall through
+    parsed = JSON.parse(raw)
+  } catch (error: unknown) {
+    // Invalid JSON remains raw instead of becoming an executable empty object.
+    if (!(error instanceof SyntaxError)) throw error
   }
-  return {}
+  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    ? { arguments: parsed as ToolCall['arguments'] }
+    : { arguments: {}, rawArguments: raw }
 }
 
 /** Construct the zero usage value required by historical pi-ai messages. */
@@ -160,7 +161,7 @@ function foreignAssistant(message: HarnessAssistantMessage): AssistantMessage {
         type: 'toolCall',
         id: block.id,
         name: block.name,
-        arguments: parseArguments(block.arguments),
+        ...parseArguments(block.arguments),
       }); break
       case 'image':
         throw new LlmError('pi-ai chat history cannot represent structured assistant image output', 'UNSUPPORTED_CONTENT')
@@ -208,7 +209,7 @@ function replayedAssistant(message: HarnessAssistantMessage, source: ModelMessag
         type: 'toolCall',
         id: block.id,
         name: block.name,
-        arguments: parseArguments(block.arguments),
+        ...parseArguments(block.arguments),
         ...replay.type === 'tool-call' && replay.thoughtSignature !== undefined ? { thoughtSignature: replay.thoughtSignature } : {},
         ...replay.type === 'tool-call' && replay.namespace !== undefined ? { namespace: replay.namespace } : {},
       }

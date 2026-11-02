@@ -117,7 +117,7 @@ export interface PiAiAdapterOptions {
    * conversion because its stored replay state is unusable by this build.
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
-  /** Resolve pre-checkpoint assistant identities for adaptive Anthropic requests; absent preserves standalone history. */
+  /** Resolve pre-replacement assistant identities for adaptive Anthropic requests; absent preserves standalone history. */
   resolveCompactedThinking?: (options: GenerateOptions) => ReadonlySet<MessageId> | undefined
 }
 

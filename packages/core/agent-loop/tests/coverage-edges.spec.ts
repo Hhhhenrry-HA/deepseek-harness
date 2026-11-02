@@ -51,7 +51,7 @@ function send(agent: Agent, text: string) {
 }
 
 describe('tool JSON parse', () => {
-  it('passes through non-JSON arguments string without crashing', async () => {
+  it('records malformed raw arguments and returns a per-call error', async () => {
     const adapter = new MockAdapter([
       // model emits tool-call with malformed arguments (not valid JSON)
       [
@@ -81,11 +81,12 @@ describe('tool JSON parse', () => {
     if (callEvent!.type === 'tool/call') {
       expect(callEvent!.data.arguments).toBe('not json')
     }
-    // the loop did not crash — a result was produced
-    expect(agent.session.snapshotEvents().some(e => e.type === 'tool/result')).toBe(true)
+    expect(agent.session.snapshotEvents().find(e => e.type === 'tool/result')?.data)
+      .toMatchObject({ message: { isError: true }, error: { name: 'ToolArgsError', code: 'INVALID_ARGS' } })
+    expect(adapter.requests).toHaveLength(2)
   })
 
-  it('uses empty object when tool-call arguments are empty string', async () => {
+  it('rejects empty tool-call arguments instead of substituting an object', async () => {
     const adapter = new MockAdapter([
       [
         { type: 'block-start' as const, index: 0, blockType: 'tool-call' as const },
@@ -108,7 +109,9 @@ describe('tool JSON parse', () => {
     send(agent, 'use tool')
     await waitForIdle(ctx, agent)
 
-    expect(agent.session.snapshotEvents().some(e => e.type === 'tool/result')).toBe(true)
+    expect(agent.session.snapshotEvents().find(e => e.type === 'tool/result')?.data)
+      .toMatchObject({ message: { isError: true }, error: { name: 'ToolArgsError', code: 'INVALID_ARGS' } })
+    expect(adapter.requests).toHaveLength(2)
   })
 })
 

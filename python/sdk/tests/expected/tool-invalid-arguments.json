@@ -1,0 +1,48 @@
+{
+  "final_response": "DONE",
+  "finish_reason": "completed",
+  "arguments": [
+    "{\"file_path\":\"first.txt\",\"content\":\"first\"}",
+    "{\"file_path\":\"second.txt\",\"content\":\"second\"}{\"file_path\":\"third.txt\",\"content\":\"third\"}",
+    "{\"file_path\":\"second.txt\",\"content\":\"second\"}"
+  ],
+  "outcomes": [
+    {
+      "call_id": "call_valid_a",
+      "is_error": false,
+      "error_code": null
+    },
+    {
+      "call_id": "call_invalid_b",
+      "is_error": true,
+      "error_code": "INVALID_ARGS"
+    },
+    {
+      "call_id": "call_recovered_c",
+      "is_error": false,
+      "error_code": null
+    }
+  ],
+  "notification_outcomes": [
+    {
+      "call_id": "call_valid_a",
+      "is_error": false,
+      "error_code": null
+    },
+    {
+      "call_id": "call_invalid_b",
+      "is_error": true,
+      "error_code": "INVALID_ARGS"
+    },
+    {
+      "call_id": "call_recovered_c",
+      "is_error": false,
+      "error_code": null
+    }
+  ],
+  "failed_attempts": 0,
+  "workspace": {
+    "first.txt": "first",
+    "second.txt": "second"
+  }
+}

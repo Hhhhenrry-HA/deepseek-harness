@@ -1,0 +1,12 @@
+version: 1
+scenario: tool-invalid-arguments
+profile: sdk
+composition: sdk-tool-invalid-arguments
+recording: authored
+header:
+  class: tool-invalid-arguments
+  pin: true
+workspace:
+  final: true
+environment:
+  DSH_PERMISSION_MODE: danger-full-access

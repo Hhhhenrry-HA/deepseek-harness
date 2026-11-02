@@ -6,6 +6,6 @@ recording: authored
 header:
   class: pi-ai-anthropic-compaction-replay
   pin: true
-  changes: 1
+  changes: 2
 environment:
   SNAPSHOT_ANTHROPIC_KEY: snapshot-key

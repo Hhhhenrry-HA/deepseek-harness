@@ -1,0 +1,14 @@
+version: 1
+scenario: pi-ai-openai-tool-stream-failure
+profile: headless
+composition: pi-ai-openai-tool-stream-failure
+recording: authored
+header:
+  class: pi-ai-openai-tool-stream-failure
+  pin: true
+  systemPromptSource: pi-ai-google-tool-signature
+  toolSchemasSource: pi-ai-google-tool-signature
+workspace:
+  final: true
+environment:
+  SNAPSHOT_OPENAI_KEY: snapshot-key
