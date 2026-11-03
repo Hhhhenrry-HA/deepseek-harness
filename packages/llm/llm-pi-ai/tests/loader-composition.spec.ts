@@ -225,15 +225,20 @@ describe('llm-pi-ai real dormant composition', () => {
       {
         events: chunkEvents([
           { role: 'assistant', content: '' },
-          { tool_calls: [{ index: 0, id: 'call-valid-a', type: 'function', function: { name: 'echo', arguments: '{"text":"valid-a"}' } }] },
+          { tool_calls: [{ index: 0, id: 'call-valid-a', type: 'function', function: { name: 'echo', arguments: '' } }] },
+          { tool_calls: [{ index: 0, type: null, function: { arguments: '{"text":"valid-a"}' } }] },
           { tool_calls: [{ index: 1, id: 'call-invalid-b', type: 'function', function: { name: 'echo', arguments: '{"text":"invalid-b"}' } }] },
-          { tool_calls: [{ index: 1, function: { arguments: '{"text":"concatenated"}' } }] },
-          { tool_calls: [{ index: 1, extra_content: { google: { thought_signature: SIGNATURE_C } } }] },
+          { tool_calls: [{ index: 1, id: null, type: null, function: { name: null, arguments: '{"text":"concatenated"}' } }] },
+          { tool_calls: [{
+            index: 1, id: null, type: null, function: { name: null, arguments: null },
+            extra_content: { google: { thought_signature: SIGNATURE_C } },
+          }] },
         ], 'tool_calls'),
       },
       {
         events: chunkEvents([
-          { tool_calls: [{ index: 0, id: 'call-recovered', type: 'function', function: { name: 'echo', arguments: '{"text":"recovered"}' } }] },
+          { tool_calls: [{ index: 0, id: 'call-recovered', type: 'function', function: { name: 'echo', arguments: '' } }] },
+          { tool_calls: [{ index: 0, type: null, function: { arguments: '{"text":"recovered"}' } }] },
         ], 'tool_calls'),
       },
       { events: textEvents },
@@ -302,7 +307,10 @@ describe('llm-pi-ai real dormant composition', () => {
           { role: 'assistant', content: '' },
           { tool_calls: [{ index: 0, id: 'call-a', type: 'function', function: { name: 'echo', arguments: '{"text":"one"}' } }] },
           { tool_calls: [{ index: 1, id: 'call-b', type: 'function', function: { name: 'echo', arguments: '{"text":"two"}' } }] },
-          { tool_calls: [{ index: 0, extra_content: { google: { thought_signature: SIGNATURE_A } } }] },
+          { tool_calls: [{
+            index: 0, id: null, type: null, function: { name: null, arguments: null },
+            extra_content: { google: { thought_signature: SIGNATURE_A } },
+          }] },
         ], 'tool_calls'),
       },
       // Step 2: a single call carrying its own signature in its first chunk.
@@ -319,6 +327,12 @@ describe('llm-pi-ai real dormant composition', () => {
         ], 'tool_calls'),
       },
       { events: textEvents },
+      {
+        events: chunkEvents([
+          { tool_calls: [{ index: 0, id: 'call-d', type: 'function', function: { name: 'echo', arguments: '' } }] },
+          { tool_calls: [{ index: 0, type: null, function: { arguments: '{"text":"four"}' } }] },
+        ], 'tool_calls'),
+      },
       { events: textEvents },
       { events: textEvents },
     ])
@@ -388,9 +402,13 @@ describe('llm-pi-ai real dormant composition', () => {
     try {
       restored.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue' }], source: { kind: 'user' } }))
       await restored.agent.whenIdle()
-      expect(server.requests).toHaveLength(4)
+      expect(server.requests).toHaveLength(5)
       expect(wire(3).messages.at(-1)?.role).toBe('user')
       expect(wireCalls(wire(3))).toEqual(afterStepTwo)
+      expect(wireCalls(wire(4)).map(call => call.id)).toEqual(['call-a', 'call-b', 'call-c', 'call-d'])
+      expect(executions).toBe(4)
+      expect(restored.agent.session.snapshotEvents().filter(event => event.type === 'assistant/attempt')).toEqual([])
+      expect(restored.agent.session.snapshotEvents().filter(event => event.type === 'tool/call' && event.data.callId === 'call-d')).toHaveLength(1)
     } finally {
       await restored.dispose()
     }
@@ -403,9 +421,9 @@ describe('llm-pi-ai real dormant composition', () => {
     try {
       switched.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue elsewhere' }], source: { kind: 'user' } }))
       await switched.agent.whenIdle()
-      expect(server.requests).toHaveLength(5)
-      expect(wire(4).messages.at(-1)?.role).toBe('user')
-      const foreign = wireCalls(wire(4))
+      expect(server.requests).toHaveLength(6)
+      expect(wire(5).messages.at(-1)?.role).toBe('user')
+      const foreign = wireCalls(wire(5))
       expect(foreign.map(call => call.id)).toEqual(['call-a', 'call-b', 'call-c'])
       for (const call of foreign) expect(call).not.toHaveProperty('extra_content')
     } finally {

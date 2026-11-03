@@ -168,9 +168,10 @@ export function ModelReasoningEfforts({ model, api, levels, position, disabled, 
     ...levels.includes(level) ? [] : [level],
     ...levels.filter(choice => choice === level || !used.includes(choice)),
   ]
-  const initialLevels = protocol === undefined ? INITIAL_LEVELS
-    : protocol === 'anthropic-messages' ? ['low', 'medium', 'high', 'max']
-      : ['low', 'medium', 'high', 'xhigh', 'max']
+  const initialLevels = protocol === 'google-generative-ai' ? []
+    : protocol === undefined ? INITIAL_LEVELS
+      : protocol === 'anthropic-messages' ? ['low', 'medium', 'high', 'max']
+        : ['low', 'medium', 'high', 'xhigh', 'max']
   const initialEntries = initialLevels.filter(level => levels.includes(level)).map(level => [level, defaultValue(level)] as const)
 
   const refused = entries?.some(([level, wire]) => !acceptedValue(level, wire)) === true
@@ -181,7 +182,7 @@ export function ModelReasoningEfforts({ model, api, levels, position, disabled, 
       <div className={styles['modelReasoningHead']}>
         <span className={`${styles['modelFieldLabel']} ${styles['modelReasoningLabel']}`}>
           {t('modelReasoning')}
-          <Tooltip label={t('modelReasoningHelpText')} side="right" delayMs={0} focusDelayMs={0} portal openOnClick>
+          <Tooltip label={t(protocol === 'google-generative-ai' ? 'modelGeminiReasoningHelp' : 'modelReasoningHelpText')} side="right" delayMs={0} focusDelayMs={0} portal openOnClick>
             <button type="button" className={styles['helpButton']} aria-label={t('modelReasoningHelp')}>?</button>
           </Tooltip>
         </span>

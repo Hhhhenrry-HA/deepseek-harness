@@ -35,7 +35,7 @@ index 2fc3ad343af090a919f5b71454b29f23b009fc21..64aa8a4ab2461484f22066913455518f
                  type: "toolcall_delta",
                  contentIndex: toolBlocksByKey.get(key),
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index a60f39352b776d71497e55b33b3334bacfbeb2f5..8df1db2c05749d5aff5617f8f377be3856d84ad5 100644
+index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b25e15381 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -4,7 +4,6 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
@@ -143,13 +143,13 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..8df1db2c05749d5aff5617f8f377be38
 -                    block = toolCallBlocksById.get(toolCall.id);
 +                const streamType = toolCall.type || (toolCall.function ? "function" : toolCall.custom ? "custom" : undefined);
 +                if ((streamIndex !== undefined && (!Number.isSafeInteger(streamIndex) || streamIndex < 0)) ||
-+                    (id !== undefined && typeof id !== "string") ||
++                    (id != null && typeof id !== "string") ||
 +                    (streamIndex === undefined && !id) ||
-+                    (toolCall.function?.name !== undefined && typeof toolCall.function.name !== "string") ||
-+                    (toolCall.custom?.name !== undefined && typeof toolCall.custom.name !== "string") ||
-+                    (toolCall.function?.arguments !== undefined && typeof toolCall.function.arguments !== "string") ||
-+                    (toolCall.custom?.input !== undefined && typeof toolCall.custom.input !== "string") ||
-+                    (toolCall.type !== undefined && toolCall.type !== "" && toolCall.type !== "function" && toolCall.type !== "custom") ||
++                    (toolCall.function?.name != null && typeof toolCall.function.name !== "string") ||
++                    (toolCall.custom?.name != null && typeof toolCall.custom.name !== "string") ||
++                    (toolCall.function?.arguments != null && typeof toolCall.function.arguments !== "string") ||
++                    (toolCall.custom?.input != null && typeof toolCall.custom.input !== "string") ||
++                    (toolCall.type != null && toolCall.type !== "" && toolCall.type !== "function" && toolCall.type !== "custom") ||
 +                    (toolCall.function && streamType !== "function") ||
 +                    (toolCall.custom && streamType !== "custom")) {
 +                    throw new Error("Malformed OpenAI tool-call identity or delta");

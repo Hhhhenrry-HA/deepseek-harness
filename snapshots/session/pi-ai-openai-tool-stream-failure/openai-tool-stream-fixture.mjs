@@ -25,8 +25,8 @@ export function apply(ctx) {
     const packets = reply.data.stream.flatMap(record => {
       if (record.type === 'tool-call-chunks') return record.args.map((arguments_, offset) => frame({ tool_calls: [{
         index: record.index,
-        ...offset === 0 ? { id: record.id, type: 'function' } : {},
-        function: { ...offset === 0 ? { name: record.name } : {}, arguments: arguments_ },
+        ...offset === 0 ? { id: record.id, type: 'function' } : { id: null, type: null },
+        function: { name: offset === 0 ? record.name : null, arguments: arguments_ },
       }] }))
       if (record.type === 'text-chunks') return record.texts.map(content => frame({ content }))
       return []

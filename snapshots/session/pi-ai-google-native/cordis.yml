@@ -1,0 +1,19 @@
+- id: llm-deepseek
+  disabled: true
+
+- id: tool-skill
+  disabled: true
+
+- id: llm-pi-ai
+  config:
+    providers:
+      gemini-native:
+        api: google-generative-ai
+        baseURL: https://gemini-native.invalid/relay/v1beta
+        apiKeyEnv: SNAPSHOT_GEMINI_NATIVE_KEY
+        models:
+          - id: gemini-test
+
+- insert:
+    - id: google-native-fixture
+      name: './google-native-fixture.mjs'

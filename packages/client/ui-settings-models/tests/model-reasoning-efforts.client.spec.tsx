@@ -48,6 +48,18 @@ describe('ModelReasoningEfforts', () => {
     expect(efforts()).toEqual({ low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' })
   })
 
+  it('requires native Gemini levels to be declared instead of seeding OpenAI capabilities', () => {
+    const { efforts } = renderGroup({ id: 'gemini-3-flash-preview' }, { api: 'google-generative-ai' })
+    fireEvent.click(toggle())
+    expect(efforts()).toEqual({})
+    expect(levels()).toEqual([])
+    expect(screen.getByText(en.modelReasoningNeedsLevel)).toBeTruthy()
+    fireEvent.click(add())
+    fireEvent.change(select(1), { target: { value: 'low' } })
+    expect(efforts()).toEqual({ low: 'low' })
+    expect(screen.queryByText(en.modelReasoningNeedsLevel)).toBeNull()
+  })
+
   it('seeds Claude levels and preserves unrelated compatibility settings', () => {
     const { writes } = renderGroup({ id: 'custom', compat: { supportsToolChoice: false } }, { api: 'anthropic-messages' })
     fireEvent.click(toggle())

@@ -42,11 +42,11 @@ async function collect(events: AsyncIterable<AssistantMessageEvent>): Promise<{ 
 const context = normalizeContext({ messages: [{ role: 'user', content: 'hi', timestamp: 0 }] })
 
 interface ToolDelta {
-  index?: number
-  id?: string
-  type?: 'function' | 'custom' | ''
-  function?: { name?: string; arguments?: string }
-  custom?: { name?: string; input?: string }
+  index?: number | null
+  id?: string | null
+  type?: 'function' | 'custom' | '' | null
+  function?: { name?: string | null; arguments?: string | null } | null
+  custom?: { name?: string | null; input?: string | null } | null
   extra_content?: { google: { thought_signature: string } }
 }
 
@@ -130,6 +130,43 @@ describe('OpenAI-compatible function-call finalization', () => {
     expectRawCall(result, '')
   })
 
+  it.each([
+    ['id', { id: null }],
+    ['name', { function: { name: null } }],
+    ['type', { type: null }],
+    ['arguments', { function: { arguments: null } }],
+    ['function', { function: null }],
+    ['nullable metadata', { id: null, type: null, function: { name: null, arguments: null } }],
+  ] satisfies [string, Omit<ToolDelta, 'index'>][])('preserves an addressed call across null %s continuation fields', async (_label, delta) => {
+    const result = await completions([
+      { tool_calls: [functionCall('')] },
+      { tool_calls: [{ index: 0, ...delta }] },
+      { tool_calls: [{ index: 0, function: { arguments: '{"key":0}' } }] },
+    ])
+    expect(result.assembler.finish).toEqual({ kind: 'tool-calls' })
+    expect(result.assembler.blocks()).toEqual([{ type: 'tool-call', id: 'call_0', name: 'write', arguments: '{"key":0}' }])
+    expect(result.requests).toBe(1)
+  })
+
+  it('receives a Gemini relay argument fragment whose call type is explicitly null', async () => {
+    const result = await completions([
+      { tool_calls: [{ index: 0, id: 'call_read', type: 'function', function: { name: 'read', arguments: '' } }] },
+      { tool_calls: [{ index: 0, type: null, function: { arguments: '{"file_path":"diagnostic-only.txt"}' } }] },
+    ])
+    expect(result.assembler.finish).toEqual({ kind: 'tool-calls' })
+    expect(result.assembler.blocks()).toEqual([
+      { type: 'tool-call', id: 'call_read', name: 'read', arguments: '{"file_path":"diagnostic-only.txt"}' },
+    ])
+    expect(result.requests).toBe(1)
+  })
+
+  it('retains null-only arguments as an empty raw stream instead of inventing an empty object', async () => {
+    const result = await completions([
+      { tool_calls: [{ index: 0, id: 'call_0', function: { name: 'write', arguments: null } }] },
+    ])
+    expectRawCall(result, '')
+  })
+
   it('accepts an explicit empty object with surrounding JSON whitespace', async () => {
     const result = await completions([{ tool_calls: [functionCall(' \n{}\t ')] }])
     expect(result.assembler.finish).toEqual({ kind: 'tool-calls' })
@@ -142,7 +179,7 @@ describe('OpenAI-compatible function-call finalization', () => {
       { tool_calls: [{ index: 0, id: '', type: '', function: { name: '', arguments: '{"key":' } }, functionCall('{"key":', 1, 'call_1')] },
       { tool_calls: [{ index: 1, function: { arguments: '1}' } }, { index: 0, id: 'call_0', function: { name: 'write', arguments: '0' } }] },
       { tool_calls: [{ id: 'call_0', function: { arguments: '}' } }] },
-      { tool_calls: [{ index: 0, extra_content: { google } }] },
+      { tool_calls: [{ index: 0, id: null, type: null, function: { name: null, arguments: null }, extra_content: { google } }] },
     ])
     expect(result.assembler.finish).toEqual({ kind: 'tool-calls' })
     expect(result.assembler.blocks()).toEqual([0, 1].map(index => ({
@@ -177,6 +214,8 @@ describe('OpenAI-compatible function-call finalization', () => {
 
   it.each([
     ['unaddressed delta', { function: { name: 'write', arguments: '{}' } }],
+    ['unaddressed null identity', { id: null, type: null, function: { name: null, arguments: '{}' } }],
+    ['null index', { ...functionCall('{}'), index: null }],
     ['negative index', functionCall('{}', -1)],
     ['fractional index', functionCall('{}', 0.5)],
     ['mixed call types', { ...functionCall('{}'), custom: { name: 'write', input: 'raw' } }],
@@ -188,6 +227,7 @@ describe('OpenAI-compatible function-call finalization', () => {
     const input = 'not JSON: {"key":0}{"key":1}\nnext'
     const result = await completions([
       { tool_calls: [{ index: 0, id: 'call_0', type: 'custom', custom: { name: 'write', input: input.slice(0, 8) } }] },
+      { tool_calls: [{ index: 0, id: null, type: null, custom: { name: null, input: null } }] },
       { tool_calls: [{ index: 0, custom: { input: input.slice(8) } }] },
     ])
     expect(result.assembler.finish).toEqual({ kind: 'tool-calls' })

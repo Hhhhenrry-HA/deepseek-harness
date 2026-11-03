@@ -250,7 +250,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           value={baseURL}
           placeholder={t(protocol === 'anthropic-messages'
             ? 'customAnthropicBaseUrlPlaceholder'
-            : 'customBaseUrlPlaceholder')}
+            : protocol === 'google-generative-ai' ? 'customGeminiBaseUrlPlaceholder' : 'customBaseUrlPlaceholder')}
           aria-label={t('baseUrl')}
           aria-invalid={baseUrlInvalid}
           disabled={profileDisabled}
@@ -258,6 +258,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         />
       </div>
       {baseUrlInvalid ? <p className={styles['error']}>{t('customBaseUrlInvalid')}</p> : null}
+      {protocol === 'google-generative-ai' ? <p className={styles['advancedHint']}>{t('customGeminiHint')}</p> : null}
       <div className={styles['field']}>
         <span className={styles['fieldLabel']}>{t('customApi')}</span>
         <select

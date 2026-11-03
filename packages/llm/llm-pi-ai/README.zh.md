@@ -119,6 +119,24 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 每次操作捕获当前 `providers` Config 引用。新增或修改的 provider 配置在表单持久化前验证；未更改的目录故障仍可编辑。路由集合或重试策略变化时原子更新注册；如果其他适配器已拥有所请求的路由，则保留先前路由。
 
+### 配置 Gemini 原生渠道
+
+为独立的 Gemini 原生路由声明 `api: google-generative-ai`。它使用已安装 pi-ai 的 Google 传输和 `@google/genai`，不走 Chat Completions，也不改变任何已有路由的协议。在模型设置中选择**自定义模型 API → Gemini（原生）**，填写准确的 API 地址、密钥和模型 ID，保存后选择该路由的模型。
+
+```yaml
+providers:
+  gemini-native:
+    api: google-generative-ai
+    apiKeyEnv: GEMINI_NATIVE_API_KEY
+    baseURL: https://generativelanguage.googleapis.com/v1beta
+    models:
+      - id: gemini-3-flash-preview
+```
+
+通过凭据服务存储 `GEMINI_NATIVE_API_KEY`。原生请求使用 `x-goog-api-key`。配置的 `baseURL` 是准确的 API 前缀：传输禁用 SDK 插入版本路径，直接追加 `/models/{model}:streamGenerateContent?alt=sse`。Google 公共端点须包含 `/v1beta`；`https://relay.example/google/v1beta` 等中转前缀原样保留，配置根地址时也不会猜测并追加版本。已安装的 `google` 目录路由在没有覆盖地址时已经提供 Google 的 `/v1beta` 端点。
+
+自定义原生模型 ID 需手动填写：端点发现返回 `DISCOVERY_UNSUPPORTED`，不会探测 OpenAI 模型列表地址。自定义路由不会推断推理能力，编辑器也不预选档位。仅声明模型实际支持的 `reasoningEfforts`；已安装传输对识别出的 Gemini 3 ID 使用 `thinkingLevel`，对 Gemini 2.5 ID 使用 `thinkingBudget`，显式路由 `thinkingBudgets` 优先于其预算映射。未知别名不能确定合适的思考控制方式。原生工具使用 `functionDeclarations.parametersJsonSchema`，不会为中转站的旧 `parameters` 格式改写 JSON Schema 联合类型。原生文本、思考和函数调用签名保留在现有回放封装中，并可跨序列化 Session 回放保留。
+
 ### 从端点发现模型
 
 插件会回答「该提供方可以提供哪些模型？」，供配置界面正在编辑或起草的路由使用。已安装目录提供的路由直接由目录回答，不发网络请求，并将其 `input` 数组保留为发现结果的 `inputModalities`；只有目录未描述的路由才会经网络询问。`openai-completions` 与 `openai-responses` 使用带 bearer 鉴权的 `GET {baseURL}/models`，`anthropic-messages` 则以 `x-api-key` 和 `anthropic-version` 使用原生 `GET /v1/models?limit=1000` 语义；其列表 URL 接受带或不带末尾 `/v1` 的 API 根地址，因为网关文档两种写法都会发布，且只有该列表 URL 会归一化这一段，模型请求收到的仍是配置原样的 `baseURL`。已配置且具名的路由会在 Host 内部提供已存凭据与 profile `headers`，因此通过 `cordis.patch.yml` 或 Cordis 配置设置的部署标头可以到达模型发现请求，但不会成为发现请求或 Models 页面的字段；表单中新键入的密钥仍优先于已存凭据。解析器接受标准 `data` 数组或富信息 `models` 对象，并归一化每个候选的 id、显示名、上下文窗口与最大输出 token 数；Anthropic 的 `max_input_tokens` 与 `max_tokens` 会进入相同容量字段，即使对象条目点名了另一个规范 id，对象键仍是请求 id，原始类型的对象属性会被忽略，缺失的显示名则回退到该请求 id。回答是界面可以提供给用户采纳的候选元数据——不存储任何内容，`cordis.patch.yml` 仍然是决定路由服务内容的唯一事实。
@@ -195,7 +213,7 @@ git add packages/llm/llm-pi-ai/src/provider-data.generated.ts
 
 对于关联会话且配置为自适应思考的 Anthropic 路由，任何已提交的会话表面替换都会使替换之前生成的思考失效，包括压缩检查点、旧工具结果裁剪以及用户消息编辑。适配器仅在请求副本中省略这些 `thinking` 与 `redacted_thinking` 块，保留正文、工具调用、工具结果以及之后新生成的全部思考。仅主机侧的 `piAiCompactionReplay` 投影在重启或派生会话后从已有会话事件重建这一决定；旧投影缓存会重建，无需迁移对话数据。存储的响应保持不变。按预算启用的手动思考与其他提供方 API 保留原有回放；没有关联会话的独立调用保留传入的历史。这遵循 Anthropic 的[客户端压缩规则](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking#custom-compaction-on-the-client)：替换较早的消息会使保留部分的思考签名失效。模型在每次替换之后重新思考；不需要 beta 请求头，也不会永久关闭思考。
 
-OpenAI 兼容函数调用按流式索引和调用 id 分开收集，支持标识晚到与交错分片。最终标识缺失、绑定冲突或传输字段类型无效时，回复以 `PI_AI_ERROR` 失败，其中任何调用都不会执行。对于标识明确的调用，合法 JSON 对象参数正常执行；空白、损坏、拼接或非对象参数保持原样，并按[循环的参数规则](../../core/agent-loop/README.zh.md)得到单独的 `INVALID_ARGS` 结果。其他正常调用不会被丢弃，模型在下一步收到各项结果。无参调用必须明确返回 `{}`。使用字符串参数的 OpenAI API 会原样回放已拒绝的参数；仅支持对象参数的提供方 API 会拒绝这种无法表达的历史，而非替换为 `{}`。既有错误与取消结果保持原样；达到 token 上限仍会丢弃工具调用，不执行残缺参数。
+OpenAI 兼容函数调用按流式索引和调用 id 分开收集，支持标识晚到与交错分片。`id`、`type`、工具名和参数片段字段为 null 时表示本次没有更新，保留已收集的调用；显式提供的索引仍须是非负安全整数。最终标识缺失、绑定冲突或非 null 的传输字段类型无效时，回复以 `PI_AI_ERROR` 失败，其中任何调用都不会执行。对于标识明确的调用，合法 JSON 对象参数正常执行；空白、损坏、拼接或非对象参数保持原样，并按[循环的参数规则](../../core/agent-loop/README.zh.md)得到单独的 `INVALID_ARGS` 结果。其他正常调用不会被丢弃，模型在下一步收到各项结果。无参调用必须明确返回 `{}`。使用字符串参数的 OpenAI API 会原样回放已拒绝的参数；仅支持对象参数的提供方 API 会拒绝这种无法表达的历史，而非替换为 `{}`。既有错误与取消结果保持原样；达到 token 上限仍会丢弃工具调用，不执行残缺参数。
 
 OpenAI 兼容的 Google 工具调用签名在现有回放信封中保留原有拼写及逐调用关联。签名仅回传给同一提供方、API 与模型；并行调用中未签名的项保持未签名。签名值无效时，回复失败且不执行其中的调用。已安装的 pi-ai 补丁负责函数调用校验以及 Google 回放的捕获与序列化；升级 pi-ai 时需重新应用或移除这些行为。
 

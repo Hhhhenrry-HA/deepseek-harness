@@ -35,6 +35,9 @@
 /deepseek-ai-dsh-llm-pi-ai/use-this-package/change-configuration-at-runtime:
   en: 92f554e1718614ca
   zh: f17ed3ad3e5d28e2
+/deepseek-ai-dsh-llm-pi-ai/use-this-package/configure-a-native-gemini-channel:
+  en: fff4a973d2193a9a
+  zh: 836c434006895d1b
 /deepseek-ai-dsh-llm-pi-ai/use-this-package/discover-models-from-endpoints:
   en: 6619e8cfe7555c73
   zh: b2f80c25acb81cf8
@@ -57,8 +60,8 @@
   en: 477d277e9ac35c8f
   zh: 96870ca333fb6510
 /deepseek-ai-dsh-llm-pi-ai/understand-the-implementation/replay-and-vocabulary:
-  en: fe234692210e4780
-  zh: 30b1a2cde3a8fcd8
+  en: a386a84a8063d543
+  zh: 8e261d4e077c6427
 /deepseek-ai-dsh-llm-pi-ai/further-exploration:
   en: a2a2ccdeae59d408
   zh: c47ee091aa90ad91

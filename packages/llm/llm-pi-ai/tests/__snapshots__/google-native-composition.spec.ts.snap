@@ -1,0 +1,67 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`replays native signed parallel calls and tool results after a fresh Loader boot 1`] = `
+[
+  {
+    "parts": [
+      {
+        "text": "Plan",
+        "thought": true,
+        "thoughtSignature": "cGxhbg==",
+      },
+      {
+        "functionCall": {
+          "args": {
+            "text": "first",
+          },
+          "id": "call-a",
+          "name": "echo",
+        },
+        "thoughtSignature": "Y2FsbC1h",
+      },
+      {
+        "functionCall": {
+          "args": {
+            "text": "second",
+          },
+          "id": "call-b",
+          "name": "echo",
+        },
+      },
+    ],
+    "role": "model",
+  },
+  {
+    "parts": [
+      {
+        "functionResponse": {
+          "id": "call-a",
+          "name": "echo",
+          "response": {
+            "output": "first",
+          },
+        },
+      },
+      {
+        "functionResponse": {
+          "id": "call-b",
+          "name": "echo",
+          "response": {
+            "output": "second",
+          },
+        },
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "parts": [
+      {
+        "text": "Completed",
+        "thoughtSignature": "Y29tcGxldGVk",
+      },
+    ],
+    "role": "model",
+  },
+]
+`;

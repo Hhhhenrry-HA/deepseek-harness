@@ -484,6 +484,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 }}
               />
               {endpointHint === undefined ? null : <span id={`${props.provider}-endpoint-hint`} className={styles['advancedHint']}>{endpointHint}</span>}
+              {probeApi === 'google-generative-ai' ? <span className={styles['advancedHint']}>{t('customGeminiHint')}</span> : null}
             </div>
             {/* The protocol sits beside the endpoint it describes, as it does
                 on the create card. */}

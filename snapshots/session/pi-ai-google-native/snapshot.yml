@@ -1,0 +1,14 @@
+version: 1
+scenario: pi-ai-google-native
+profile: headless
+composition: pi-ai-google-native
+recording: authored
+header:
+  class: pi-ai-google-native
+  pin: true
+  systemPromptSource: pi-ai-google-tool-signature
+  toolSchemasSource: pi-ai-google-tool-signature
+workspace:
+  final: true
+environment:
+  SNAPSHOT_GEMINI_NATIVE_KEY: snapshot-key
