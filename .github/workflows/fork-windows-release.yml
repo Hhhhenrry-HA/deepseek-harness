@@ -98,11 +98,9 @@ jobs:
 
           本次更新：
 
-          - 修复 Gemini 经 OpenAI 兼容渠道调用工具时，后续数据片段中的空字段被误判、导致新旧会话中断的问题。
-          - 新增独立 Gemini 原生协议，支持 API 密钥、原生工具调用和签名回放；现有 OpenAI 兼容渠道不会自动切换。
-          - 保留并行工具调用和逐调用参数校验：正常调用照常执行，损坏参数单独报错，不截取、不补齐、不当成空参数执行。
-          - 调用编号或名称冲突时停止该次回复，避免串调用或误执行。
-          - 保留 Claude 在上下文压缩后恢复续聊的修复；聊天记录与摘要保持不变，无需更换 API 配置或关闭思考。
+          - 支持 Gemini 4 系列模型（如 gemini-4-hydrogen）：思考等级按 Gemini 4 的要求发送，不再因参数不符而请求失败。原生渠道和自定义模型 ID 均适用。
+          - 模型目录随上游更新，新增或更正部分提供方的模型与地址。
+          - 继续保留 Gemini 工具调用签名回放、损坏参数单独报错、调用编号冲突时停止回复等此前修复；聊天记录与配置无需改动。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -117,7 +115,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · Gemini 兼容修复与原生渠道" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 支持 Gemini 4" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE
