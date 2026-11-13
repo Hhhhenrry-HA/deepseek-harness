@@ -1,52 +1,8 @@
-diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index 38571b31e143e913c2bf59dad73382982e93664a..950e546197d8e84cb3edfca0012939f1db2488d8 100644
---- a/dist/api/anthropic-messages.js
-+++ b/dist/api/anthropic-messages.js
-@@ -553,7 +553,6 @@ export const stream = (model, context, options) => {
-                         const block = blocks[index];
-                         if (block && block.type === "toolCall") {
-                             block.partialJson += event.delta.partial_json;
--                            block.arguments = parseStreamingJson(block.partialJson);
-                             stream.push({
-                                 type: "toolcall_delta",
-                                 contentIndex: index,
-diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index ca40f1b4a4e99f441503cf364822073a7a6c478a..14c204261b3f6c47f8950cf44f0fb9f86cf2cda7 100644
---- a/dist/api/bedrock-converse-stream.js
-+++ b/dist/api/bedrock-converse-stream.js
-@@ -461,7 +461,6 @@ function handleContentBlockDelta(event, blocks, output, stream) {
-     }
-     else if (delta?.toolUse && block?.type === "toolCall") {
-         block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
--        block.arguments = parseStreamingJson(block.partialJson);
-         stream.push({ type: "toolcall_delta", contentIndex: index, delta: delta.toolUse.input || "", partial: output });
-     }
-     else if (delta?.reasoningContent) {
-diff --git a/dist/api/mistral-conversations.js b/dist/api/mistral-conversations.js
-index 2fc3ad343af090a919f5b71454b29f23b009fc21..64aa8a4ab2461484f22066913455518f69157857 100644
---- a/dist/api/mistral-conversations.js
-+++ b/dist/api/mistral-conversations.js
-@@ -554,7 +554,6 @@ async function consumeChatStream(model, output, stream, mistralStream, onProvide
-                 ? toolCall.function.arguments
-                 : JSON.stringify(toolCall.function.arguments || {});
-             block.partialArgs = (block.partialArgs || "") + argsDelta;
--            block.arguments = parseStreamingJson(block.partialArgs);
-             stream.push({
-                 type: "toolcall_delta",
-                 contentIndex: toolBlocksByKey.get(key),
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b25e15381 100644
+index c1b6038c2220633a8caf710288a8f6e6301f7a28..56477d13184b5ac3208220b883d4296b8e20f90f 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
-@@ -4,7 +4,6 @@ import { formatProviderError, normalizeProviderError } from "../utils/error-body
- import { AssistantMessageEventStream } from "../utils/event-stream.js";
- import { shortHash } from "../utils/hash.js";
- import { headersToRecord } from "../utils/headers.js";
--import { parseStreamingJson } from "../utils/json-parse.js";
- import { getPiUserAgent } from "../utils/pi-user-agent.js";
- import { getProviderEnvValue } from "../utils/provider-env.js";
- import { retryProviderRequest } from "../utils/provider-retry.js";
-@@ -135,6 +134,47 @@ function appendOpenAIReasoningDetail(details, detail) {
+@@ -136,6 +136,35 @@ function appendOpenAIReasoningDetail(details, detail) {
      }
      details.push({ ...detail });
  }
@@ -79,58 +35,39 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
 +    if (!google) throw new Error("Invalid Google tool-call replay metadata");
 +    return { google };
 +}
-+function parseFunctionArguments(json) {
-+    let value;
-+    try {
-+        value = JSON.parse(json);
-+    }
-+    catch (error) {
-+        // Provider argument bytes must not appear in diagnostics or error causes.
-+        if (!(error instanceof SyntaxError)) throw error;
-+        return undefined;
-+    }
-+    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : undefined;
-+}
  const OPENAI_COMPLETIONS_REASONING_FIELDS = ["reasoning", "reasoning_content", "reasoning_text"];
  function isOpenAICompletionsReasoningField(field) {
      return OPENAI_COMPLETIONS_REASONING_FIELDS.includes(field);
-@@ -246,6 +286,9 @@ export const stream = (model, context, options) => {
+@@ -238,7 +267,11 @@ export const stream = (model, context, options) => {
                      });
                  }
                  else if (block.type === "toolCall") {
+-                    const input = toolCallStates.get(block).input;
++                    const state = toolCallStates.get(block);
++                    const input = state.input;
 +                    if (output.stopReason !== "length" && (!block.id || !block.name)) {
 +                        throw new Error("Incomplete OpenAI tool-call identity");
 +                    }
-                     if (block.customInput) {
-                         const delta = appendCustomToolCallInput(block, getCustomToolCallInput(block), true);
-                         if (delta !== undefined) {
-@@ -258,13 +301,22 @@ export const stream = (model, context, options) => {
+                     toolCallStates.delete(block);
+                     if (input.kind === "custom") {
+                         const delta = closeGrammarToolInputJson(input.buffer, input.property, undefined);
+@@ -252,7 +285,14 @@ export const stream = (model, context, options) => {
                          }
                      }
                      else {
--                        block.arguments = parseStreamingJson(block.partialArgs);
-+                        const arguments_ = parseFunctionArguments(block.partialArgs);
+-                        Object.assign(block, input.arguments.finish());
++                        const arguments_ = input.arguments.finishStrict();
 +                        if (arguments_ === undefined && output.stopReason === "length") {
 +                            // Truncated calls remain unfinished; consumers retain the length outcome.
-+                            delete block.partialArgs;
-+                            delete block.streamIndex;
-+                            delete block.streamType;
 +                            return;
 +                        }
 +                        block.arguments = arguments_ ?? {};
-+                        if (arguments_ === undefined) block.rawArguments = block.partialArgs;
++                        if (arguments_ === undefined)
++                            block.rawArguments = input.arguments.text;
                      }
--                    // Finalize in-place and strip the scratch buffers so replay only
--                    // carries parsed arguments.
-+                    // Finalize in-place and strip the streaming scratch buffers.
-                     delete block.partialArgs;
-                     delete block.customInput;
-                     delete block.streamIndex;
-+                    delete block.streamType;
                      stream.push({
                          type: "toolcall_end",
-                         contentIndex,
-@@ -294,11 +346,31 @@ export const stream = (model, context, options) => {
+@@ -283,11 +323,33 @@ export const stream = (model, context, options) => {
                  return thinkingBlock;
              };
              const ensureToolCallBlock = (toolCall) => {
@@ -157,30 +94,33 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
 +                const byIndex = streamIndex !== undefined ? toolCallBlocksByIndex.get(streamIndex) : undefined;
 +                const byId = id ? toolCallBlocksById.get(id) : undefined;
 +                let block = byIndex ?? byId;
++                const known = block ? toolCallStates.get(block) : undefined;
 +                if ((byIndex && byId && byIndex !== byId) ||
 +                    (byIndex && id && byIndex.id && byIndex.id !== id) ||
-+                    (byId && streamIndex !== undefined && byId.streamIndex !== undefined && byId.streamIndex !== streamIndex) ||
++                    (byId && streamIndex !== undefined && toolCallStates.get(byId).streamIndex !== undefined &&
++                        toolCallStates.get(byId).streamIndex !== streamIndex) ||
 +                    (block && ((name && block.name && block.name !== name) ||
-+                        (streamType && block.streamType && block.streamType !== streamType)))) {
++                        (streamType && known.streamType && known.streamType !== streamType)))) {
 +                    throw new Error("Inconsistent OpenAI tool-call identity");
                  }
                  if (!block) {
                      // Note: the "input" fallback here should/must not be taken.  in case the LLM makes up
-@@ -307,7 +379,7 @@ export const stream = (model, context, options) => {
-                     const hasCustomInput = customInputProperty !== undefined;
+@@ -295,22 +357,17 @@ export const stream = (model, context, options) => {
+                     const customInputProperty = toolCall.custom && !toolCall.function ? (grammarToolInputProperties.get(name) ?? "input") : undefined;
                      block = {
                          type: "toolCall",
 -                        id: toolCall.id || "",
 +                        id: id || "",
                          name,
-                         arguments: hasCustomInput ? { [customInputProperty]: "" } : {},
-                         partialArgs: hasCustomInput ? undefined : "",
-@@ -315,13 +387,8 @@ export const stream = (model, context, options) => {
-                             ? { property: customInputProperty, jsonBuffer: { input: "", started: false, closed: false } }
-                             : undefined,
+                         arguments: customInputProperty !== undefined ? { [customInputProperty]: "" } : {},
+                     };
+                     toolCallStates.set(block, {
                          streamIndex,
 +                        streamType,
-                     };
+                         input: customInputProperty !== undefined
+                             ? customInput(customInputProperty)
+                             : { kind: "json", arguments: new ToolCallArgumentsStream() },
+                     });
 -                    if (streamIndex !== undefined) {
 -                        toolCallBlocksByIndex.set(streamIndex, block);
 -                    }
@@ -190,13 +130,13 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
                      blocks.push(block);
                      stream.push({
                          type: "toolcall_start",
-@@ -329,13 +396,15 @@ export const stream = (model, context, options) => {
-                         partial: output,
+@@ -319,13 +376,15 @@ export const stream = (model, context, options) => {
                      });
                  }
--                if (streamIndex !== undefined && block.streamIndex === undefined) {
+                 const state = toolCallStates.get(block);
+-                if (streamIndex !== undefined && state.streamIndex === undefined) {
 +                if (streamIndex !== undefined) {
-                     block.streamIndex = streamIndex;
+                     state.streamIndex = streamIndex;
                      toolCallBlocksByIndex.set(streamIndex, block);
                  }
 -                if (toolCall.id) {
@@ -205,14 +145,14 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
 +                    block.id = id;
 +                    toolCallBlocksById.set(id, block);
                  }
-+                block.streamType ??= streamType;
++                state.streamType ??= streamType;
                  if (!block.name && name) {
                      block.name = name;
                  }
-@@ -426,19 +495,14 @@ export const stream = (model, context, options) => {
+@@ -427,13 +486,9 @@ export const stream = (model, context, options) => {
                      if (choice?.delta?.tool_calls) {
                          for (const toolCall of choice.delta.tool_calls) {
-                             const block = ensureToolCallBlock(toolCall);
+                             const { block, state } = ensureToolCallBlock(toolCall);
 -                            if (!block.id && toolCall.id) {
 -                                block.id = toolCall.id;
 -                                toolCallBlocksById.set(toolCall.id, block);
@@ -225,14 +165,8 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
 +                                block.thoughtSignature = JSON.stringify({ type: "google-thought-signature", google });
                              }
                              let delta = "";
-                             if (toolCall.function?.arguments) {
-                                 delta = toolCall.function.arguments;
-                                 block.partialArgs = (block.partialArgs ?? "") + toolCall.function.arguments;
--                                block.arguments = parseStreamingJson(block.partialArgs);
-                             }
-                             else if (toolCall.custom?.input) {
-                                 const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
-@@ -467,9 +531,6 @@ export const stream = (model, context, options) => {
+                             const input = state.input;
+@@ -456,9 +511,6 @@ export const stream = (model, context, options) => {
                      }
                  }
              }
@@ -242,7 +176,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
              if (options?.signal?.aborted) {
                  throw new Error("Request was aborted");
              }
-@@ -485,6 +546,9 @@ export const stream = (model, context, options) => {
+@@ -474,6 +526,9 @@ export const stream = (model, context, options) => {
              if ((compat.supportsFinishReason && !hasFinishReason) || output.stopReason === "pending") {
                  throw new Error("Stream ended without finish_reason");
              }
@@ -252,15 +186,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
              stream.push({ type: "done", reason: output.stopReason, message: output });
              stream.end();
          }
-@@ -498,6 +562,7 @@ export const stream = (model, context, options) => {
-                 delete block.partialArgs;
-                 delete block.customInput;
-                 delete block.streamIndex;
-+                delete block.streamType;
-             }
-             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-             output.errorMessage = formatProviderError(normalizeProviderError(error));
-@@ -1031,13 +1096,15 @@ export function convertMessages(model, context, compat, options) {
+@@ -1024,13 +1079,15 @@ export function convertMessages(model, context, compat, options) {
                              },
                          };
                      }
@@ -277,7 +203,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
                      };
                  });
              }
-@@ -1045,7 +1112,7 @@ export function convertMessages(model, context, compat, options) {
+@@ -1038,7 +1095,7 @@ export function convertMessages(model, context, compat, options) {
                  assistantMsg.reasoning_details = preservedReasoningDetails;
              }
              if (compat.requiresReasoningContentOnAssistantMessages &&
@@ -286,7 +212,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
                  assistantMsg.reasoning_content === undefined) {
                  assistantMsg.reasoning_content = "";
              }
-@@ -1234,6 +1301,8 @@ function detectCompat(model) {
+@@ -1233,6 +1290,8 @@ function detectCompat(model) {
      const isAntLing = provider === "ant-ling" || baseUrl.includes("api.ant-ling.com");
      const isCerebras = provider === "cerebras" || baseUrl.includes("cerebras.ai");
      const isDeepSeek = provider === "deepseek" || baseUrl.toLowerCase().includes("deepseek.com");
@@ -295,7 +221,7 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
      const isNonStandard = isNvidia ||
          isCerebras ||
          provider === "xai" ||
-@@ -1280,7 +1349,7 @@ function detectCompat(model) {
+@@ -1281,7 +1340,7 @@ function detectCompat(model) {
                          ? "ant-ling"
                          : isOpenRouter
                              ? "openrouter"
@@ -305,10 +231,10 @@ index a60f39352b776d71497e55b33b3334bacfbeb2f5..f4a0888191d2bc78ca44c26017965c6b
          vercelGatewayRouting: {},
          chatTemplateKwargs: {},
 diff --git a/dist/api/openai-responses-shared.js b/dist/api/openai-responses-shared.js
-index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..9ff4c611d79ef097164a928b67c22df740e55d05 100644
+index 3901bfc4bc6dee0eb45a209dbcbdb59d6c55d054..bade630ba96064896ecbbc45e36c6f35070bf7b7 100644
 --- a/dist/api/openai-responses-shared.js
 +++ b/dist/api/openai-responses-shared.js
-@@ -233,7 +233,7 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
+@@ -291,7 +291,7 @@ export function convertResponsesMessages(model, context, allowedToolCallProvider
                              id: itemId,
                              call_id: callId,
                              name: toolCall.name,
@@ -317,32 +243,11 @@ index f413fe5f2a1abcac39c38bbd4a77b38c349a5918..9ff4c611d79ef097164a928b67c22df7
                              ...(isSameModel && toolCall.namespace !== undefined ? { namespace: toolCall.namespace } : {}),
                          });
                      }
-@@ -548,7 +548,6 @@ export async function processResponsesStream(openaiStream, output, stream, model
-             if (!slot || slot.block.partialJson === undefined)
-                 continue;
-             slot.block.partialJson += event.delta;
--            slot.block.arguments = parseStreamingJson(slot.block.partialJson);
-             pushToolCallDelta(slot, event.delta);
-         }
-         else if (event.type === "response.function_call_arguments.done") {
-diff --git a/dist/api/pi-messages.js b/dist/api/pi-messages.js
-index 7da1c45de8a106a68411cf79bec75f553534a1c7..296d131b59b1cf75f2516c39e85bba72972b2c17 100644
---- a/dist/api/pi-messages.js
-+++ b/dist/api/pi-messages.js
-@@ -155,8 +155,6 @@ function createEventConverter(model) {
-             case "toolcall_delta": {
-                 const json = `${toolJson.get(event.contentIndex) ?? ""}${event.delta}`;
-                 toolJson.set(event.contentIndex, json);
--                partial.content[event.contentIndex].arguments =
--                    parseStreamingJson(json);
-                 break;
-             }
-             case "toolcall_end":
 diff --git a/dist/api/transform-messages.js b/dist/api/transform-messages.js
-index 1e7873e4948eb28051c8157aa89737070b223ad7..9ad6e277efe794df2bb5dc45b1bfa97aba8eab35 100644
+index 6a364cbc634759b52af34044e207c6f1cdb29186..6e2dc154b595149a7878c15ab6ba7518198028c1 100644
 --- a/dist/api/transform-messages.js
 +++ b/dist/api/transform-messages.js
-@@ -99,6 +99,13 @@ export function transformMessages(messages, model, normalizeToolCallId) {
+@@ -112,6 +112,13 @@ export function transformMessages(messages, model, normalizeToolCallId) {
                  }
                  if (block.type === "toolCall") {
                      const toolCall = block;
@@ -357,10 +262,10 @@ index 1e7873e4948eb28051c8157aa89737070b223ad7..9ad6e277efe794df2bb5dc45b1bfa97a
                      if (!isSameModel && toolCall.thoughtSignature) {
                          normalizedToolCall = { ...toolCall };
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index b01603bff2e8dbaedcd4aa9ef5b2d3d1192697f8..63a77b626fa4e5e0afdadfa5b47f6a63092e7a77 100644
+index b410a7bab16c395090ab63e362288306950dec64..cdd9f8af92eda352f81fb0fd4e7fc5871bfe8bae 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -284,6 +284,8 @@ export interface ToolCall {
+@@ -280,6 +280,8 @@ export interface ToolCall {
      id: string;
      name: string;
      arguments: JsonObject;
@@ -369,3 +274,125 @@ index b01603bff2e8dbaedcd4aa9ef5b2d3d1192697f8..63a77b626fa4e5e0afdadfa5b47f6a63
      thoughtSignature?: string;
      /** OpenAI Responses namespace for calls to dynamically loaded or namespaced tools. */
      namespace?: string;
+diff --git a/dist/utils/streaming-json.d.ts b/dist/utils/streaming-json.d.ts
+index 9ee5958865df1a79a6a2aac16456ea3fa51b1b31..7f51d2dbab270a9cb44983ad7956ee3892f362a7 100644
+--- a/dist/utils/streaming-json.d.ts
++++ b/dist/utils/streaming-json.d.ts
+@@ -60,19 +60,19 @@ export declare class StreamingJsonParser {
+     snapshot(): JsonValue | undefined;
+ }
+ /**
+- * The arguments of one streaming tool call: the raw text, for the one full parse when the call ends, and a
+- * `StreamingJsonParser` for the partial arguments in between. Providers keep one per call in their own stream state,
+- * never on the content block, so the raw text never reaches partial messages or transcripts.
++ * The arguments of one streaming tool call: the raw text, for the one full parse when the call ends. Providers keep
++ * one per call in their own stream state, never on the content block, so the raw text never reaches partial messages
++ * or transcripts.
+  */
+ export declare class ToolCallArgumentsStream {
+     #private;
+     /** The raw argument text received so far. */
+     get text(): string;
+-    /** Append a piece of argument text; returns the partial arguments, a new object whenever they changed. */
++    /** Append a piece of argument text; the partial arguments stay empty until the call ends. */
+     append(delta: string): ToolCall["arguments"];
+     /**
+      * Take the provider's complete argument text. When it continues the text so far, returns the missing piece as
+-     * `delta`; otherwise starts over with `text`. Either way returns the partial arguments of `text`.
++     * `delta`; otherwise starts over with `text`.
+      */
+     replace(text: string): {
+         readonly delta: string | undefined;
+@@ -80,5 +80,7 @@ export declare class ToolCallArgumentsStream {
+     };
+     /** The final arguments: one full parse of the complete text, which reports malformed arguments. */
+     finish(): Pick<ToolCall, "arguments" | "argumentsError">;
++    /** The final arguments without repair: the JSON object, or `undefined` when the text is not one. */
++    finishStrict(): ToolCall["arguments"] | undefined;
+ }
+ //# sourceMappingURL=streaming-json.d.ts.map
+\ No newline at end of file
+diff --git a/dist/utils/streaming-json.js b/dist/utils/streaming-json.js
+index 53473fb0bb3fcee48a089642cff2e722379cab9f..726e76684bdcbde3bfb0dc7dc4f974cd7708a799 100644
+--- a/dist/utils/streaming-json.js
++++ b/dist/utils/streaming-json.js
+@@ -403,53 +403,57 @@ export class StreamingJsonParser {
+     }
+ }
+ /**
+- * The arguments of one streaming tool call: the raw text, for the one full parse when the call ends, and a
+- * `StreamingJsonParser` for the partial arguments in between. Providers keep one per call in their own stream state,
+- * never on the content block, so the raw text never reaches partial messages or transcripts.
++ * The arguments of one streaming tool call: the raw text, for the one full parse when the call ends. Providers keep
++ * one per call in their own stream state, never on the content block, so the raw text never reaches partial messages
++ * or transcripts.
+  */
+ export class ToolCallArgumentsStream {
+     #text = "";
+-    #parser = new StreamingJsonParser();
+-    #snapshot = undefined;
+     #arguments = {};
+     /** The raw argument text received so far. */
+     get text() {
+         return this.#text;
+     }
+-    /** Append a piece of argument text; returns the partial arguments, a new object whenever they changed. */
++    /**
++     * Append a piece of argument text. Harness consumers parse arguments once, when the call ends, so the
++     * partial arguments stay empty.
++     */
+     append(delta) {
+         this.#text += delta;
+-        this.#parser.append(delta);
+-        return this.#partial();
++        return this.#arguments;
+     }
+     /**
+      * Take the provider's complete argument text. When it continues the text so far, returns the missing piece as
+-     * `delta`; otherwise starts over with `text`. Either way returns the partial arguments of `text`.
++     * `delta`; otherwise starts over with `text`.
+      */
+     replace(text) {
+         if (text.startsWith(this.#text)) {
+             const delta = text.slice(this.#text.length);
+-            return { delta, arguments: delta === "" ? this.#partial() : this.append(delta) };
++            return { delta, arguments: this.append(delta) };
+         }
+         this.#text = "";
+-        this.#parser = new StreamingJsonParser();
+         return { delta: undefined, arguments: this.append(text) };
+     }
+     /** The final arguments: one full parse of the complete text, which reports malformed arguments. */
+     finish() {
+         return parseToolCallArguments(this.#text);
+     }
+-    #partial() {
+-        const snapshot = this.#parser.snapshot();
+-        if (snapshot === this.#snapshot)
+-            return this.#arguments;
+-        this.#snapshot = snapshot;
+-        // Tool arguments are an object; any other partial value shows as no arguments yet.
+-        this.#arguments =
+-            typeof snapshot === "object" && snapshot !== null && !Array.isArray(snapshot)
+-                ? snapshot
+-                : {};
+-        return this.#arguments;
++    /**
++     * The final arguments without repair: the JSON object, or `undefined` when the text is not one.
++     * Provider argument bytes never appear in the thrown error.
++     */
++    finishStrict() {
++        let value;
++        try {
++            value = JSON.parse(this.#text);
++        }
++        catch (error) {
++            // Malformed bytes are reported by the caller as rawArguments, not as a diagnostic.
++            if (!(error instanceof SyntaxError))
++                throw error;
++            return undefined;
++        }
++        return value !== null && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+     }
+ }
+ const SIMPLE_ESCAPES = {

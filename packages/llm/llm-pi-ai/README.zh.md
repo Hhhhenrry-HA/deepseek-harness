@@ -135,7 +135,7 @@ providers:
 
 通过凭据服务存储 `GEMINI_NATIVE_API_KEY`。原生请求使用 `x-goog-api-key`。配置的 `baseURL` 是准确的 API 前缀：传输禁用 SDK 插入版本路径，直接追加 `/models/{model}:streamGenerateContent?alt=sse`。Google 公共端点须包含 `/v1beta`；`https://relay.example/google/v1beta` 等中转前缀原样保留，配置根地址时也不会猜测并追加版本。已安装的 `google` 目录路由在没有覆盖地址时已经提供 Google 的 `/v1beta` 端点。
 
-自定义原生模型 ID 需手动填写：端点发现返回 `DISCOVERY_UNSUPPORTED`，不会探测 OpenAI 模型列表地址。自定义路由不会推断推理能力，编辑器也不预选档位。仅声明模型实际支持的 `reasoningEfforts`；已安装传输对识别出的 Gemini 3 ID 使用 `thinkingLevel`，对 Gemini 2.5 ID 使用 `thinkingBudget`，显式路由 `thinkingBudgets` 优先于其预算映射。未知别名不能确定合适的思考控制方式。原生工具使用 `functionDeclarations.parametersJsonSchema`，不会为中转站的旧 `parameters` 格式改写 JSON Schema 联合类型。原生文本、思考和函数调用签名保留在现有回放封装中，并可跨序列化 Session 回放保留。
+自定义原生模型 ID 需手动填写：端点发现返回 `DISCOVERY_UNSUPPORTED`，不会探测 OpenAI 模型列表地址。自定义路由不会推断推理能力，编辑器也不预选档位。仅声明模型实际支持的 `reasoningEfforts`；已安装传输对识别出的 Gemini 3 Pro/Flash ID 和所有 `gemini-4` 及之后的 ID 使用 `thinkingLevel`，对 Gemini 2.5 ID 使用 `thinkingBudget`，显式路由 `thinkingBudgets` 优先于其预算映射。未知别名不能确定合适的思考控制方式。原生工具使用 `functionDeclarations.parametersJsonSchema`，不会为中转站的旧 `parameters` 格式改写 JSON Schema 联合类型。原生文本、思考和函数调用签名保留在现有回放封装中，并可跨序列化 Session 回放保留。
 
 ### 从端点发现模型
 
@@ -290,7 +290,7 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 - **图片只在 user 与工具结果消息中被接受**——system、developer 或 assistant 历史中的图片在两条转换路径上都会以 `UNSUPPORTED_CONTENT` 失败。
 - **提供方 HTTP 状态不可用**——pi-ai 错误事件不跨提供方暴露稳定 HTTP 状态。
 - **重试策略由提供方自有，而非 SDK 重试**——pi-ai SDK 重试保持禁用，因此持久 agent（智能体）步骤与 `llm/retry` 事件拥有每个可见尝试，直接 `ctx.llm.stream()` 调用仍是单次尝试。
-- **流式 JSON 工具调用参数避免逐 delta 重复解析**——安装的 pi-ai 带有 [`patches/@earendil-works__pi-ai@1.1.0.patch`](../../../patches/@earendil-works__pi-ai@1.1.0.patch)，它移除了每个流适配器中对整段累计参数 JSON 的逐 delta 重新解析（上游 [earendil-works/pi#9265](https://github.com/earendil-works/pi/issues/9265)）；未打补丁时，数 MB 的参数流会在事件循环上消耗 O(n²) CPU，并使进程内所有会话停滞。完成事件提供解析后的参数；Responses 可能在参数完成和输出项完成时分别解析。本适配器只读取 delta 字符串与最终参数。每次升级 pi-ai 时都要重新应用或撤销该补丁。
+- **流式 JSON 工具调用参数避免逐 delta 重复解析**——安装的 pi-ai 带有 [`patches/@earendil-works__pi-ai@1.5.2.patch`](../../../patches/@earendil-works__pi-ai@1.5.2.patch)，它移除了每个流适配器中对整段累计参数 JSON 的逐 delta 重新解析（上游 [earendil-works/pi#9265](https://github.com/earendil-works/pi/issues/9265)）；未打补丁时，数 MB 的参数流会在事件循环上消耗 O(n²) CPU，并使进程内所有会话停滞。完成事件提供解析后的参数；Responses 可能在参数完成和输出项完成时分别解析。本适配器只读取 delta 字符串与最终参数。每次升级 pi-ai 时都要重新应用或撤销该补丁。
 
 <a id="dev-note"></a>
 ### 开发备注

@@ -111,8 +111,8 @@ describe('compat resolution on a custom completions route', () => {
   })
 
   it('does not apply to a route the installed catalog describes', () => {
-    const providers: Providers = { openrouter: { models: [{ id: 'deepseek/deepseek-r1' }] } }
-    const compat = compatOf(providers, 'openrouter')['deepseek/deepseek-r1']
+    const providers: Providers = { openrouter: { models: [{ id: 'deepseek/deepseek-r1-0528' }] } }
+    const compat = compatOf(providers, 'openrouter')['deepseek/deepseek-r1-0528']
     expect(compat).toMatchObject({ thinkingFormat: 'openrouter' })
     expect(compat).not.toHaveProperty('maxTokensField')
     expect(compat).not.toHaveProperty('supportsStore')
@@ -204,13 +204,13 @@ describe('request body of a custom completions route', () => {
   it('retains native OpenCode reasoning parameters for its installed DeepSeek entry', async () => {
     const server = await mockServer([{ events: textEvents }])
     const profiles = resolveProfiles({ opencode: {
-      baseURL: server.url, models: [{ id: 'deepseek-v4-flash' }],
+      baseURL: server.url, models: [{ id: 'deepseek-v4.1-flash' }],
     } })
     const adapter = new PiAiAdapter({
       profiles: () => profiles, resolveApiKey: () => Promise.resolve('test-key'), auth: memoryAuth(),
     })
     for await (const _chunk of adapter.stream({
-      provider: 'opencode', model: 'deepseek-v4-flash', reasoningEffort: ReasoningEffortId('high'), messages: [],
+      provider: 'opencode', model: 'deepseek-v4.1-flash', reasoningEffort: ReasoningEffortId('high'), messages: [],
     })) { /* drain */ }
     expect(server.requests[0]).toHaveProperty('reasoning_effort', 'high')
     expect(server.requests[0]).not.toHaveProperty('thinking')

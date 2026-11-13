@@ -71,6 +71,7 @@ async function boot(baseURL: string, apiKeyEnv = 'NATIVE_TEST_KEY', catalog = fa
       models: [
         { id: 'gemini-3-flash-preview', reasoningEfforts: { low: 'low', high: 'high' } },
         { id: 'gemini-2.5-flash', reasoningEfforts: { low: 'low' } },
+        { id: 'gemini-4-hydrogen', reasoningEfforts: { high: 'high' } },
       ],
     } } },
   }
@@ -170,6 +171,18 @@ it('replays native signed parallel calls and tool results after a fresh Loader b
     expect(headers['x-goog-api-key']).toBe('offline-native-key')
     expect(headers['authorization']).toBeUndefined()
   }
+})
+
+it('sends discrete thinking levels to Gemini 4 models outside the installed catalog', async () => {
+  const server = await mockServer([{ events: response([{ text: 'Gemini 4' }]) }])
+  const { ctx } = await boot(`${server.url}/v1beta`)
+  const result = await assemble(ctx, {
+    provider: 'native-relay', model: 'gemini-4-hydrogen', reasoningEffort: ReasoningEffortId('high'),
+    messages: [createUserMessage({ content: [{ type: 'text', text: 'Hello' }], source: { kind: 'user' } })],
+  })
+  expect(result.finish).toEqual({ kind: 'stop' })
+  const wire = server.requests as NativeRequest[]
+  expect(wire[0]?.generationConfig?.thinkingConfig).toEqual({ includeThoughts: true, thinkingLevel: 'HIGH' })
 })
 
 it('treats a configured root as an exact API prefix rather than adding an SDK version', async () => {
