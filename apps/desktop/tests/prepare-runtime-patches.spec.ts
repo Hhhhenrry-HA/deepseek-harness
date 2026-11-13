@@ -46,7 +46,7 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   expect(plan.workspaceOnly).toHaveLength(6)
   const settings = yaml.load(readFileSync(join(project, 'pnpm-workspace.yaml'), 'utf8')) as { overrides: Record<string, string> }
   expect(settings.overrides['@earendil-works/pi-ai']).toBeUndefined()
-  expect(settings.overrides['@earendil-works/pi-ai@^1.1.0']).toBe('1.1.0')
+  expect(settings.overrides['@earendil-works/pi-ai@^1.5.2']).toBe('1.5.2')
   expect(readFileSync(join(repository, 'pnpm-lock.yaml'))).toEqual(before)
 })
 
