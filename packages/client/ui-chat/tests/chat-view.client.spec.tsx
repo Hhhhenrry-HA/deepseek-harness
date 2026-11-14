@@ -197,10 +197,11 @@ const retry = (seq: number): ModelRetryNode => ({
   retry: 1, maxRetries: 2, delayMs: 450,
   failure: { code: 'TRANSPORT', message: '连接被重置' },
 })
-const turnError = (seq: number, code?: string): TurnErrorNode => ({
+const turnError = (seq: number, code?: string, status?: number): TurnErrorNode => ({
   kind: 'turn-error', seq, time: seq * 1_000, turn: 1, step: 0,
   message: seq === 2 ? 'API key is invalid' : 'plugin exploded',
   ...(code === undefined ? {} : { code }),
+  ...(status === undefined ? {} : { status }),
 })
 const turnMaxTokens = (seq: number): TurnMaxTokensNode => ({
   kind: 'turn-max-tokens', seq, time: seq * 1_000, turn: 1, step: 0,
@@ -2358,7 +2359,7 @@ describe('ChatView', () => {
   it('renders every terminal failure inline with neutral quota copy and no transient notice', () => {
     const h = makeHarness({ nodes: [
       user(1, 'try'), turnError(2, 'AUTH'), turnError(3), turnError(4, 'QUOTA'), turnError(5, 'ACCOUNT_QUOTA'),
-      turnError(6, 'INTERRUPTED'),
+      turnError(6, 'INTERRUPTED'), turnError(7, 'INVALID_REQUEST', 400), turnError(8, 'INVALID_REQUEST', 413),
     ] })
     const view = render(<h.ChatView {...h.props} />)
     const statuses = view.getAllByRole('status')
@@ -2368,6 +2369,8 @@ describe('ChatView', () => {
       '本轮运行失败当前请求的额度已用尽QUOTA',
       '本轮运行失败当前请求的额度已用尽ACCOUNT_QUOTA',
       '任务已停止DSH 进程在本轮完成前退出（例如被强制结束、崩溃或关闭超时），重新启动后本轮已中止。未完成的工具调用结果未知。',
+      '本轮运行失败plugin exploded请先检查 API 协议配置是否正确；若无误，可能是对话历史中的参数有误，请新建会话，或发送 /compact 压缩对话以丢弃旧历史。INVALID_REQUEST',
+      '本轮运行失败plugin explodedINVALID_REQUEST',
     ])
     // The transient notice is the frame-wide host's job; the failure row keeps
     // neither a recharge affordance nor a toast of its own.

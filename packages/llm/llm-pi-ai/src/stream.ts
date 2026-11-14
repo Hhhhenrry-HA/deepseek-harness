@@ -68,6 +68,20 @@ function classifyPiAiError(message: string): string {
 }
 
 /**
+ * The HTTP status a pi-ai error message names. pi-ai passes provider SDK text
+ * through: OpenAI and Anthropic SDK messages and pi-ai's own composition start
+ * with the status (`400 …`, `400: …`, `HTTP 400: …`), a prefixed composition
+ * writes `(400): …`, and `@google/genai` writes `got status: 400`.
+ * @param message - pi-ai `errorMessage`.
+ * @returns the status, or undefined when the text names none.
+ */
+function piAiErrorStatus(message: string): number | undefined {
+  const match = /^(?:HTTP )?([1-5]\d\d)\b[: ]|\(([1-5]\d\d)\): |\bgot status: ([1-5]\d\d)\b/.exec(message)
+  const digits = match?.[1] ?? match?.[2] ?? match?.[3]
+  return digits === undefined ? undefined : Number(digits)
+}
+
+/**
  * Map a terminal pi-ai event to the harness finish reason.
  * @param message - the assistant message carried by the `done` or `error` event.
  * @param contextWindow - resolved catalog capacity for usage-based overflow detection.
@@ -122,7 +136,8 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
     }
     case 'error': {
       const text = message.errorMessage ?? 'pi-ai stream error'
-      return { kind: 'error', failure: { message: text, code: classifyPiAiError(text) } }
+      const status = piAiErrorStatus(text)
+      return { kind: 'error', failure: { message: text, code: classifyPiAiError(text), ...status === undefined ? {} : { status } } }
     }
   }
 }

@@ -62,6 +62,7 @@ import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { requestImageTarget, toPiContext } from './context.ts'
 import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
+import { servedModelCheck } from './model-version.ts'
 import { TAGGED_JSON_FORMAT } from './tagged-json-protocol.ts'
 import { taggedJsonContext } from './tagged-json-context.ts'
 import { taggedJsonStream } from './tagged-json-stream.ts'
@@ -428,16 +429,26 @@ export class PiAiAdapter extends LlmAdapter {
         }, onReplayDegrade, omitThinkingFor)
       const format = options.requestFormat ?? (profile.toolModes.get(model.id) === 'tagged-json' ? TAGGED_JSON_FORMAT : undefined)
       const wireContext = format === undefined ? context : taggedJsonContext(context, format)
-      const events = snapshot.models.streamSimple(model, wireContext, {
+      const served = servedModelCheck(model.api, model.id)
+      const rawEvents = snapshot.models.streamSimple(model, wireContext, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
+        ...served === undefined ? {} : { onProviderStreamEvent: served.onProviderStreamEvent },
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),
       })
+      // pi-ai runs the hook on each raw chunk before emitting that chunk's
+      // events, so a substitute model stops the stream before its output is forwarded.
+      const events = served === undefined ? rawEvents : (async function* () {
+        for await (const event of rawEvents) {
+          served.assertServed()
+          yield event
+        }
+      })()
       // Buffered JSON remains upstream activity even when it emits no harness chunks.
       const activeEvents = async function* () {
         for await (const event of events) {

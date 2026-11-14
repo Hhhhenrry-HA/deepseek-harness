@@ -1485,8 +1485,6 @@ describe('hand-declared providers', () => {
     const baseURL = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
     expect(baseURL.placeholder).toBe(en.customGeminiBaseUrlPlaceholder)
     expect(screen.getByText(en.customGeminiHint)).toBeTruthy()
-    expect(screen.getByText(en.nativeModelsManual)).toBeTruthy()
-    expect(buttonNamed(en.fetchModels).disabled).toBe(true)
     fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'gemini-relay' } })
     fireEvent.change(baseURL, { target: { value: 'https://relay.test/google/v1beta' } })
     fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'offline-native-key' } })
@@ -1499,6 +1497,19 @@ describe('hand-declared providers', () => {
       apiKeyEnv: 'GEMINI_RELAY_API_KEY', models: [{ id: 'gemini-3-flash-preview' }],
     } }])
     expect(set).toHaveBeenCalledWith('GEMINI_RELAY_API_KEY', 'offline-native-key')
+  })
+
+  it('lists models for a Vertex relay route from its bare host', async () => {
+    const discover = vi.fn(() => Promise.resolve(ok([{ id: 'gemini-4-argon' }])))
+    mountCard({ protocols: [...PROTOCOLS, 'google-vertex'] }, { discover })
+    fireEvent.change(screen.getByLabelText(en.customApi), { target: { value: 'google-vertex' } })
+    expect(screen.getByText(en.customGeminiHint)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'vertex-relay' } })
+    fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://relay.test' } })
+    fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'relay-key' } })
+    fireEvent.click(screen.getByText(en.fetchModels))
+    await waitFor(() => { expect(discover).toHaveBeenCalled() })
+    expect(lastProbe(discover)).toMatchObject({ baseURL: 'https://relay.test', api: 'google-vertex', apiKey: 'relay-key' })
   })
 
   it('offers no protocol when the namespace declares none', () => {

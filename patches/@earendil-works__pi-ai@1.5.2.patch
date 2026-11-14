@@ -1,3 +1,342 @@
+diff --git a/dist/api/google-vertex.js b/dist/api/google-vertex.js
+index 1b7cb58ec7ad745938a5684014867601454acdcb..396efcfb31823b82b51ca0f72c661eda1a52e3f0 100644
+--- a/dist/api/google-vertex.js
++++ b/dist/api/google-vertex.js
+@@ -52,6 +52,8 @@ export const stream = (model, context, options) => {
+             const googleStream = await retryGoogleRequest(() => client.models.generateContentStream(params), options);
+             stream.push({ type: "start", partial: output });
+             let currentBlock = null;
++            // A function call whose arguments arrive as partialArgs across several chunks.
++            let openToolCall = null;
+             const blocks = output.content;
+             const blockIndex = () => blocks.length - 1;
+             for await (const chunk of googleStream) {
+@@ -118,46 +120,67 @@ export const stream = (model, context, options) => {
+                             }
+                         }
+                         if (part.functionCall) {
+-                            if (currentBlock) {
+-                                if (currentBlock.type === "text") {
+-                                    stream.push({
+-                                        type: "text_end",
+-                                        contentIndex: blockIndex(),
+-                                        content: currentBlock.text,
+-                                        partial: output,
+-                                    });
++                            const call = part.functionCall;
++                            let open = openToolCall;
++                            if (open && ((call.id && call.id !== open.providerId) || (call.name && call.name !== open.toolCall.name))) {
++                                throw new Error(`Google Vertex streamed function call "${open.toolCall.name}" was interrupted by another call`);
++                            }
++                            if (!open) {
++                                if (currentBlock) {
++                                    if (currentBlock.type === "text") {
++                                        stream.push({
++                                            type: "text_end",
++                                            contentIndex: blockIndex(),
++                                            content: currentBlock.text,
++                                            partial: output,
++                                        });
++                                    }
++                                    else {
++                                        stream.push({
++                                            type: "thinking_end",
++                                            contentIndex: blockIndex(),
++                                            content: currentBlock.thinking,
++                                            partial: output,
++                                        });
++                                    }
++                                    currentBlock = null;
+                                 }
+-                                else {
+-                                    stream.push({
+-                                        type: "thinking_end",
+-                                        contentIndex: blockIndex(),
+-                                        content: currentBlock.thinking,
+-                                        partial: output,
+-                                    });
++                                if (!call.name) {
++                                    throw new Error("Google Vertex function call fragment has no open call and no name");
++                                }
++                                const providedId = call.id;
++                                const needsNewId = !providedId || output.content.some((b) => b.type === "toolCall" && b.id === providedId);
++                                const toolCallId = needsNewId
++                                    ? `${call.name}_${Date.now()}_${++toolCallCounter}`
++                                    : providedId;
++                                const toolCall = {
++                                    type: "toolCall",
++                                    id: toolCallId,
++                                    name: call.name,
++                                    arguments: {},
++                                };
++                                output.content.push(toolCall);
++                                open = { toolCall, providerId: providedId || "", index: blockIndex(), strings: new Set(), writer: new FunctionArgumentsWriter() };
++                                stream.push({ type: "toolcall_start", contentIndex: open.index, partial: output });
++                            }
++                            if (part.thoughtSignature) {
++                                open.toolCall.thoughtSignature = part.thoughtSignature;
++                            }
++                            appendFunctionCallFragment(open, call);
++                            openToolCall = call.willContinue === true ? open : null;
++                            if (!openToolCall) {
++                                if (open.strings.size > 0) {
++                                    throw new Error(`Google Vertex function call "${open.toolCall.name}" ended inside a streamed string argument`);
+                                 }
+-                                currentBlock = null;
++                                open.writer.close();
++                            }
++                            const delta = open.writer.take();
++                            if (delta) {
++                                stream.push({ type: "toolcall_delta", contentIndex: open.index, delta, partial: output });
++                            }
++                            if (!openToolCall) {
++                                stream.push({ type: "toolcall_end", contentIndex: open.index, toolCall: open.toolCall, partial: output });
+                             }
+-                            const providedId = part.functionCall.id;
+-                            const needsNewId = !providedId || output.content.some((b) => b.type === "toolCall" && b.id === providedId);
+-                            const toolCallId = needsNewId
+-                                ? `${part.functionCall.name}_${Date.now()}_${++toolCallCounter}`
+-                                : providedId;
+-                            const toolCall = {
+-                                type: "toolCall",
+-                                id: toolCallId,
+-                                name: part.functionCall.name || "",
+-                                arguments: part.functionCall.args ?? {},
+-                                ...(part.thoughtSignature && { thoughtSignature: part.thoughtSignature }),
+-                            };
+-                            output.content.push(toolCall);
+-                            stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
+-                            stream.push({
+-                                type: "toolcall_delta",
+-                                contentIndex: blockIndex(),
+-                                delta: JSON.stringify(toolCall.arguments),
+-                                partial: output,
+-                            });
+-                            stream.push({ type: "toolcall_end", contentIndex: blockIndex(), toolCall, partial: output });
+                         }
+                     }
+                 }
+@@ -208,6 +231,9 @@ export const stream = (model, context, options) => {
+             if (options?.signal?.aborted) {
+                 throw new Error("Request was aborted");
+             }
++            if (openToolCall) {
++                throw new Error(`Google Vertex stream ended inside function call "${openToolCall.toolCall.name}"`);
++            }
+             if (output.stopReason === "pending") {
+                 throw new Error("Google Vertex stream ended without a finish reason");
+             }
+@@ -398,6 +424,210 @@ function buildParams(model, context, options = {}) {
+     };
+     return params;
+ }
++/**
++ * Parse an RFC 9535 JSON Path naming one argument, such as `$.edits[0].text`
++ * or `$['file path']`, into its member names and array indexes.
++ */
++function parseArgumentPath(path) {
++    if (typeof path !== "string" || !path.startsWith("$")) {
++        throw new Error(`Google Vertex partial argument has an invalid jsonPath: ${String(path)}`);
++    }
++    const segments = [];
++    let i = 1;
++    while (i < path.length) {
++        if (path[i] === ".") {
++            let j = i + 1;
++            while (j < path.length && path[j] !== "." && path[j] !== "[")
++                j++;
++            if (j === i + 1)
++                break;
++            segments.push(path.slice(i + 1, j));
++            i = j;
++        }
++        else if (path[i] === "[" && (path[i + 1] === "'" || path[i + 1] === '"')) {
++            const quote = path[i + 1];
++            let name = "";
++            let j = i + 2;
++            while (j < path.length && path[j] !== quote) {
++                if (path[j] === "\\")
++                    j++;
++                name += path[j] ?? "";
++                j++;
++            }
++            if (path[j + 1] !== "]")
++                break;
++            segments.push(name);
++            i = j + 2;
++        }
++        else if (path[i] === "[") {
++            const close = path.indexOf("]", i);
++            const index = close < 0 ? NaN : Number(path.slice(i + 1, close));
++            if (!Number.isInteger(index) || index < 0)
++                break;
++            segments.push(index);
++            i = close + 1;
++        }
++        else {
++            break;
++        }
++    }
++    if (i !== path.length || segments.length === 0) {
++        throw new Error(`Google Vertex partial argument has an invalid jsonPath: ${path}`);
++    }
++    return segments;
++}
++/** The value one `PartialArg` carries, or undefined for a continuation without content. */
++function partialArgValue(arg) {
++    const fields = ["stringValue", "numberValue", "boolValue", "nullValue"].filter((field) => arg[field] !== undefined);
++    if (fields.length > 1) {
++        throw new Error(`Google Vertex partial argument ${arg.jsonPath} carries more than one value`);
++    }
++    if (fields.length === 0)
++        return undefined;
++    return fields[0] === "nullValue" ? null : arg[fields[0]];
++}
++/** Merge one function-call part into an open call's arguments. */
++function appendFunctionCallFragment(open, call) {
++    const args = open.toolCall.arguments;
++    if (call.args != null) {
++        if (typeof call.args !== "object" || Array.isArray(call.args)) {
++            throw new Error(`Google Vertex function call "${open.toolCall.name}" has non-object args`);
++        }
++        for (const [key, value] of Object.entries(call.args)) {
++            args[key] = value;
++            open.writer.value([key], value);
++        }
++    }
++    if (call.partialArgs === undefined)
++        return;
++    if (!Array.isArray(call.partialArgs)) {
++        throw new Error(`Google Vertex function call "${open.toolCall.name}" has non-array partialArgs`);
++    }
++    for (const arg of call.partialArgs) {
++        const segments = parseArgumentPath(arg?.jsonPath);
++        const key = JSON.stringify(segments);
++        const value = partialArgValue(arg);
++        let container = args;
++        for (let i = 0; i < segments.length - 1; i++) {
++            const segment = segments[i];
++            if (container[segment] === undefined) {
++                container[segment] = typeof segments[i + 1] === "number" ? [] : {};
++            }
++            container = container[segment];
++            if (container === null || typeof container !== "object") {
++                throw new Error(`Google Vertex partial argument ${arg.jsonPath} descends into a non-container value`);
++            }
++        }
++        const last = segments[segments.length - 1];
++        if (open.strings.has(key)) {
++            if (value !== undefined && typeof value !== "string") {
++                throw new Error(`Google Vertex partial argument ${arg.jsonPath} continues a string with a non-string value`);
++            }
++            container[last] += value ?? "";
++            open.writer.continueString(segments, value ?? "", arg.willContinue === true);
++        }
++        else {
++            if (value === undefined) {
++                throw new Error(`Google Vertex partial argument ${arg.jsonPath} carries no value`);
++            }
++            if (arg.willContinue === true && typeof value !== "string") {
++                throw new Error(`Google Vertex partial argument ${arg.jsonPath} continues a non-string value`);
++            }
++            container[last] = value;
++            if (arg.willContinue === true)
++                open.writer.openString(segments, value);
++            else
++                open.writer.value(segments, value);
++        }
++        if (arg.willContinue === true)
++            open.strings.add(key);
++        else
++            open.strings.delete(key);
++    }
++}
++/**
++ * Serializes function-call arguments as JSON text while they stream, so each
++ * `toolcall_delta` extends the previous text. Arguments arriving out of
++ * document order stop the text, and the call's final arguments still arrive
++ * complete on `toolcall_end`.
++ */
++class FunctionArgumentsWriter {
++    constructor() {
++        this.text = "{";
++        this.stack = [{ array: false, path: [], keys: new Set() }];
++        this.string = null;
++        this.stopped = false;
++    }
++    take() {
++        const text = this.text;
++        this.text = "";
++        return text;
++    }
++    value(segments, value) {
++        if (this.enter(segments))
++            this.text += JSON.stringify(value);
++    }
++    openString(segments, value) {
++        if (this.enter(segments)) {
++            this.text += JSON.stringify(value).slice(0, -1);
++            this.string = JSON.stringify(segments);
++        }
++    }
++    continueString(segments, value, willContinue) {
++        if (this.stopped)
++            return;
++        if (this.string !== JSON.stringify(segments)) {
++            this.stopped = true;
++            return;
++        }
++        this.text += JSON.stringify(value).slice(1, -1);
++        if (!willContinue) {
++            this.text += '"';
++            this.string = null;
++        }
++    }
++    close() {
++        if (this.stopped)
++            return;
++        while (this.stack.length > 0)
++            this.text += this.stack.pop().array ? "]" : "}";
++        this.stopped = true;
++    }
++    /** Write the separators and containers leading to a new value; false once the text has stopped. */
++    enter(segments) {
++        if (this.stopped)
++            return false;
++        if (this.string !== null) {
++            this.stopped = true;
++            return false;
++        }
++        const parents = segments.slice(0, -1);
++        let shared = 0;
++        while (shared < parents.length && shared + 1 < this.stack.length && this.stack[shared + 1].path[shared] === parents[shared])
++            shared++;
++        while (this.stack.length > shared + 1)
++            this.text += this.stack.pop().array ? "]" : "}";
++        for (let depth = shared; depth <= parents.length; depth++) {
++            const container = this.stack[this.stack.length - 1];
++            const key = segments[depth];
++            if (container.array ? key !== container.keys.size : typeof key !== "string" || container.keys.has(key)) {
++                this.stopped = true;
++                return false;
++            }
++            if (container.keys.size > 0)
++                this.text += ",";
++            container.keys.add(key);
++            if (!container.array)
++                this.text += `${JSON.stringify(key)}:`;
++            if (depth < parents.length) {
++                const array = typeof segments[depth + 1] === "number";
++                this.text += array ? "[" : "{";
++                this.stack.push({ array, path: segments.slice(0, depth + 1), keys: new Set() });
++            }
++        }
++        return true;
++    }
++}
+ function getGoogleBudget(model, level, customBudgets) {
+     if (customBudgets?.[level] !== undefined) {
+         return customBudgets[level];
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
 index c1b6038c2220633a8caf710288a8f6e6301f7a28..56477d13184b5ac3208220b883d4296b8e20f90f 100644
 --- a/dist/api/openai-completions.js

@@ -956,6 +956,20 @@ describe('mapStopReason / mapUsage', () => {
   })
 
   it.each([
+    ['HTTP 400: invalid input', 400],
+    ['400 Bad Request: messages[3] is invalid', 400],
+    ['400: {"error":{"message":"bad"}}', 400],
+    ['Azure OpenAI API error (400): bad', 400],
+    ['got status: 400. {"error":{"code":400}}', 400],
+    ['HTTP 413: Payload Too Large', 413],
+    ['invalid request: tool ids must be unique', undefined],
+    ['model gemini-400 is busy', undefined],
+  ])('records the HTTP status that %s names', (errorMessage, status) => {
+    const reason = mapStopReason(assistant({ stopReason: 'error', errorMessage }))
+    expect(reason.kind === 'error' ? reason.failure.status : 'not an error').toBe(status)
+  })
+
+  it.each([
     'other side closed',
     'HTTP2 request did not get a response',
     'WebSocket closed unexpectedly',

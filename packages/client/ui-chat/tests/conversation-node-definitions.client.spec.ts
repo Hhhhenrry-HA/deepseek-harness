@@ -2558,7 +2558,7 @@ describe('built-in conversation node Definitions', () => {
       at(6, 'step/end', { turn: 1, step: 1 }),
       at(7, 'turn/end', {
         turn: 1,
-        reason: { kind: 'error', error: { code: 'TRANSPORT', message: 'failed' } },
+        reason: { kind: 'error', error: { code: 'TRANSPORT', message: 'failed', status: 502 } },
       }),
     ])
     const retryNode = node(snapshot(retry), 'model-retry')
@@ -2569,6 +2569,7 @@ describe('built-in conversation node Definitions', () => {
       turn: 1,
       message: 'failed',
       code: 'TRANSPORT',
+      status: 502,
     })
 
     const compactions = assembler([

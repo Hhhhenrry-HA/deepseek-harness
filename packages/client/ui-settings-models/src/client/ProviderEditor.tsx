@@ -34,7 +34,7 @@ import { ModelListEditor } from './ModelListEditor.tsx'
 import { validateReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import type { ReasoningEffortsFailure } from './ModelReasoningEfforts.tsx'
 import { deriveKeyRef, protocolChoices, reasoningLevelChoices, toolModeChoices } from './store.ts'
-import { protocolLabel } from './protocol-label.ts'
+import { isGoogleProtocol, protocolLabel } from './protocol-label.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
@@ -484,7 +484,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 }}
               />
               {endpointHint === undefined ? null : <span id={`${props.provider}-endpoint-hint`} className={styles['advancedHint']}>{endpointHint}</span>}
-              {probeApi === 'google-generative-ai' ? <span className={styles['advancedHint']}>{t('customGeminiHint')}</span> : null}
+              {isGoogleProtocol(probeApi) ? <span className={styles['advancedHint']}>{t('customGeminiHint')}</span> : null}
             </div>
             {/* The protocol sits beside the endpoint it describes, as it does
                 on the create card. */}

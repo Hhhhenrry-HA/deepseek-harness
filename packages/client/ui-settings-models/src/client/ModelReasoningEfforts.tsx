@@ -7,6 +7,7 @@ import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import { modelDrafts } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'
 import styles from './ModelsSection.module.css'
+import { isGoogleProtocol } from './protocol-label.ts'
 
 /** Declared levels in stored order, each with the value stored for it, whatever a hand edit left there. */
 type Entries = readonly (readonly [string, unknown])[]
@@ -168,7 +169,7 @@ export function ModelReasoningEfforts({ model, api, levels, position, disabled, 
     ...levels.includes(level) ? [] : [level],
     ...levels.filter(choice => choice === level || !used.includes(choice)),
   ]
-  const initialLevels = protocol === 'google-generative-ai' ? []
+  const initialLevels = isGoogleProtocol(protocol) ? []
     : protocol === undefined ? INITIAL_LEVELS
       : protocol === 'anthropic-messages' ? ['low', 'medium', 'high', 'max']
         : ['low', 'medium', 'high', 'xhigh', 'max']
@@ -182,7 +183,7 @@ export function ModelReasoningEfforts({ model, api, levels, position, disabled, 
       <div className={styles['modelReasoningHead']}>
         <span className={`${styles['modelFieldLabel']} ${styles['modelReasoningLabel']}`}>
           {t('modelReasoning')}
-          <Tooltip label={t(protocol === 'google-generative-ai' ? 'modelGeminiReasoningHelp' : 'modelReasoningHelpText')} side="right" delayMs={0} focusDelayMs={0} portal openOnClick>
+          <Tooltip label={t(isGoogleProtocol(protocol) ? 'modelGeminiReasoningHelp' : 'modelReasoningHelpText')} side="right" delayMs={0} focusDelayMs={0} portal openOnClick>
             <button type="button" className={styles['helpButton']} aria-label={t('modelReasoningHelp')}>?</button>
           </Tooltip>
         </span>

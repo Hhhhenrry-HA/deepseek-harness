@@ -12,6 +12,17 @@ const PROTOCOL_LABEL_KEYS: Readonly<Record<string, ModelsKey>> = {
   'openai-responses': 'protocolOpenAiResponses',
   'anthropic-messages': 'protocolAnthropicMessages',
   'google-generative-ai': 'protocolGeminiNative',
+  'google-vertex': 'protocolVertexRelay',
+}
+
+/**
+ * Whether a protocol speaks Google's GenerateContent API, whose endpoints take
+ * an optional version path and whose models take Gemini thinking levels.
+ * @param protocol - the schema identifier of the protocol, when one is set.
+ * @returns true for the Gemini native and Vertex relay protocols.
+ */
+export function isGoogleProtocol(protocol: string | undefined): boolean {
+  return protocol === 'google-generative-ai' || protocol === 'google-vertex'
 }
 
 /**

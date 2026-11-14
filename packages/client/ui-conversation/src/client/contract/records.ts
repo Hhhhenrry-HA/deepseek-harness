@@ -144,6 +144,8 @@ export interface TurnErrorNode {
    * turn closed after DSH stopped.
    */
   code?: string
+  /** HTTP status the provider answered with, when the failure recorded one. */
+  status?: number
 }
 
 /** Durable notice for a turn ended by the per-request output-token cap. */

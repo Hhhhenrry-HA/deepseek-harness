@@ -119,27 +119,31 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 每次操作捕获当前 `providers` Config 引用。新增或修改的 provider 配置在表单持久化前验证；未更改的目录故障仍可编辑。路由集合或重试策略变化时原子更新注册；如果其他适配器已拥有所请求的路由，则保留先前路由。
 
-### 配置 Gemini 原生渠道
+### 配置 Gemini 原生或 Vertex 中转渠道
 
-为独立的 Gemini 原生路由声明 `api: google-generative-ai`。它使用已安装 pi-ai 的 Google 传输和 `@google/genai`，不走 Chat Completions，也不改变任何已有路由的协议。在模型设置中选择**自定义模型 API → Gemini（原生）**，填写准确的 API 地址、密钥和模型 ID，保存后选择该路由的模型。
+为独立的 Gemini 原生路由声明 `api: google-generative-ai`。它使用已安装 pi-ai 的 Google 传输和 `@google/genai`，不走 Chat Completions，也不改变任何已有路由的协议。在模型设置中选择**自定义模型 API → Gemini（原生）**，填写地址和密钥，获取或填写模型 ID，保存后选择该路由的模型。对在 `{地址}/models/{model}:streamGenerateContent` 接受 Vertex 请求体、以 `x-goog-api-key` 鉴权的网关，声明 `api: google-vertex`（**Vertex（中转）**）；这是一种网关约定，不同于 Google Cloud 带项目与区域路径的 Vertex 端点。
 
 ```yaml
 providers:
   gemini-native:
     api: google-generative-ai
     apiKeyEnv: GEMINI_NATIVE_API_KEY
-    baseURL: https://generativelanguage.googleapis.com/v1beta
+    baseURL: https://generativelanguage.googleapis.com
     models:
       - id: gemini-3-flash-preview
 ```
 
-通过凭据服务存储 `GEMINI_NATIVE_API_KEY`。原生请求使用 `x-goog-api-key`。配置的 `baseURL` 是准确的 API 前缀：传输禁用 SDK 插入版本路径，直接追加 `/models/{model}:streamGenerateContent?alt=sse`。Google 公共端点须包含 `/v1beta`；`https://relay.example/google/v1beta` 等中转前缀原样保留，配置根地址时也不会猜测并追加版本。已安装的 `google` 目录路由在没有覆盖地址时已经提供 Google 的 `/v1beta` 端点。
+通过凭据服务存储 `GEMINI_NATIVE_API_KEY`。两种 Google 协议都以 `x-goog-api-key` 发送密钥。配置的 `baseURL` 路径中没有 API 版本段（`v1`、`v1beta`、`v1alpha` 等）时会追加 `/v1beta`；已带版本段时去掉末尾斜杠后原样使用。请求发往 `{前缀}/models/{model}:streamGenerateContent?alt=sse`，因此 `https://relay.example` 与 `https://relay.example/v1beta` 到达同一 URL。未配置覆盖时，已安装的 `google` 目录路由已提供 Google 的 `/v1beta` 端点。
 
-自定义原生模型 ID 需手动填写：端点发现返回 `DISCOVERY_UNSUPPORTED`，不会探测 OpenAI 模型列表地址。自定义路由不会推断推理能力，编辑器也不预选档位。仅声明模型实际支持的 `reasoningEfforts`；已安装传输对识别出的 Gemini 3 Pro/Flash ID 和所有 `gemini-4` 及之后的 ID 使用 `thinkingLevel`，对 Gemini 2.5 ID 使用 `thinkingBudget`，显式路由 `thinkingBudgets` 优先于其预算映射。未知别名不能确定合适的思考控制方式。原生工具使用 `functionDeclarations.parametersJsonSchema`，不会为中转站的旧 `parameters` 格式改写 JSON Schema 联合类型。原生文本、思考和函数调用签名保留在现有回放封装中，并可跨序列化 Session 回放保留。
+自定义路由不会推断推理能力，编辑器也不预选档位。仅声明模型实际支持的 `reasoningEfforts`；已安装传输对识别出的 Gemini 3 Pro/Flash ID 和所有 `gemini-4` 及之后的 ID 使用 `thinkingLevel`，对 Gemini 2.5 ID 使用 `thinkingBudget`，显式路由 `thinkingBudgets` 优先于其预算映射。未知别名不能确定合适的思考控制方式。原生工具使用 `functionDeclarations.parametersJsonSchema`，不会为中转站的旧 `parameters` 格式改写 JSON Schema 联合类型。原生文本、思考和函数调用签名保留在现有回放封装中，并可跨序列化 Session 回放保留。
+
+声明了函数的 Vertex 中转请求会设置 `toolConfig.functionCallingConfig.streamFunctionCallArguments`。中转随后以按 JSON Path 定位的 `partialArgs` 片段流式返回每个调用的参数；传输把片段合并进调用参数，并把每个片段作为增量 `tool-call-delta` 发出。片段若不按文档顺序定位参数，增量文本会停止，完整参数仍在调用结束时送达。流在调用未结束时终止，或片段格式错误，都会使该步失败。没有 API 密钥的 Vertex 中转路由会在发出任何请求前失败，不会回退到 Google Cloud 凭据。
+
+Google 在每个回复分块的 `modelVersion` 中报告实际服务的模型。在 `google-generative-ai` 与 `google-vertex` 路由上，若报告的名称与请求的模型 ID 互不包含（不区分大小写，忽略 `models/` 前缀），该步骤会在转发该分块的任何输出之前以 `MODEL_MISMATCH` 失败，失败消息写明两个模型名。因此带日期后缀或中转别名后缀的名称仍视为一致。`MODEL_MISMATCH` 不在默认可重试错误码中。
 
 ### 从端点发现模型
 
-插件会回答「该提供方可以提供哪些模型？」，供配置界面正在编辑或起草的路由使用。已安装目录提供的路由直接由目录回答，不发网络请求，并将其 `input` 数组保留为发现结果的 `inputModalities`；只有目录未描述的路由才会经网络询问。`openai-completions` 与 `openai-responses` 使用带 bearer 鉴权的 `GET {baseURL}/models`，`anthropic-messages` 则以 `x-api-key` 和 `anthropic-version` 使用原生 `GET /v1/models?limit=1000` 语义；其列表 URL 接受带或不带末尾 `/v1` 的 API 根地址，因为网关文档两种写法都会发布，且只有该列表 URL 会归一化这一段，模型请求收到的仍是配置原样的 `baseURL`。已配置且具名的路由会在 Host 内部提供已存凭据与 profile `headers`，因此通过 `cordis.patch.yml` 或 Cordis 配置设置的部署标头可以到达模型发现请求，但不会成为发现请求或 Models 页面的字段；表单中新键入的密钥仍优先于已存凭据。解析器接受标准 `data` 数组或富信息 `models` 对象，并归一化每个候选的 id、显示名、上下文窗口与最大输出 token 数；Anthropic 的 `max_input_tokens` 与 `max_tokens` 会进入相同容量字段，即使对象条目点名了另一个规范 id，对象键仍是请求 id，原始类型的对象属性会被忽略，缺失的显示名则回退到该请求 id。回答是界面可以提供给用户采纳的候选元数据——不存储任何内容，`cordis.patch.yml` 仍然是决定路由服务内容的唯一事实。
+插件会回答「该提供方可以提供哪些模型？」，供配置界面正在编辑或起草的路由使用。已安装目录提供的路由直接由目录回答，不发网络请求，并将其 `input` 数组保留为发现结果的 `inputModalities`；只有目录未描述的路由才会经网络询问。`openai-completions` 与 `openai-responses` 使用带 bearer 鉴权的 `GET {baseURL}/models`，两种 Google 协议在与模型请求相同的带版本前缀上以 `x-goog-api-key` 使用 `GET {前缀}/models?pageSize=1000`，`anthropic-messages` 则以 `x-api-key` 和 `anthropic-version` 使用原生 `GET /v1/models?limit=1000` 语义；其列表 URL 接受带或不带末尾 `/v1` 的 API 根地址，因为网关文档两种写法都会发布，且只有该列表 URL 会归一化这一段，模型请求收到的仍是配置原样的 `baseURL`。已配置且具名的路由会在 Host 内部提供已存凭据与 profile `headers`，因此通过 `cordis.patch.yml` 或 Cordis 配置设置的部署标头可以到达模型发现请求，但不会成为发现请求或 Models 页面的字段；表单中新键入的密钥仍优先于已存凭据。解析器接受标准 `data` 数组或富信息 `models` 对象；在 Google 路由上还读取 Google 的 `models` 数组，去掉每个 `name` 的 `models/` 前缀，并跳过 `supportedGenerationMethods` 不含 `generateContent` 的条目，与 Anthropic 一样只读第一页。所有解析器都会归一化每个候选的 id、显示名、上下文窗口与最大输出 token 数；Anthropic 的 `max_input_tokens` 与 `max_tokens` 会进入相同容量字段，即使对象条目点名了另一个规范 id，对象键仍是请求 id，原始类型的对象属性会被忽略，缺失的显示名则回退到该请求 id。回答是界面可以提供给用户采纳的候选元数据——不存储任何内容，`cordis.patch.yml` 仍然是决定路由服务内容的唯一事实。
 
 ### 失败与恢复
 
@@ -178,6 +182,8 @@ Config 更新严格验证发生变化的 provider。初始加载将已存储的�
 | [`src/catalog.ts`](src/catalog.ts) | 已安装目录集成与漂移门禁 |
 | [`src/provider-data.ts`](src/provider-data.ts) | 配置界面使用的认证与端点生成数据 |
 | [`src/models.ts`](src/models.ts) | 基于 pi-ai 窄入口的 model collection、静态 provider 与 reasoning level |
+| [`src/model-version.ts`](src/model-version.ts) | Google 实际服务模型检查，回复被替换时以 `MODEL_MISMATCH` 失败 |
+| [`src/google-route.ts`](src/google-route.ts) | Google 端点版本处理与以密钥鉴权的 Vertex 中转路由 |
 | [`src/provider.ts`](src/provider.ts) | 受支持协议表与提供方构建 |
 | [`src/context.ts`](src/context.ts) | Harness 到 pi-ai 的上下文转换、图片处理、回放恢复 |
 | [`src/stream.ts`](src/stream.ts) | 把 pi-ai 事件转换为 harness `StreamChunk` 值 |
@@ -300,7 +306,7 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 
 本开发备注是不具权威性的工作上下文：尚未决定的探索方向与维护者备注。已交付的行为与既定理由以上文、包代码和相关 Agent Note 为准。
 
-- 提供的协议集合刻意比 pi-ai 的完整 API 集合更窄：Bedrock、Vertex、Azure 与 Codex 通过 profile 无法以密钥、端点与标头完整描述的流程认证；目录路由仍可经自有提供方到达它们，只有显式覆盖会被拒绝。Codex 可经授权流程的 OAuth grant 登录。
+- 提供的协议集合刻意比 pi-ai 的完整 API 集合更窄：Bedrock、Azure 与 Codex 通过 profile 无法以密钥、端点与标头完整描述的流程认证；目录路由仍可经自有提供方到达它们，只有显式覆盖会被拒绝。手动声明的 `google-vertex` 路由只按上文以密钥鉴权的中转方式服务，从不使用 Google Cloud 项目凭据。Codex 可经授权流程的 OAuth grant 登录。
 - `compat` 开关集合由漂移门禁钉在 pi-ai 的 compat 类型上；上游升级若新增字段、为更多协议赋予 compat 类型或扩大值联合，会在有人分类前让构建失败。
 
 </details>

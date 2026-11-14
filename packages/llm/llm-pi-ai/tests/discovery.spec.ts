@@ -379,7 +379,7 @@ describe('draft-provider model discovery', () => {
       .rejects.toMatchObject({ code: 'DISCOVERY_FAILED' })
   })
 
-  it.each(['azure-openai-responses', 'openai-codex-responses', 'google-generative-ai'])(
+  it.each(['azure-openai-responses', 'openai-codex-responses'])(
     'says it cannot interrogate %s rather than guessing a shape',
     async (api) => {
       // Azure authenticates with an `api-key` header and an `api-version`
@@ -390,6 +390,32 @@ describe('draft-provider model discovery', () => {
         .rejects.toMatchObject({ code: 'DISCOVERY_UNSUPPORTED' })
     },
   )
+
+  it.each(['google-generative-ai', 'google-vertex'])('lists %s models from a bare host with the Google key header', async (api) => {
+    const server = await listingServer({ body: JSON.stringify({ models: [
+      { name: 'models/gemini-4-argon', displayName: 'Gemini 4 Argon', inputTokenLimit: 1048576, outputTokenLimit: 65536,
+        supportedGenerationMethods: ['generateContent', 'countTokens'] },
+      { name: 'models/text-embedding-004', supportedGenerationMethods: ['embedContent'] },
+      { name: 'models/gateway-model' },
+    ] }) })
+    const ctx = await harness()
+    const found = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: `${server.url}/`, api, apiKey: 'google-key' })
+    expect(found).toEqual([
+      { id: 'gemini-4-argon', name: 'Gemini 4 Argon', contextWindow: 1048576, maxTokens: 65536 },
+      { id: 'gateway-model', name: 'gateway-model' },
+    ])
+    expect(server.paths).toEqual(['/v1beta/models?pageSize=1000'])
+    expect(server.headers[0]?.['x-goog-api-key']).toBe('google-key')
+    expect(server.headers[0]?.['authorization']).toBeUndefined()
+  })
+
+  it('reads a Google route whose gateway answers with an OpenAI data array', async () => {
+    const server = await listingServer({ body: '{"data":[{"id":"gemini-4-carbon"}]}' })
+    const ctx = await harness()
+    const found = await ctx.llm.discoverModels('llm-pi-ai', { baseURL: `${server.url}/v1`, api: 'google-vertex' })
+    expect(found.map(model => model.id)).toEqual(['gemini-4-carbon'])
+    expect(server.paths).toEqual(['/v1/models?pageSize=1000'])
+  })
 
   it('reports cancellation during the body read as an abort, not a raw reason', async () => {
     const ctx = await harness()

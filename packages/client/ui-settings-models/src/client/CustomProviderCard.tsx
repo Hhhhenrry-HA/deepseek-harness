@@ -32,7 +32,7 @@ import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import { validateReasoningEfforts } from './ModelReasoningEfforts.tsx'
 import { deriveKeyRef } from './store.ts'
-import { protocolLabel } from './protocol-label.ts'
+import { isGoogleProtocol, protocolLabel } from './protocol-label.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
@@ -250,7 +250,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           value={baseURL}
           placeholder={t(protocol === 'anthropic-messages'
             ? 'customAnthropicBaseUrlPlaceholder'
-            : protocol === 'google-generative-ai' ? 'customGeminiBaseUrlPlaceholder' : 'customBaseUrlPlaceholder')}
+            : isGoogleProtocol(protocol) ? 'customGeminiBaseUrlPlaceholder' : 'customBaseUrlPlaceholder')}
           aria-label={t('baseUrl')}
           aria-invalid={baseUrlInvalid}
           disabled={profileDisabled}
@@ -258,7 +258,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         />
       </div>
       {baseUrlInvalid ? <p className={styles['error']}>{t('customBaseUrlInvalid')}</p> : null}
-      {protocol === 'google-generative-ai' ? <p className={styles['advancedHint']}>{t('customGeminiHint')}</p> : null}
+      {isGoogleProtocol(protocol) ? <p className={styles['advancedHint']}>{t('customGeminiHint')}</p> : null}
       <div className={styles['field']}>
         <span className={styles['fieldLabel']}>{t('customApi')}</span>
         <select

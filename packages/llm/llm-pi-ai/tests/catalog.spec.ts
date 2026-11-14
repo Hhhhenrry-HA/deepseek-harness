@@ -330,13 +330,13 @@ describe('hand-declared providers', () => {
     expect(profile.piProvider).toBeUndefined()
   })
 
-  it.each(['bedrock-converse-stream', 'google-vertex', 'azure-openai-responses', 'openai-codex-responses'])(
+  it.each(['bedrock-converse-stream', 'azure-openai-responses', 'openai-codex-responses'])(
     'refuses %s, whose authentication a profile cannot express',
     (api) => {
-      // These need SigV4 credentials and a region, a project plus ADC, provider
-      // environment and an api-version, or OAuth — none of which a key, an
-      // endpoint, and headers can carry, so a route naming one would be built
-      // unable to authenticate.
+      // These need SigV4 credentials and a region, provider environment and
+      // an api-version, or OAuth — none of which a key, an endpoint, and
+      // headers can carry, so a route naming one would be built unable to
+      // authenticate.
       expect(supportedProtocols()).not.toContain(api)
       expect(() => buildProvider({ provider: 'acme-gateway', displayName: 'Acme', api, models: [], namesCredential: true }))
         .toThrow(/cannot serve; supported protocols are/)

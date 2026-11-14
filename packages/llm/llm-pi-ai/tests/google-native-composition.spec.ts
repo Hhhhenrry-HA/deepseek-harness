@@ -50,7 +50,9 @@ function response(parts: NativePart[]): string[] {
 }
 
 /** Each invocation boots a fresh configured provider and credential store from Loader files. */
-async function boot(baseURL: string, apiKeyEnv = 'NATIVE_TEST_KEY', catalog = false): Promise<{ ctx: Context; root: string }> {
+async function boot(
+  baseURL: string, apiKeyEnv = 'NATIVE_TEST_KEY', catalog = false, api = 'google-generative-ai',
+): Promise<{ ctx: Context; root: string }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-google-native-'))
   roots.push(root)
   const credentialPath = join(root, 'credentials.yaml')
@@ -65,7 +67,7 @@ async function boot(baseURL: string, apiKeyEnv = 'NATIVE_TEST_KEY', catalog = fa
     credentials: { path: credentialPath, debounceMs: 10 },
     'system-prompt': { personaPrefix: '' },
     'llm-pi-ai': { providers: { [catalog ? 'google' : 'native-relay']: {
-      ...catalog ? {} : { api: 'google-generative-ai', baseURL },
+      ...catalog ? {} : { api, baseURL },
       apiKeyEnv, retryPolicy: { mode: 'normal', maxRetries: 0 },
       thinkingBudgets: { low: 1024 },
       models: [
@@ -185,15 +187,130 @@ it('sends discrete thinking levels to Gemini 4 models outside the installed cata
   expect(wire[0]?.generationConfig?.thinkingConfig).toEqual({ includeThoughts: true, thinkingLevel: 'HIGH' })
 })
 
-it('treats a configured root as an exact API prefix rather than adding an SDK version', async () => {
-  const server = await mockServer([{ events: response([{ text: 'Root relay' }]) }])
-  const { ctx } = await boot(server.url)
+it.each([
+  ['adds /v1beta to an endpoint that names no API version', '/', '/v1beta'],
+  ['keeps the API version an endpoint names', '/v1', '/v1'],
+])('%s', async (_name, suffix, prefix) => {
+  const server = await mockServer([{ events: response([{ text: 'Relay' }]) }])
+  const { ctx } = await boot(`${server.url}${suffix}`)
   const result = await assemble(ctx, {
     provider: 'native-relay', model: 'gemini-3-flash-preview',
     messages: [createUserMessage({ content: [{ type: 'text', text: 'Hello' }], source: { kind: 'user' } })],
   })
   expect(result.finish).toEqual({ kind: 'stop' })
-  expect(server.paths).toEqual(['/models/gemini-3-flash-preview:streamGenerateContent?alt=sse'])
+  expect(server.paths).toEqual([`${prefix}/models/gemini-3-flash-preview:streamGenerateContent?alt=sse`])
+})
+
+/** One Vertex relay SSE frame carrying model parts. */
+function vertexFrame(parts: object[], finishReason?: string, modelVersion = 'gemini-4-hydrogen-0611'): string {
+  return JSON.stringify({
+    candidates: [{ content: { role: 'model', parts }, ...finishReason === undefined ? {} : { finishReason } }],
+    modelVersion,
+    ...finishReason === undefined ? {} : { usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 4, totalTokenCount: 16 } },
+  })
+}
+
+it('streams Vertex relay tool arguments from partialArgs into the executed call', { timeout: 60_000 }, async () => {
+  const server = await mockServer([
+    { events: [
+      vertexFrame([{ functionCall: { id: 'call-1', name: 'write', partialArgs: [
+        { jsonPath: '$.path', stringValue: 'notes.md' },
+        { jsonPath: '$.text', stringValue: 'Hello ', willContinue: true },
+      ], willContinue: true }, thoughtSignature: 'c2ln' }]),
+      vertexFrame([{ functionCall: { partialArgs: [
+        { jsonPath: '$.text', stringValue: 'world', willContinue: true },
+      ], willContinue: true } }]),
+      vertexFrame([{ functionCall: { partialArgs: [
+        { jsonPath: '$.text', stringValue: '!' },
+        { jsonPath: '$.lines[0]', numberValue: 3 },
+        { jsonPath: '$.lines[1]', numberValue: 4 },
+        { jsonPath: '$.force', boolValue: true },
+      ] } }], 'STOP'),
+    ] },
+    { events: [vertexFrame([{ text: 'Done' }], 'STOP')] },
+  ])
+  const { ctx } = await boot(server.url, 'NATIVE_TEST_KEY', false, 'google-vertex')
+  const executed: unknown[] = []
+  ctx.tools.register(defineContentToolFixture({
+    name: 'write', description: 'Write text.',
+    parameters: {
+      path: { type: 'string', required: true }, text: { type: 'string', required: true },
+      lines: { type: 'array', items: { type: 'number' }, required: true }, force: { type: 'boolean', required: true },
+    },
+    async execute(args) { executed.push(args); return [{ type: 'text', text: 'written' }] },
+  }))
+  const agent = await ctx.agentLoop.create(SessionId('vertex-relay'), { provider: 'native-relay', model: 'gemini-4-hydrogen' })
+  agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Write the note' }], source: { kind: 'user' } }))
+  await agent.whenIdle()
+  expect(executed).toEqual([{ path: 'notes.md', text: 'Hello world!', lines: [3, 4], force: true }])
+  expect(server.paths).toEqual(Array.from({ length: 2 }, () => '/v1beta/models/gemini-4-hydrogen:streamGenerateContent?alt=sse'))
+  const wire = server.requests as (NativeRequest & {
+    toolConfig?: { functionCallingConfig?: { streamFunctionCallArguments?: boolean } }
+  })[]
+  expect(wire[0]?.toolConfig?.functionCallingConfig?.streamFunctionCallArguments).toBe(true)
+  expect(wire[1]?.contents.find(content => content.role === 'model')?.parts).toEqual([{
+    functionCall: { id: 'call-1', name: 'write', args: { path: 'notes.md', text: 'Hello world!', lines: [3, 4], force: true } },
+    thoughtSignature: 'c2ln',
+  }])
+  for (const headers of server.headers) {
+    expect(headers['x-goog-api-key']).toBe('offline-native-key')
+    expect(headers['authorization']).toBeUndefined()
+  }
+})
+
+it('emits Vertex relay partialArgs as incremental JSON argument text', async () => {
+  const server = await mockServer([{ events: [
+    vertexFrame([{ functionCall: { name: 'write', partialArgs: [
+      { jsonPath: '$.text', stringValue: 'He"llo', willContinue: true },
+    ], willContinue: true } }]),
+    vertexFrame([{ functionCall: { partialArgs: [
+      { jsonPath: '$.text', stringValue: ' world' },
+      { jsonPath: "$.opts['a b'].n", numberValue: 1 },
+    ] } }], 'STOP'),
+  ] }])
+  const { ctx } = await boot(`${server.url}/v1beta`, 'NATIVE_TEST_KEY', false, 'google-vertex')
+  const deltas: string[] = []
+  for await (const chunk of ctx.llm.stream({
+    provider: 'native-relay', model: 'gemini-4-hydrogen',
+    tools: [{ name: 'write', description: 'Write.', parameters: { type: 'object', properties: {} } }],
+    messages: [createUserMessage({ content: [{ type: 'text', text: 'Write' }], source: { kind: 'user' } })],
+  })) {
+    if (chunk.type === 'tool-call-delta') deltas.push(chunk.argumentsDelta)
+  }
+  expect(deltas.length).toBeGreaterThan(1)
+  expect(JSON.parse(deltas.join(''))).toEqual({ text: 'He"llo world', opts: { 'a b': { n: 1 } } })
+})
+
+it('fails a Vertex relay stream that ends inside a function call', async () => {
+  const server = await mockServer([{ events: [
+    vertexFrame([{ functionCall: { name: 'write', partialArgs: [{ jsonPath: '$.text', stringValue: 'Hel', willContinue: true }],
+      willContinue: true } }], 'STOP'),
+  ] }])
+  const { ctx } = await boot(`${server.url}/v1beta`, 'NATIVE_TEST_KEY', false, 'google-vertex')
+  const result = await assemble(ctx, {
+    provider: 'native-relay', model: 'gemini-4-hydrogen',
+    tools: [{ name: 'write', description: 'Write.', parameters: { type: 'object', properties: {} } }],
+    messages: [createUserMessage({ content: [{ type: 'text', text: 'Write' }], source: { kind: 'user' } })],
+  })
+  expect(result.finish).toMatchObject({ kind: 'error' })
+})
+
+it('stops a Vertex relay response served by a different model', async () => {
+  const server = await mockServer([{ events: [vertexFrame([{ text: 'substitute' }], 'STOP', '3.1-flash-lite-05-2026')] }])
+  const { ctx } = await boot(`${server.url}/v1beta`, 'NATIVE_TEST_KEY', false, 'google-vertex')
+  const result = await assemble(ctx, { provider: 'native-relay', model: 'gemini-4-hydrogen', messages: [
+    createUserMessage({ content: [{ type: 'text', text: 'Hello' }], source: { kind: 'user' } }),
+  ] })
+  expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'MODEL_MISMATCH' } })
+  expect(result.message.content).toEqual([])
+})
+
+it('refuses a Vertex relay route without an API key before any request', async () => {
+  const server = await mockServer([])
+  const { ctx } = await boot(`${server.url}/v1beta`, '', false, 'google-vertex')
+  const result = await assemble(ctx, { provider: 'native-relay', model: 'gemini-4-hydrogen', messages: [] })
+  expect(result.finish).toMatchObject({ kind: 'error' })
+  expect(server.requests).toEqual([])
 })
 
 it('keeps the official Google catalog endpoint when no endpoint override is configured', async () => {
@@ -227,4 +344,22 @@ it('fails a missing named credential before any native request', async () => {
   const result = await assemble(ctx, { provider: 'native-relay', model: 'gemini-3-flash-preview', messages: [] })
   expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'MISSING_CREDENTIAL' } })
   expect(server.requests).toEqual([])
+})
+
+it('stops a response served by a different model before any output is forwarded', async () => {
+  const frame = (modelVersion: string): string[] => [JSON.stringify({
+    candidates: [{ content: { role: 'model', parts: [{ text: 'substitute answer' }] }, finishReason: 'STOP' }],
+    usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 4, totalTokenCount: 16 }, modelVersion,
+  })]
+  const server = await mockServer([{ events: frame('3.1-flash-lite-05-2026') }, { events: frame('gemini-4-hydrogen-0611') }])
+  const { ctx } = await boot(`${server.url}/v1beta`)
+  const request = { provider: 'native-relay', model: 'gemini-4-hydrogen', messages: [
+    createUserMessage({ content: [{ type: 'text', text: 'Hello' }], source: { kind: 'user' } }),
+  ] }
+  const substituted = await assemble(ctx, request)
+  expect(substituted.finish).toMatchObject({ kind: 'error', failure: { code: 'MODEL_MISMATCH' } })
+  expect(substituted.finish.kind === 'error' && substituted.finish.failure.message).toContain('3.1-flash-lite-05-2026')
+  expect(substituted.message.content).toEqual([])
+  const served = await assemble(ctx, request)
+  expect(served.finish).toEqual({ kind: 'stop' })
 })

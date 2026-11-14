@@ -22,34 +22,37 @@
 import type { Api, ApiKeyAuth, Model, Provider, ProviderStreams } from '@earendil-works/pi-ai'
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
+import { googleVertexApi } from '@earendil-works/pi-ai/api/google-vertex.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import { catalogProvider, PiAiCatalogError } from './catalog.ts'
+import { geminiRoute, vertexRelayRoute } from './google-route.ts'
 import { createProvider } from './models.ts'
 
 /**
  * Wire protocols a configured route may name, mapped to pi-ai's lazily loaded
- * implementations. Each entry is the factory that pi-ai's matching provider
- * factory uses, so a hand-declared route reaches exactly the implementation a
- * catalog route would.
+ * implementations. OpenAI and Anthropic entries are the factories pi-ai's
+ * matching provider factories use. The Google entries wrap pi-ai's
+ * implementations so a hand-declared endpoint without a version path gets
+ * `/v1beta`, and `google-vertex` is a key-authenticated relay addressed as
+ * `{prefix}/models/{model}` (see `google-route.ts`).
  *
  * The table is deliberately narrow: the protocols a hand-declared route
- * actually reads, each completely describable with a key, an
- * endpoint, and headers. Bedrock signs with SigV4 over AWS credentials and a
- * region, Vertex needs a project, a location, and application-default
- * credentials, Azure needs provider environment plus an api-version, and Codex
+ * actually reads, each completely describable with a key, an endpoint, and
+ * headers. Bedrock signs with SigV4 over AWS credentials and a region, project
+ * Vertex needs a project, a location, and application-default credentials,
+ * Azure needs provider environment plus an api-version, and Codex
  * authenticates through OAuth — none of which this configuration shape can
- * express, so offering them would hand back a provider that cannot
- * authenticate. The remainder are absent for want of a consumer rather than a
- * blocker: each is one line here once a deployment needs it. Catalog routes
- * still reach every protocol through their own provider; only an explicit
- * override is refused.
+ * express. The remainder are absent for want of a consumer rather than a
+ * blocker. Catalog routes still reach every protocol through their own
+ * provider; only an explicit override is refused.
  */
 const PROTOCOLS: Readonly<Record<string, () => ProviderStreams>> = {
   'openai-completions': openAICompletionsApi,
   'openai-responses': openAIResponsesApi,
   'anthropic-messages': anthropicMessagesApi,
-  'google-generative-ai': googleGenerativeAIApi,
+  'google-generative-ai': () => geminiRoute(googleGenerativeAIApi()),
+  'google-vertex': () => vertexRelayRoute(googleVertexApi()),
 }
 
 /**

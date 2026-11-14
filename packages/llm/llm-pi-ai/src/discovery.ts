@@ -13,9 +13,10 @@
  * metadata the surface offers for adoption. `cordis.patch.yml` remains the only
  * thing that decides what a route serves.
  *
- * OpenAI-compatible and Anthropic Messages protocols are interrogated through
- * their native model-listing endpoints. The parser accepts the standard
- * `data` array and the enriched `models` map some compatible gateways expose.
+ * OpenAI-compatible, Anthropic Messages, and Google protocols are interrogated
+ * through their native model-listing endpoints. The parser accepts the
+ * standard `data` array, Google's `models` array, and the enriched `models`
+ * map some compatible gateways expose.
  * Every other protocol reports that it cannot be interrogated so the surface
  * falls back to hand-entry rather than guessing its response fields.
  *
@@ -26,6 +27,7 @@ import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai
 import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
+import { googleApiBase } from './google-route.ts'
 
 /**
  * Protocols whose model listing this module can read. OpenAI protocols use
@@ -34,13 +36,23 @@ import { catalogModels } from './catalog.ts'
  * despite its OpenAI lineage — it authenticates with an `api-key` header and
  * requires an `api-version` query — and Codex authenticates through OAuth;
  * guessing at either would report an authentication failure as a provider
- * with no models. pi-ai's remaining protocols are absent for the same reason.
+ * with no models. Google protocols use `x-goog-api-key` at
+ * `GET {versioned prefix}/models`. pi-ai's remaining protocols are absent for
+ * the same reason.
  */
 const LISTABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   'anthropic-messages',
   'openai-completions',
   'openai-responses',
+  'google-generative-ai',
+  'google-vertex',
 ])
+
+/** Protocols listed through Google's `models.list`. */
+const GOOGLE_PROTOCOLS: ReadonlySet<string> = new Set(['google-generative-ai', 'google-vertex'])
+
+/** Largest page Google's `models.list` returns. */
+const GOOGLE_PAGE_SIZE = 1000
 
 /** Stable API version required by Anthropic's model-listing endpoint. */
 const ANTHROPIC_VERSION = '2023-06-01'
@@ -71,6 +83,10 @@ interface ListingTopProvider {
 /** One entry of a supported `GET /models` reply. */
 interface ListingEntry {
   id?: unknown
+  /** Google listings: resource name `models/{id}` and capability fields. */
+  inputTokenLimit?: unknown
+  outputTokenLimit?: unknown
+  supportedGenerationMethods?: unknown
   /** Common gateway extensions; absent from the official listings. */
   name?: unknown
   display_name?: unknown
@@ -112,9 +128,11 @@ function label(...candidates: readonly unknown[]): string | undefined {
  * the base without trailing slashes and without one trailing `/v1` segment:
  * gateway documentation publishes both spellings of the same root. Only this
  * listing URL normalizes that segment; model requests receive the configured
- * `baseURL` unchanged.
+ * `baseURL` unchanged. Google protocols list at `{prefix}/models` on the same
+ * versioned prefix their model requests use.
  */
 function listingUrl(baseURL: string, api: string): string {
+  if (GOOGLE_PROTOCOLS.has(api)) return `${googleApiBase(baseURL)}/models?pageSize=${String(GOOGLE_PAGE_SIZE)}`
   const base = baseURL.replace(/\/+$/, '')
   if (api !== 'anthropic-messages') return `${base}/models`
   const root = base.endsWith('/v1') ? base.slice(0, -3) : base
@@ -230,6 +248,35 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
 }
 
 /**
+ * Read a Google route's listing. Google's `models` array names each model as
+ * `models/{id}`; an entry whose `supportedGenerationMethods` omits
+ * `generateContent` cannot chat and is skipped. A gateway answering with an
+ * OpenAI `data` array is read as one.
+ */
+function readGoogleListing(body: unknown): LlmDiscoveredModel[] {
+  const listing = body as { data?: unknown; models?: unknown } | null
+  if (Array.isArray(listing?.data) || !Array.isArray(listing?.models)) return readListing(body)
+  const models: LlmDiscoveredModel[] = []
+  for (const raw of listing.models as readonly unknown[]) {
+    const entry = raw as ListingEntry | null
+    const name = label(entry?.name)
+    if (name === undefined) continue
+    const methods = entry?.supportedGenerationMethods
+    if (Array.isArray(methods) && !methods.includes('generateContent')) continue
+    const id = name.replace(/^models\//, '')
+    const contextWindow = capacity(entry?.inputTokenLimit)
+    const maxTokens = capacity(entry?.outputTokenLimit)
+    models.push({
+      id,
+      name: label(entry?.displayName, entry?.display_name) ?? id,
+      ...contextWindow === undefined ? {} : { contextWindow },
+      ...maxTokens === undefined ? {} : { maxTokens },
+    })
+  }
+  return models
+}
+
+/**
  * Accept one probe key, or refuse it before the header is built. Without this
  * the `fetch` below would throw a ByteString `TypeError` that this function's
  * catch reports as `could not reach <url>` — blaming the network for a local,
@@ -321,6 +368,8 @@ export async function discoverModels(
     if (api === 'anthropic-messages') {
       headers.set('anthropic-version', ANTHROPIC_VERSION)
       if (apiKey !== undefined) headers.set('x-api-key', apiKey)
+    } else if (GOOGLE_PROTOCOLS.has(api)) {
+      if (apiKey !== undefined) headers.set('x-goog-api-key', apiKey)
     } else if (apiKey !== undefined) {
       headers.set('authorization', `Bearer ${apiKey}`)
     }
@@ -360,5 +409,5 @@ export async function discoverModels(
   } catch (error: unknown) {
     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
   }
-  return readListing(body)
+  return GOOGLE_PROTOCOLS.has(api) ? readGoogleListing(body) : readListing(body)
 }
