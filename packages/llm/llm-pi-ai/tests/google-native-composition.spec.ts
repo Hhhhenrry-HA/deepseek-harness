@@ -7,7 +7,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader, { type ModuleLoaderV2 } from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createAssistantMessage, createToolResultMessage, createUserMessage, ReasoningEffortId, ToolCallId } from '@deepseek-ai/dsh-llm'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
@@ -173,6 +173,33 @@ it('replays native signed parallel calls and tool results after a fresh Loader b
     expect(headers['x-goog-api-key']).toBe('offline-native-key')
     expect(headers['authorization']).toBeUndefined()
   }
+})
+
+/** Google's documented validator-skip thought signature, base64-encoded for the bytes field. */
+const SKIP_SIGNATURE = Buffer.from('skip_thought_signature_validator').toString('base64')
+
+it.each([
+  ['gemini-4-hydrogen', SKIP_SIGNATURE],
+  ['gemini-2.5-flash', undefined],
+])('signs the first unsigned call of each current-turn step for %s', async (model, signature) => {
+  const server = await mockServer([{ events: response([{ text: 'Done' }]) }])
+  const { ctx } = await boot(`${server.url}/v1beta`)
+  const call = (id: string) => ({ type: 'tool-call' as const, id: ToolCallId(id), name: 'echo', arguments: '{"text":"x"}' })
+  const user = (text: string) => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+  // Harness-authored history carries no replay state, so pi-ai treats it as foreign.
+  const step = (...ids: string[]) => [
+    createAssistantMessage({ content: ids.map(call), source: { provider: 'native-relay', model } }),
+    ...ids.map(id => createToolResultMessage({ callId: ToolCallId(id), content: [{ type: 'text', text: 'x' }], isError: false })),
+  ]
+  const result = await assemble(ctx, {
+    provider: 'native-relay', model,
+    tools: [{ name: 'echo', description: 'Echo text.', parameters: { type: 'object', properties: { text: { type: 'string' } } } }],
+    messages: [user('Earlier'), ...step('call-old'), user('Hello'), ...step('call-a', 'call-b'), ...step('call-c')],
+  })
+  expect(result.finish).toEqual({ kind: 'stop' })
+  const steps = (server.requests as NativeRequest[])[0]?.contents.filter(content => content.role === 'model')
+  expect(steps?.map(content => content.parts.map(part => part.thoughtSignature)))
+    .toEqual([[undefined], [signature, undefined], [signature]])
 })
 
 it('sends discrete thinking levels to Gemini 4 models outside the installed catalog', async () => {

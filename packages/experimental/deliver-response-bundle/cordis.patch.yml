@@ -1,0 +1,5 @@
+- insert:
+    - id: deliver-response
+      name: '@deepseek-ai/dsh-experimental-deliver-response'
+    - id: ui-deliver-response
+      name: '@deepseek-ai/dsh-experimental-client-ui-deliver-response'

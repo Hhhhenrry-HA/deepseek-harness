@@ -1,0 +1,44 @@
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  padding: 12px 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.header label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+}
+
+.input {
+  min-width: 0;
+  padding: 6px 12px;
+  resize: vertical;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.input:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}

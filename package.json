@@ -219,6 +219,7 @@
     "verify-product-use": "tsx scripts/verify-product-use.ts"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-experimental-deliver-response": "workspace:*",
     "@deepseek-ai/dsh-hooks-claude-code": "workspace:*",
     "@deepseek-ai/dsh-hooks-codex": "workspace:*",
     "@deepseek-ai/dsh-tool-ralph": "workspace:*",

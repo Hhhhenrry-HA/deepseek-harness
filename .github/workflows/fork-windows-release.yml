@@ -98,11 +98,10 @@ jobs:
 
           本次更新：
 
-          - Gemini 实际回复的模型与所选模型不一致时（例如请求 gemini-4-argon 却由 3.1-flash-lite 回答），本轮停止并同时列出两个模型名，不再静默接受替换的回答。
-          - 新增“Vertex（中转）”协议：按 Gemini 风格地址发送 Vertex 格式请求，工具调用参数流式返回并实时显示。
-          - Gemini（原生）与 Vertex（中转）只填主机地址即可，未带版本路径时自动补 /v1beta；两者都能“获取可用模型”。
-          - 只有服务端返回 HTTP 400 时，错误行才附上处理建议：先检查 API 协议，再新建会话或发送 /compact。
-          - 继续保留 Gemini 4 思考等级等此前修复；聊天记录与配置无需改动。
+          - 新增可选插件“答复交付”（在“插件 → 更多”中启用，默认关闭）：在每轮最后一条用户消息后追加执行清单并预填 `read_work_requirements`、`request_approval` 两组调用，保持 `AUTO` 工具选择与原有全部工具不变；模型通过 `deliver_response` 交付最终 Markdown 答复并结束回合，独立显示在过程折叠外且支持一键复制。
+          - “答复交付”插件设置支持直接编辑、保存与恢复默认“额外工作要求”（挂载在 `read_work_requirements` 的工具 description 中）。
+          - 修复 Gemini 3+（含 Gemini 4）在当前轮含无签名预填函数调用时的 `skip_thought_signature_validator` 透传，兼容原生 Gemini 与 Vertex（中转）。
+          - 继续保留 Gemini 模型名一致性校验、Vertex（中转）流式工具调用与 Gemini 4 思考等级等此前修复；聊天记录与配置无需改动。
 
           下载下方名称以 .exe 结尾的安装程序，退出 DSH 后运行安装。无需自行编译或安装 Node.js。
 
@@ -117,7 +116,7 @@ jobs:
           $notes | Set-Content -LiteralPath release-notes.md -Encoding utf8NoBOM
           $assets = @(Get-ChildItem -LiteralPath release-assets -File | ForEach-Object FullName)
           $releaseVersion = $env:GITHUB_REF_NAME -replace '^fork-v', ''
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · Gemini 模型校验与 Vertex 中转" --notes-file release-notes.md --draft
+          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --target "$env:GITHUB_SHA" --title "v$releaseVersion · 答复交付插件与 Gemini 预填签名支持" --notes-file release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
           exit $LASTEXITCODE

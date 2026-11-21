@@ -1,0 +1,73 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/deliver-response/README.md
+/:
+  en: e61a78ada5b3b7bb
+  zh: 72ad8c54b92af642
+/deepseek-ai-dsh-experimental-deliver-response:
+  en: a6128263e55907a2
+  zh: 806ac3227ba76d62
+/deepseek-ai-dsh-experimental-deliver-response/summary:
+  en: 21363d7030ad11de
+  zh: 0ca6ba4a6d1d9341
+/deepseek-ai-dsh-experimental-deliver-response/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 998822c52353f694
+/deepseek-ai-dsh-experimental-deliver-response/use-this-package:
+  en: 9973c88917e93021
+  zh: 863234874a57776d
+/deepseek-ai-dsh-experimental-deliver-response/use-this-package/minimal-configuration:
+  en: cc4b9827d2df8e94
+  zh: 7edc6a1d09884408
+/deepseek-ai-dsh-experimental-deliver-response/understand-the-implementation:
+  en: edb28fdd6e01f280
+  zh: 95704e08d992cf6c
+/deepseek-ai-dsh-experimental-deliver-response/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction:
+  en: 60f78817b55c19b2
+  zh: 24ba47a0c5e02586
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/what-the-model-sees:
+  en: d73aa7c986e6fd40
+  zh: d09aea126b556b10
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/what-the-model-sees/reply-channel:
+  en: 2baf4b43a461bbca
+  zh: e7892b64e2f659de
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/token-effect:
+  en: a5d4e2dadf1982d3
+  zh: 992a985ba5194645
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/kv-cache-effect:
+  en: 16ea9446e2abd1c2
+  zh: 864b11b8ceae72e0
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/tool-declarations:
+  en: 4569c30d38d0009c
+  zh: 3db1377eb0f3c532
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/tool-declarations/what-the-model-sees:
+  en: 4087ae278526bf5b
+  zh: f4a4a0b50185b767
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/tool-declarations/token-effect:
+  en: 5b463677ff1ab834
+  zh: 8baca184212258e9
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/tool-declarations/kv-cache-effect:
+  en: 452c315da4283b86
+  zh: c3f6c8c57d68543b
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/turn-prelude:
+  en: fd8f102fe6c2a868
+  zh: 21f2647a714c5f9c
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/turn-prelude/what-the-model-sees:
+  en: 2473ca4e2f0ce716
+  zh: fd8bb5b077f06043
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/turn-prelude/token-effect:
+  en: 68d7c212003b6d99
+  zh: 4c92e1df4ed0b5fc
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/turn-prelude/kv-cache-effect:
+  en: bd443f3a31ea2c91
+  zh: 5fd2a449f83a58ab
+/deepseek-ai-dsh-experimental-deliver-response/known-limitations-and-deferred-work:
+  en: e3b9d3df6d46432d
+  zh: 902494a7829f39be
+/deepseek-ai-dsh-experimental-deliver-response/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 52180dd33b92cb16

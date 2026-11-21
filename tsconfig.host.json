@@ -240,6 +240,8 @@
   ],
   "references": [
     { "path": "./packages/experimental/client-ui-cot-translation/tsconfig.host.json" },
+    { "path": "./packages/experimental/deliver-response" },
+    { "path": "./packages/experimental/deliver-response-bundle" },
     { "path": "./packages/experimental/cot-translation-bundle" },
     { "path": "./packages/experimental/session-search" },
     { "path": "./packages/experimental/ralph-bundle" },

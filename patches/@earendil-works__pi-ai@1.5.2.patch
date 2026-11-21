@@ -1,3 +1,46 @@
+diff --git a/dist/api/google-shared.js b/dist/api/google-shared.js
+index f344df5315c490ff03fa8f7c75a6cb14364f88da..85d8699477f9e5c26c5339b659ffef10f7d22be4 100644
+--- a/dist/api/google-shared.js
++++ b/dist/api/google-shared.js
+@@ -105,6 +105,8 @@ export function retainThoughtSignature(existing, incoming) {
+     return existing;
+ }
+ // Thought signatures must be base64 for Google APIs (TYPE_BYTES).
++// Base64 of Google's documented `skip_thought_signature_validator` value.
++const SKIP_THOUGHT_SIGNATURE_VALIDATOR = "c2tpcF90aG91Z2h0X3NpZ25hdHVyZV92YWxpZGF0b3I=";
+ const base64SignaturePattern = /^[A-Za-z0-9+/]+={0,2}$/;
+ function isValidThoughtSignature(signature) {
+     if (!signature)
+@@ -297,8 +299,29 @@ export function convertMessages(model, context) {
+             }
+         }
+     }
++    if ((getGeminiMajorVersion(model.id) ?? 0) >= 3)
++        signCurrentTurnSteps(contents);
+     return contents;
+ }
++/**
++ * Gemini 3+ validates the first functionCall of every step in the current turn, which starts at
++ * the most recent user content that is not function responses. A step whose first call carries
++ * no signature (another model's history, harness-authored calls) gets the documented
++ * validator-skip value; earlier turns are not validated and stay unchanged.
++ */
++function signCurrentTurnSteps(contents) {
++    for (let index = contents.length - 1; index >= 0; index--) {
++        const content = contents[index];
++        if (content.role === "user") {
++            if (!content.parts.every((part) => part.functionResponse))
++                return;
++            continue;
++        }
++        const firstCall = content.parts.find((part) => part.functionCall);
++        if (firstCall && !firstCall.thoughtSignature)
++            firstCall.thoughtSignature = SKIP_THOUGHT_SIGNATURE_VALIDATOR;
++    }
++}
+ const JSON_SCHEMA_META_DECLARATIONS = new Set([
+     "$schema",
+     "$id",
 diff --git a/dist/api/google-vertex.js b/dist/api/google-vertex.js
 index 1b7cb58ec7ad745938a5684014867601454acdcb..396efcfb31823b82b51ca0f72c661eda1a52e3f0 100644
 --- a/dist/api/google-vertex.js

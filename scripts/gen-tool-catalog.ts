@@ -49,6 +49,7 @@ import * as ToolBashPersistent from '@deepseek-ai/dsh-tool-bash-persistent'
 import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
 import CordisHostRunner from '@deepseek-ai/dsh-cordis-host-runner'
 import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
+import * as DeliverResponse from '@deepseek-ai/dsh-experimental-deliver-response'
 import * as ToolPresent from '@deepseek-ai/dsh-tool-present'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
@@ -188,6 +189,18 @@ export interface ToolPackage {
  * guard proves it is exhaustive against the on-disk glob.
  */
 const TOOL_PACKAGES: ToolPackage[] = [
+  {
+    pkg: '@deepseek-ai/dsh-experimental-deliver-response',
+    dir: 'deliver-response',
+    source: 'packages/experimental/deliver-response/src/index.ts',
+    requires: ['ctx.agents', 'ctx.llm', 'ctx.sessionProjections', 'ctx.systemPrompt', 'ctx.tools'],
+    writes: ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'turn/end'],
+    async mount(ctx) {
+      await ctx.plugin(AgentRegistry)
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(DeliverResponse)
+    },
+  },
   {
     pkg: '@deepseek-ai/dsh-plugin-manager',
     dir: 'plugin-manager',
