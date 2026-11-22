@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-experimental-deliver-response",
   "description": "Opt-in native Markdown reply delivery for DeepSeek Harness",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
