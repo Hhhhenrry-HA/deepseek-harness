@@ -3,11 +3,11 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/deliver-response-bundle/README.md
 /:
-  en: 470cf2cb9d3bce83
-  zh: dacbcea6154a9431
+  en: 419378feee74384c
+  zh: 719cdd953fccea37
 /response-delivery-bundle:
-  en: 54f8091f0a0e4a3d
-  zh: d998565118f72bd0
+  en: 306c45ff8a265fe1
+  zh: d2b4f518eb271f5e
 /response-delivery-bundle/model-experience:
   en: 9560bbce1a3eded0
   zh: ce5ce8128a4889d5

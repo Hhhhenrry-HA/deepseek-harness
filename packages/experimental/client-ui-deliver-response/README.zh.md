@@ -1,5 +1,5 @@
 ---
-description: "编辑额外工作要求，并在对话中阅读以 Markdown 呈现的正式回复。"
+description: "编辑额外工作要求，查看答复交付状态。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-编辑额外工作要求，只有保存才会写入。恢复默认会移除自定义设置，继承 Host 配置。正式回复以 Markdown 呈现，不随工作详情折叠，并提供单独的复制操作。
+编辑额外工作要求，只有保存才会写入。恢复默认会移除自定义设置，继承 Host 配置。工具卡片显示答复是否已成功交付。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节</summary>
 
-表单通过现有[配置服务](../../client/ui-settings/README.zh.md)读取生效值与继承值。保存请求携带开始编辑时的修订版本。对话从带有标记的工具结果元数据中读取正式回复；工具调用参数不会直接显示为正式回复。停用组合包会移除编辑器和正式回复的专用显示。
+表单通过现有[配置服务](../../client/ui-settings/README.zh.md)读取生效值与继承值。保存请求携带开始编辑时的修订版本。停用组合包会移除编辑器和专用工具卡片，不影响[聊天视图](../../client/ui-chat/README.zh.md)中的答复正文。
 
 </details>
 

@@ -13,6 +13,7 @@ import { createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId, SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 import { useState } from 'react'
+import { apply as applyHost } from '../src/index.ts'
 import { apply, inject } from '../src/client/index.ts'
 import type { WorkRequirements } from '../src/client/DeliverResponseSettings.tsx'
 import { en } from '../src/client/locales.ts'
@@ -165,8 +166,12 @@ it('keeps delivery activity compact and restores the ordinary tool card on unloa
     fireEvent.click(tool.view.getByRole('button', { name: en.inspect }))
     expect(inspect).toHaveBeenCalledOnce()
 
-    tool.update({ ...result, block: { ...result.block, meta: { body: 42 } } })
+    tool.update({ ...result, block: { ...result.block, isError: true, error: { name: 'ToolError', code: 'interrupted' } } })
+    expect(tool.view.getByRole('button', { name: en.stopped })).toBeTruthy()
+    tool.update({ ...result, block: { ...result.block, meta: { kind: 'deliver-response', body: 42 } } })
     expect(tool.view.queryByRole('heading')).toBeNull()
+    tool.update({ ...result, block: { ...result.block, meta: null } })
+    applyHost()
     tool.update(result, { entryKey: 'read_work_requirements', session, fallback })
     expect(tool.view.getByText('Original tool view')).toBeTruthy()
     tool.update(result, deliveryOpts)
@@ -206,7 +211,7 @@ function deliveryEvents(): Array<{ type: 'event'; event: SessionEvent }> {
 
 const replyBody = '# Delivered reply\n\n- A **formatted** item.'
 
-it.each(['compact', 'verbose'] as const)('renders and copies the committed Markdown outside work details in %s mode', async (mode) => {
+it.sequential.each(['compact', 'verbose'] as const)('keeps one committed Markdown reply across optional activation and unload in %s mode', async (mode) => {
   class ResizeObserverStub {
     observe(): void {}
     unobserve(): void {}
@@ -224,7 +229,6 @@ it.each(['compact', 'verbose'] as const)('renders and copies the committed Markd
       const sessionId = SessionId('closed-delivery')
       await runtime.sessions.add({ id: sessionId, summary: { title: 'Delivery', displayTitle: 'Delivery', cwd: '/work' }, events: deliveryEvents() })
       await runtime.sessions.retainFor(runtime.ctx, sessionId, { source: 'mainView' }).ready
-      const feature = await mount()
       const view = runtime.renderRoot()
       const heading = view.getByRole('heading', { name: 'Delivered reply' })
       expect(heading.closest('[data-turn-process-member], [data-step-process]')).toBeNull()
@@ -234,10 +238,14 @@ it.each(['compact', 'verbose'] as const)('renders and copies the committed Markd
       expect(view.getByRole('listitem').querySelector('strong')?.textContent).toBe('formatted')
       expect(view.queryByRole('heading', { name: 'Rejected' })).toBeNull()
       expect(view.queryByRole('heading', { name: 'Uncommitted draft' })).toBeNull()
-      await act(async () => { fireEvent.click(view.getByRole('button', { name: en.copyReply })) })
+      await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Copy reply' })) })
       expect(writeText).toHaveBeenCalledExactlyOnceWith(replyBody)
+      const feature = await mount()
+      expect(view.getAllByRole('heading', { name: 'Delivered reply' })).toHaveLength(1)
       await feature.dispose()
-      expect(view.queryByRole('heading', { name: 'Delivered reply' })).toBeNull()
+      expect(view.getAllByRole('heading', { name: 'Delivered reply' })).toHaveLength(1)
+      await mount()
+      expect(view.getAllByRole('heading', { name: 'Delivered reply' })).toHaveLength(1)
     } finally { await runtime.dispose() }
   } finally {
     vi.unstubAllGlobals()

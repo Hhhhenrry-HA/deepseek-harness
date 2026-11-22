@@ -1,4 +1,4 @@
-/** Locale-owned copy for the requirements editor and the delivered reply. */
+/** Locale-owned copy for the requirements editor and delivery activity. */
 import { settingsSaveEn, settingsSaveZh } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Dictionary namespace for both contributions. */
@@ -22,8 +22,6 @@ export const en = {
   delivered: 'Response delivered',
   bodyUnavailable: 'Delivered response is unavailable',
   inspect: 'Inspect',
-  copyReply: 'Copy reply',
-  copyFailed: 'Could not copy. Select and copy the reply manually.',
 }
 
 /** Simplified Chinese dictionary. */
@@ -44,8 +42,6 @@ export const zh: Record<keyof typeof en, string> = {
   delivered: '回复已提交',
   bodyUnavailable: '无法显示已提交的回复',
   inspect: '查看详情',
-  copyReply: '复制答复',
-  copyFailed: '无法复制，请选中回复后手动复制',
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

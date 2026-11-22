@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-experimental-client-ui-deliver-response",
-  "description": "Edit extra work requirements and read delivered responses in Chat",
+  "description": "Edit extra work requirements and display response delivery activity",
   "version": "0.2.16",
   "publishConfig": {
     "access": "public"
@@ -48,7 +48,6 @@
     "@deepseek-ai/dsh-client-ui-tool": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
-    "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/dsh-util-values": "workspace:*",
     "@testing-library/react": "^16.3.3",
     "react": "^18.2.0"
@@ -58,8 +57,6 @@
       "platform": "web",
       "inject": [
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-chat",
-        "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-ui-settings",

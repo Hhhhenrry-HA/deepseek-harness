@@ -8383,9 +8383,6 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:*
         version: link:../../core/session
-      '@deepseek-ai/dsh-tools':
-        specifier: workspace:*
-        version: link:../../core/tools
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values

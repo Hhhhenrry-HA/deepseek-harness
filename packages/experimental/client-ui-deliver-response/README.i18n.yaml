@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/client-ui-deliver-response/README.md
 /:
-  en: 2deb9e715bac468b
-  zh: d341e1dda6c9bfdf
+  en: 3fc1fe4f652c1942
+  zh: f2ee62d2dcc6b672
 /deepseek-ai-dsh-experimental-client-ui-deliver-response:
   en: d56d16af6d957559
   zh: 8daa9b337fc5736b
 /deepseek-ai-dsh-experimental-client-ui-deliver-response/summary:
-  en: 13651740de080119
-  zh: f7d133e758fa7b33
+  en: 36dcfae9fc04a3c5
+  zh: 88ce58936535aa78
 /deepseek-ai-dsh-experimental-client-ui-deliver-response/table-of-contents:
   en: 2fee9973f19f9401
   zh: 8ab4b55413cb8408
@@ -18,8 +18,8 @@
   en: 7cdaa731c917b5f8
   zh: 17e840a86327468d
 /deepseek-ai-dsh-experimental-client-ui-deliver-response/understand-the-implementation:
-  en: b2708e3c195011e4
-  zh: 3cef471c54ce221b
+  en: 6d6bc549bead530c
+  zh: 405ea8a9f33500c6
 /deepseek-ai-dsh-experimental-client-ui-deliver-response/model-experience:
   en: 261bf29a05bd4d39
   zh: 9b7604d243e961f5

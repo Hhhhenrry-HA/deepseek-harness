@@ -1,5 +1,5 @@
 ---
-description: "Edit additional work requirements and read delivered Markdown replies in Chat."
+description: "Edit additional work requirements and inspect delivery activity."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Edit additional work requirements without writing them until you save. Reset removes your override to inherit the Host configuration. Delivered replies appear as Markdown outside folded work details, with a separate action to copy the reply.
+Edit additional work requirements without writing them until you save. Reset removes your override to inherit the Host configuration. The tool card reports whether a delivery succeeded.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Enable the [Response delivery bundle](../deliver-response-bundle/README.md) and 
 <details>
 <summary>Implementation internals</summary>
 
-The form takes its effective and inherited values from the existing [configuration service](../../client/ui-settings/README.md). A save carries the revision from when editing began. Chat reads committed reply text from tagged tool-result metadata; call arguments alone never display as a delivered reply. Disabling the bundle withdraws the editor and reply presentation.
+The form takes its effective and inherited values from the existing [configuration service](../../client/ui-settings/README.md). A save carries the revision from when editing began. Disabling the bundle removes its editor and tool card, not the reply shown by [Chat](../../client/ui-chat/README.md).
 
 </details>
 

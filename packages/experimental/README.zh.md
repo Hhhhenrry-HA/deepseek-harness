@@ -54,7 +54,7 @@ kind: "package-group"
 | [`translator`](translator/README.zh.md) | 免登录 Google 与 Bing 文本翻译 | `ctx.translator` |
 | [`client-ui-cot-translation`](client-ui-cot-translation/README.zh.md) | 展开的思考内容翻译与原文控件 | `ctx.cotTranslation` |
 | [`deliver-response`](deliver-response/README.zh.md) | 预填工作要求查阅与显式答复交付 | — |
-| [`client-ui-deliver-response`](client-ui-deliver-response/README.zh.md) | 额外工作要求编辑器与 Markdown 答复展示 | — |
+| [`client-ui-deliver-response`](client-ui-deliver-response/README.zh.md) | 额外工作要求编辑器与答复交付活动卡片 | — |
 | [`deliver-response-bundle`](deliver-response-bundle/README.zh.md) | 默认禁用的答复交付组合 | — |
 | [`cot-translation-bundle`](cot-translation-bundle/README.zh.md) | 默认禁用的思考内容翻译组合 | — |
 | [`speech-to-text`](speech-to-text/README.zh.md) | 具名语音识别 Provider | `ctx.speechToText` |

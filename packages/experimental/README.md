@@ -54,7 +54,7 @@ Promotion requires a named product role, documented public behavior and limitati
 | [`translator`](translator/README.md) | Anonymous Google and Bing text translation | `ctx.translator` |
 | [`client-ui-cot-translation`](client-ui-cot-translation/README.md) | Expanded reasoning translation and original-text controls | `ctx.cotTranslation` |
 | [`deliver-response`](deliver-response/README.md) | Prefilled work-requirement review and explicit reply delivery | — |
-| [`client-ui-deliver-response`](client-ui-deliver-response/README.md) | Additional work requirements editor and Markdown reply presentation | — |
+| [`client-ui-deliver-response`](client-ui-deliver-response/README.md) | Additional work requirements editor and delivery activity cards | — |
 | [`deliver-response-bundle`](deliver-response-bundle/README.md) | Default-disabled response delivery composition | — |
 | [`cot-translation-bundle`](cot-translation-bundle/README.md) | Default-disabled reasoning translation composition | — |
 | [`speech-to-text`](speech-to-text/README.md) | Named speech recognition providers | `ctx.speechToText` |

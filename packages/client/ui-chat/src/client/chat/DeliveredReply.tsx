@@ -2,9 +2,10 @@
 import { useMemo, useState } from 'react'
 import { Button, MarkdownText, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { DELIVERY } from './delivery-definition.ts'
-import type { NS } from './locales.ts'
-import css from './DeliveryRow.module.css'
+import type { DELIVERY } from '../conversation-nodes/delivery.ts'
+import type { NS } from '../locale.ts'
+import { markdownLabels } from '../markdown-labels.ts'
+import css from './DeliveredReply.module.css'
 
 /** Slot inputs of the dedicated Chat reply. */
 export type DeliveredReplyProps = PropsRuntime<'conversation.chat.node', typeof DELIVERY> & PropsLocale<typeof NS>
@@ -15,20 +16,15 @@ export type DeliveredReplyProps = PropsRuntime<'conversation.chat.node', typeof 
  * @returns The delivered reply.
  */
 export function DeliveredReply({ node, t }: DeliveredReplyProps) {
-  const labels = useMemo(() => ({
-    code: { copyLabel: t('copy'), copiedLabel: t('copied'), toolbarLabels: {
-      codeLabel: t('codeBlock.title'), wrapLabel: t('codeBlock.wrap'), unwrapLabel: t('codeBlock.unwrap'),
-    } },
-    footnotes: t('markdown.footnotes'),
-  }), [t])
-  const [copyResult, setCopyResult] = useState<'copied' | 'copyFailed'>()
+  const labels = useMemo(() => markdownLabels(t), [t])
+  const [copyResult, setCopyResult] = useState<'copied' | 'delivery.copyFailed'>()
   async function copyReply(): Promise<void> {
-    setCopyResult(await writeClipboard(node.data.body) ? 'copied' : 'copyFailed')
+    setCopyResult(await writeClipboard(node.data.body) ? 'copied' : 'delivery.copyFailed')
   }
   return <div className={css.reply}>
     <MarkdownText text={node.data.body} labels={labels} />
     <div className={css.replyActions}>
-      <Button size="sm" onClick={() => { void copyReply() }}>{t('copyReply')}</Button>
+      <Button size="sm" onClick={() => { void copyReply() }}>{t('delivery.copyReply')}</Button>
       {copyResult !== undefined && <span role="status">{t(copyResult)}</span>}
     </div>
   </div>

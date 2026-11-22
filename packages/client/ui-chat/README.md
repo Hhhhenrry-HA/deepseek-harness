@@ -54,6 +54,8 @@ Chat omits system-prompt, ordinary Context injection, and `permission` command r
 
 When an Assistant attempt retires without a visible message, Chat hides its already-published Node instead of removing its key. A retry in the same Step reuses that key when visible content returns. This also applies when the loaded window lacks the Step start.
 
+Chat renders the Markdown from a successful delivery result outside folded work details, even when the delivery plugin is disabled or the Session is reopened. Failed results and tool-call drafts do not produce reply text.
+
 <a id="command-and-failure-rows"></a>
 ## Command and failure rows
 

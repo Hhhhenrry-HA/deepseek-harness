@@ -1,5 +1,5 @@
 ---
-description: "Optional response delivery runtime, settings, and Markdown reply presentation."
+description: "Optional response delivery tools, settings, and activity cards."
 kind: "package-bundle"
 ---
 
@@ -7,9 +7,9 @@ kind: "package-bundle"
 
 English | [中文](README.zh.md)
 
-Enable **Response delivery** from **Plugins → More**, then open its details to edit **Additional work requirements**. Save applies the staged text; reset removes the user override and restores the inherited default. Disabling the bundle unloads its runtime and UI without changing other tools.
+Enable **Response delivery** from **Plugins → More**, then open its details to edit **Additional work requirements**. Save applies the staged text; reset removes the user override and restores the inherited default. Disabling the bundle stops new deliveries. Previously delivered replies remain readable in Chat.
 
-The bundle composes the [delivery runtime](../deliver-response/README.md) and [settings and reply presentation](../client-ui-deliver-response/README.md). It is absent from shipped default profiles. Existing profile settings infrastructure persists the requirements; the bundle introduces no separate data store. Its artwork reuses the standard generic plugin symbol.
+The bundle composes the [delivery runtime](../deliver-response/README.md) and [settings and activity cards](../client-ui-deliver-response/README.md). It is absent from shipped default profiles. Existing profile settings infrastructure persists the requirements; the bundle introduces no separate data store. Its artwork reuses the standard generic plugin symbol.
 
 ## Model Experience
 

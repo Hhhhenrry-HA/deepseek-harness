@@ -1,22 +1,20 @@
 /** Client registrations scoped to the optional Deliver Response bundle. */
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
-import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import { SettingsFormModel, settingsTextField } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DeliverResponseSettings, WORK_REQUIREMENTS, type WorkRequirements } from './DeliverResponseSettings.tsx'
-import { DeliveredReply } from './DeliveredReply.tsx'
 import { DeliveryRow } from './DeliveryRow.tsx'
-import { DELIVERY, deliveryDefinition } from './delivery-definition.ts'
 import { en, NS, zh } from './locales.ts'
 
 /** Client services for settings and tool presentation. */
-export const inject = ['configForms', 'locale', 'slots', 'uiConversation']
+export const inject = ['configForms', 'locale', 'slots']
 
 /**
- * Mount settings and delivery presentation while the optional client entry is active.
+ * Mount settings and the delivery activity row while the optional client entry is active.
  * @param ctx - Client plugin context owning both slot contributions.
  */
 export function apply(ctx: Context): void {
@@ -36,8 +34,4 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
     name: 'tool.call.toolview', key: 'deliver_response', locale: NS,
   }, DeliveryRow))
-  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
-    name: 'conversation.chat.node', key: DELIVERY, locale: NS,
-  }, DeliveredReply))
-  ctx.uiConversation.events.register(deliveryDefinition)
 }

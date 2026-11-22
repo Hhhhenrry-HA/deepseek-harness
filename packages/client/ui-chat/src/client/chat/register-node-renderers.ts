@@ -3,6 +3,8 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { PerformanceUsageMode } from '../../chat-settings.ts'
 import type { ChatPresentationPolicy } from '../presentation-policy.ts'
 import { NS } from '../locale.ts'
+import { DELIVERY } from '../conversation-nodes/delivery.ts'
+import { DeliveredReply } from './DeliveredReply.tsx'
 import { AssistantNodeView } from './AssistantNodeView.tsx'
 import { CommandNodeView, ManualCompactionNodeView } from './CommandNodeView.tsx'
 import {
@@ -64,6 +66,8 @@ export function registerChatNodeRenderers(
     },
     inject: () => ({ hooks: { presentation } }),
   }, AssistantNodeView))
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
+    { name: 'conversation.chat.node', key: DELIVERY, locale: NS }, DeliveredReply))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
     key: 'command',

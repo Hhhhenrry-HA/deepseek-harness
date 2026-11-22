@@ -1,0 +1,12 @@
+.reply {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.replyActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--dsw-alias-label-secondary);
+}

@@ -5,6 +5,8 @@ export const NS = 'chat'
 
 /** Simplified Chinese dictionary and key-set source of truth. */
 export const zh = {
+  'delivery.copyReply': '复制答复',
+  'delivery.copyFailed': '无法复制，请选中回复后手动复制',
   'message.edit': '编辑消息',
   'message.resend': '保存并重发',
   'message.cancelEdit': '取消',
@@ -211,6 +213,8 @@ export type ChatKey = keyof typeof zh
 
 /** English dictionary, checked against the Chinese key set. */
 export const en = {
+  'delivery.copyReply': 'Copy reply',
+  'delivery.copyFailed': 'Could not copy. Select and copy the reply manually.',
   'message.edit': 'Edit message',
   'message.resend': 'Save and resend',
   'message.cancelEdit': 'Cancel',

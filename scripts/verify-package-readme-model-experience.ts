@@ -45,7 +45,7 @@ const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
  * blocks. A package moves on or off this list with its context behavior.
  */
 const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
-  'packages/experimental/client-ui-deliver-response': { kind: 'indirect', reason: 'Edits runtime-owned work requirements and renders delivered replies without constructing requests.' },
+  'packages/experimental/client-ui-deliver-response': { kind: 'indirect', reason: 'Edits runtime-owned work requirements and reports delivery activity without constructing requests.' },
   'packages/experimental/deliver-response-bundle': { kind: 'indirect', reason: 'Composes the delivery runtime that owns tool declarations and prefilled request messages.' },
   'packages/experimental/client-ui-cot-translation': { kind: 'indirect', reason: 'The translator owns optional paid queries; normal Session activation delegates startup context to the preset.' },
   'packages/experimental/cot-translation-bundle': { kind: 'indirect', reason: 'The GUI consumer delegates paid query prompts to the translator and normal activation context to the Session preset.' },
