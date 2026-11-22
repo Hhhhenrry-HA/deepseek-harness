@@ -18,7 +18,7 @@ import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import * as Delivery from '../src/index.ts'
-import { APPROVAL_RESULT, CHECKLIST_SOURCE, DELIVER_RESPONSE, READ_REQUIREMENTS, READ_RESULT, REQUEST_APPROVAL } from '../src/protocol.ts'
+import { APPROVAL_RESULT, CHECKLIST_SOURCE, DELIVER_RESPONSE, READ_REQUIREMENTS, READ_RESULT, REQUEST_APPROVAL, SILENT_EFFORT } from '../src/protocol.ts'
 
 const pluginPackage = '@deepseek-ai/dsh-experimental-deliver-response'
 const workRequirements = 'Test requirement: include the result and its unit.'
@@ -189,6 +189,8 @@ it('does not turn a policy denial into approval and starts fresh after cancellat
 })
 
 interface VertexRequest {
+  systemInstruction?: { parts?: { text?: string }[] }
+  safetySettings?: { category: string; threshold: string }[]
   contents: {
     role: string
     parts: {
@@ -234,6 +236,14 @@ it('sends signed prefills with AUTO tool choice through the real Vertex adapter'
   await submit(agent, 'Return the measured distance.')
   expect(requests).toHaveLength(1)
   const request = requests[0]!
+  expect(request.systemInstruction?.parts?.[0]?.text?.startsWith(`${SILENT_EFFORT}\n\n`)).toBe(true)
+  expect(request.safetySettings).toEqual([
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'OFF' },
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'OFF' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'OFF' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'OFF' },
+    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'OFF' },
+  ])
   const parts = request.contents.flatMap(content => content.parts)
   expect(parts.filter(part => part.functionCall).map(part => part.functionCall?.name)).toEqual([READ_REQUIREMENTS, REQUEST_APPROVAL])
   expect(parts.filter(part => part.functionResponse).map(part => part.functionResponse?.name))

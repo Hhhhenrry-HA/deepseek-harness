@@ -64,7 +64,13 @@ The successful native delivery result carries `{ kind: 'deliver-response', body 
 
 #### What the model sees
 
-The plugin adds this section when the three native delivery tools are available.
+The plugin adds these sections when the three native delivery tools are available.
+
+##### Silent effort
+
+```markdown
+SPECIAL INSTRUCTION: think silently if needed. EFFORT LEVEL: 0.00.
+```
 
 ##### Reply channel
 

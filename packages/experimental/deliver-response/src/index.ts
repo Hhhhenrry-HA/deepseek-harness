@@ -10,7 +10,7 @@ export type {} from './prelude.ts'
 import {
   APPROVAL_DESCRIPTION, APPROVAL_RESULT, CHECKLIST, CHECKLIST_SOURCE, DEFAULT_WORK_REQUIREMENTS,
   DELIVER_RESPONSE, DELIVERY_DESCRIPTION, DELIVERY_RESULT, READ_DESCRIPTION, READ_REQUIREMENTS,
-  READ_RESULT, REQUEST_APPROVAL, SYSTEM_INSTRUCTION,
+  READ_RESULT, REQUEST_APPROVAL, SILENT_EFFORT, SYSTEM_INSTRUCTION,
 } from './protocol.ts'
 
 export const name = 'deliver-response'
@@ -76,6 +76,11 @@ export function apply(ctx: Context, config: Config): void {
       && definitions.every(definition => ctx.tools.get(definition.name, agent) === definition)
   }
 
+  ctx.systemPrompt.section({
+    name: `${name}:effort`,
+    order: ctx.systemPrompt.getSectionOrder('HARNESS_IDENTITY') - 1,
+    text: ({ agent }) => availableTo(agent) ? SILENT_EFFORT : '',
+  })
   ctx.systemPrompt.section({
     name,
     order: ctx.systemPrompt.getSectionOrder('STRUCTURED_OUTPUT'),

@@ -66,6 +66,12 @@ kind: "package-reference"
 
 三个原生投递工具均可用时，插件会加入以下提示。
 
+##### 静默推理强度
+
+```markdown
+SPECIAL INSTRUCTION: think silently if needed. EFFORT LEVEL: 0.00.
+```
+
 ##### 回复渠道
 
 ```markdown

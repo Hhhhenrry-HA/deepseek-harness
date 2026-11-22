@@ -1,17 +1,41 @@
+diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
+--- a/dist/api/google-generative-ai.js
++++ b/dist/api/google-generative-ai.js
+@@ -7,5 +7,5 @@ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { getSystemMessageText } from "../utils/text.js";
+ import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage } from "../utils/transcript.js";
+-import { convertMessages, convertTools, getDisabledGoogleThinkingConfig, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, toGoogleSdkThinkingLevel, toGoogleThinkingLevel, usesGoogleThinkingLevel, } from "./google-shared.js";
++import { convertMessages, convertTools, getDisabledGoogleThinkingConfig, GOOGLE_SAFETY_SETTINGS_OFF, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, toGoogleSdkThinkingLevel, toGoogleThinkingLevel, usesGoogleThinkingLevel, } from "./google-shared.js";
+ import { buildBaseOptions } from "./simple-options.js";
+ // Counter for generating unique tool call IDs
+@@ -301,5 +301,6 @@ function buildParams(model, context, options = {}) {
+         ...(functionCallingMode !== undefined && {
+             toolConfig: { functionCallingConfig: { mode: functionCallingMode } },
+         }),
++        safetySettings: GOOGLE_SAFETY_SETTINGS_OFF,
+     };
+     if (options.thinking?.enabled && model.reasoning) {
 diff --git a/dist/api/google-shared.js b/dist/api/google-shared.js
 index f344df5315c490ff03fa8f7c75a6cb14364f88da..85d8699477f9e5c26c5339b659ffef10f7d22be4 100644
 --- a/dist/api/google-shared.js
 +++ b/dist/api/google-shared.js
-@@ -105,6 +105,8 @@ export function retainThoughtSignature(existing, incoming) {
+@@ -105,6 +105,15 @@ export function retainThoughtSignature(existing, incoming) {
      return existing;
  }
  // Thought signatures must be base64 for Google APIs (TYPE_BYTES).
 +// Base64 of Google's documented `skip_thought_signature_validator` value.
 +const SKIP_THOUGHT_SIGNATURE_VALIDATOR = "c2tpcF90aG91Z2h0X3NpZ25hdHVyZV92YWxpZGF0b3I=";
++export const GOOGLE_SAFETY_SETTINGS_OFF = [
++    { category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
++    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "OFF" },
++    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
++    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
++    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "OFF" },
++];
  const base64SignaturePattern = /^[A-Za-z0-9+/]+={0,2}$/;
  function isValidThoughtSignature(signature) {
      if (!signature)
-@@ -297,8 +299,29 @@ export function convertMessages(model, context) {
+@@ -297,8 +306,29 @@ export function convertMessages(model, context) {
              }
          }
      }
@@ -45,6 +69,13 @@ diff --git a/dist/api/google-vertex.js b/dist/api/google-vertex.js
 index 1b7cb58ec7ad745938a5684014867601454acdcb..396efcfb31823b82b51ca0f72c661eda1a52e3f0 100644
 --- a/dist/api/google-vertex.js
 +++ b/dist/api/google-vertex.js
+@@ -8,5 +8,5 @@ import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+ import { getSystemMessageText } from "../utils/text.js";
+ import { collapseSystemMessages, getCurrentTools, getInitialSystemMessage } from "../utils/transcript.js";
+-import { convertMessages, convertTools, getDisabledGoogleThinkingConfig, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, toGoogleSdkThinkingLevel, toGoogleThinkingLevel, usesGoogleThinkingLevel, } from "./google-shared.js";
++import { convertMessages, convertTools, getDisabledGoogleThinkingConfig, GOOGLE_SAFETY_SETTINGS_OFF, isThinkingPart, mapStopReason, resolveGoogleFunctionCallingMode, resolveGoogleThinkingLevel, retainThoughtSignature, retryGoogleRequest, supportsGoogleStrictToolSampling, toGoogleSdkThinkingLevel, toGoogleThinkingLevel, usesGoogleThinkingLevel, } from "./google-shared.js";
+ import { buildBaseOptions } from "./simple-options.js";
+ const API_VERSION = "v1";
 @@ -52,6 +52,8 @@ export const stream = (model, context, options) => {
              const googleStream = await retryGoogleRequest(() => client.models.generateContentStream(params), options);
              stream.push({ type: "start", partial: output });
@@ -169,7 +200,14 @@ index 1b7cb58ec7ad745938a5684014867601454acdcb..396efcfb31823b82b51ca0f72c661eda
              if (output.stopReason === "pending") {
                  throw new Error("Google Vertex stream ended without a finish reason");
              }
-@@ -398,6 +424,210 @@ function buildParams(model, context, options = {}) {
+@@ -374,5 +397,6 @@ function buildParams(model, context, options = {}) {
+         ...(functionCallingMode !== undefined && {
+             toolConfig: { functionCallingConfig: { mode: functionCallingMode } },
+         }),
++        safetySettings: GOOGLE_SAFETY_SETTINGS_OFF,
+     };
+     if (options.thinking?.enabled && model.reasoning) {
+@@ -398,6 +425,210 @@ function buildParams(model, context, options = {}) {
      };
      return params;
  }

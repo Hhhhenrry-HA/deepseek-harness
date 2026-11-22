@@ -98,6 +98,7 @@ jobs:
 
           本次更新：
 
+          - “答复交付”插件启用时，在系统指令顶部与末尾 `request_approval` 回执同步注入静默思考引导，扩充 `read_work_requirements` 就绪回执，并为原生 Gemini 与 Vertex（中转）默认关闭五项 `safetySettings` 过滤阈值。
           - 修复已交付答复的历史显示：成功的 `deliver_response` 正文由聊天视图常驻读取，关闭“答复交付”插件、刷新或重开会话后仍保持显示，不重复渲染，失败回执与未执行草稿不显示为正文。
           - 可选插件“答复交付”（在“插件 → 更多”中启用，默认关闭）：在每轮最后一条用户消息后追加执行清单并预填 `read_work_requirements`、`request_approval` 两组调用，保持 `AUTO` 工具选择与原有全部工具不变；模型通过 `deliver_response` 交付最终 Markdown 答复并结束回合，独立显示在过程折叠外且支持一键复制。
           - “答复交付”插件设置支持直接编辑、保存与恢复默认“额外工作要求”（挂载在 `read_work_requirements` 的工具 description 中）。

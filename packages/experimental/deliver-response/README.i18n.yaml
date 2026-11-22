@@ -30,8 +30,11 @@
   en: 60f78817b55c19b2
   zh: 24ba47a0c5e02586
 /deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/what-the-model-sees:
-  en: d73aa7c986e6fd40
+  en: 1aa9435816699d0e
   zh: d09aea126b556b10
+/deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/what-the-model-sees/silent-effort:
+  en: 0d64f1c079d4f138
+  zh: f838b6e9e057d00d
 /deepseek-ai-dsh-experimental-deliver-response/model-experience/system-instruction/what-the-model-sees/reply-channel:
   en: 2baf4b43a461bbca
   zh: e7892b64e2f659de
