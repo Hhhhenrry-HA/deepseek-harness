@@ -18,7 +18,7 @@ import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import * as Delivery from '../src/index.ts'
-import { APPROVAL_RESULT, CHECKLIST_SOURCE, DELIVER_RESPONSE, READ_REQUIREMENTS, READ_RESULT, REQUEST_APPROVAL, SILENT_EFFORT } from '../src/protocol.ts'
+import { APPROVAL_RESULT, CHECKLIST_SOURCE, DELIVER_RESPONSE, PRELUDE, READ_REQUIREMENTS, READ_RESULT, REQUEST_APPROVAL, SILENT_EFFORT } from '../src/protocol.ts'
 
 const pluginPackage = '@deepseek-ai/dsh-experimental-deliver-response'
 const workRequirements = 'Test requirement: include the result and its unit.'
@@ -45,7 +45,13 @@ class RecordingAdapter extends LlmAdapter {
   }
 }
 
-async function boot(vertexURL?: string) {
+interface RelayFixture {
+  api: 'google-vertex' | 'openai-completions'
+  baseURL: string
+  model: string
+}
+
+async function boot(relay?: RelayFixture) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-deliver-response-'))
   const ctx = new Context()
   onTestFinished(async () => {
@@ -60,15 +66,15 @@ async function boot(vertexURL?: string) {
     [pluginPackage, Delivery],
   ])
   const config: Record<string, object> = { [pluginPackage]: { workRequirements } }
-  if (vertexURL !== undefined) {
+  if (relay !== undefined) {
     const credentials = join(root, 'credentials.yaml')
     await writeFile(credentials, 'version: 1\nrefs:\n  DELIVERY_TEST_KEY: offline-key\n')
     modules.set('credentials', LocalCredentialProvider)
     modules.set('llm-pi-ai', LlmPiAi)
     config.credentials = { path: credentials, debounceMs: 10 }
     config['llm-pi-ai'] = { providers: { 'test-relay': {
-      api: 'google-vertex', baseURL: vertexURL, apiKeyEnv: 'DELIVERY_TEST_KEY',
-      retryPolicy: { mode: 'normal', maxRetries: 0 }, models: [{ id: 'gemini-4-hydrogen' }],
+      api: relay.api, baseURL: relay.baseURL, apiKeyEnv: 'DELIVERY_TEST_KEY',
+      retryPolicy: { mode: 'normal', maxRetries: 0 }, models: [{ id: relay.model }],
     } } }
   }
   const internal: ModuleLoaderV2 = {
@@ -94,9 +100,9 @@ async function boot(vertexURL?: string) {
   if (entry?.fiber === undefined) throw new Error('Loader did not mount the response delivery plugin')
   const delivery = entry.fiber
   const adapter = new RecordingAdapter()
-  if (vertexURL === undefined) ctx.llm.registerAdapter(['test-relay'], adapter)
+  if (relay === undefined) ctx.llm.registerAdapter(['test-relay'], adapter)
   const agent = await ctx.agentLoop.create(SessionId('delivery-test'), {
-    provider: 'test-relay', model: vertexURL === undefined ? 'gemini-3-flash-preview' : 'gemini-4-hydrogen',
+    provider: 'test-relay', model: relay === undefined ? 'gemini-3-flash-preview' : relay.model,
   })
   return { ctx, adapter, agent, delivery, entry }
 }
@@ -229,7 +235,7 @@ it('sends signed prefills with AUTO tool choice through the real Vertex adapter'
   })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('Missing local Vertex test endpoint')
-  const { ctx, agent } = await boot(`http://127.0.0.1:${address.port}/v1beta`)
+  const { ctx, agent } = await boot({ api: 'google-vertex', baseURL: `http://127.0.0.1:${address.port}/v1beta`, model: 'gemini-4-hydrogen' })
   ctx.tools.register(defineContentToolFixture({
     name: 'echo', description: 'Run an ordinary tool.', parameters: {}, async execute() { return [] },
   }))
@@ -258,6 +264,61 @@ it('sends signed prefills with AUTO tool choice through the real Vertex adapter'
   expect(JSON.stringify(request.contents)).not.toContain(workRequirements)
   // Omission uses Google's AUTO default; neither ANY nor NONE may be forced.
   expect([undefined, 'AUTO']).toContain(request.toolConfig?.functionCallingConfig?.mode)
+  expect(agent.session.snapshotEvents().find(event => event.type === 'tool/result' && event.data.meta !== undefined)?.data)
+    .toMatchObject({ meta: { kind: 'deliver-response', body }, message: { isError: false } })
+  expect(agent.session.snapshotEvents().at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'completed' } } })
+}, 30_000)
+
+interface DeepSeekRequest {
+  messages: {
+    role: string
+    content?: string
+    reasoning_content?: string
+    tool_calls?: { function?: { name?: string } }[]
+  }[]
+}
+
+it('sends prelude text as reasoning_content through the real DeepSeek completions adapter', async () => {
+  const requests: DeepSeekRequest[] = []
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = []
+    request.on('data', (chunk: Buffer) => chunks.push(chunk))
+    request.on('end', () => {
+      requests.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as DeepSeekRequest)
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      response.end([
+        `data: ${JSON.stringify({ id: 'chatcmpl-1', model: 'deepseek-flash', choices: [{ index: 0, delta: {
+          role: 'assistant',
+          tool_calls: [{ index: 0, id: 'call_deliver', type: 'function', function: { name: DELIVER_RESPONSE, arguments: JSON.stringify({ body }) } }],
+        }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 } })}`,
+        'data: [DONE]',
+        '',
+      ].join('\n\n'))
+    })
+  })
+  onTestFinished(() => new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error === undefined) resolve()
+      else reject(error)
+    })
+    server.closeAllConnections()
+  }))
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('Missing local DeepSeek test endpoint')
+  const { agent } = await boot({ api: 'openai-completions', baseURL: `http://127.0.0.1:${address.port}/v1`, model: 'deepseek-flash' })
+  await submit(agent, 'Return the measured distance.')
+  expect(requests).toHaveLength(1)
+  const assistants = requests[0]!.messages.filter(message => message.role === 'assistant')
+  expect(assistants).toHaveLength(2)
+  expect(assistants.map(message => message.tool_calls?.[0]?.function?.name)).toEqual([READ_REQUIREMENTS, REQUEST_APPROVAL])
+  expect(PRELUDE.read.texts).toContain(assistants[0]?.content)
+  expect(assistants[0]?.reasoning_content).toBe(assistants[0]?.content)
+  expect(PRELUDE.approval.texts).toContain(assistants[1]?.content)
+  expect(assistants[1]?.reasoning_content).toBe(assistants[1]?.content)
   expect(agent.session.snapshotEvents().find(event => event.type === 'tool/result' && event.data.meta !== undefined)?.data)
     .toMatchObject({ meta: { kind: 'deliver-response', body }, message: { isError: false } })
   expect(agent.session.snapshotEvents().at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'completed' } } })

@@ -109,6 +109,7 @@ const BUILTIN_PROFILE_BUNDLES = new Set([
 
 /** The optional bundles the main list always holds, in this order; new bundles join the main list. */
 const EXTENSION_BUNDLES = [
+  '@deepseek-ai/dsh-experimental-deliver-response-bundle',
   '@deepseek-ai/dsh-experimental-agent-team-profile',
   '@deepseek-ai/dsh-experimental-voice-input-bundle',
   '@deepseek-ai/dsh-experimental-auto-review',
@@ -118,7 +119,6 @@ const EXTENSION_BUNDLES = [
 const MORE_BUNDLES = [
   '@deepseek-ai/dsh-experimental-tool-worktree',
   '@deepseek-ai/dsh-experimental-cot-translation-bundle',
-  '@deepseek-ai/dsh-experimental-deliver-response-bundle',
   '@deepseek-ai/dsh-experimental-terminal-bundle',
   '@deepseek-ai/dsh-experimental-session-search',
   '@deepseek-ai/dsh-experimental-session-titles-bundle',

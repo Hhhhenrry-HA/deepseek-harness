@@ -37,8 +37,36 @@ export const APPROVAL_DESCRIPTION = 'Request approval to deliver the current tas
 export const DELIVERY_DESCRIPTION = 'Deliver the final response to the user and end this turn. The user reads `body` as your reply, rendered as Markdown. Call it once, after any other tool work is done; tool calls in the same step still run.'
 
 export const PRELUDE = {
-  read: { name: READ_REQUIREMENTS, text: "An interesting task. I'll take another look at the brief." },
-  approval: { name: REQUEST_APPROVAL, text: "The task and requirements are clear. Requesting approval to deliver this task's result." },
+  read: {
+    name: READ_REQUIREMENTS,
+    texts: [
+      "An interesting task. I'll take another look at the brief.",
+      'An intriguing task. Let me take another look at the brief.',
+      "A challenging task. I'll check the brief again before starting.",
+      'An interesting request. Let me look over the brief once more.',
+      "A thought-provoking task. I'll take a look at the brief first.",
+      "An intriguing request. I'll review the brief before proceeding.",
+      'Quite an interesting task. Let me check the brief again.',
+      "A nontrivial task. I'll take another look at the work requirements.",
+      'An engaging task. Let me revisit the brief before I begin.',
+      "A challenging request. I'll look through the brief once more.",
+    ],
+  },
+  approval: {
+    name: REQUEST_APPROVAL,
+    texts: [
+      "The task and requirements are clear. Requesting approval to deliver this task's result.",
+      'The brief and requirements are clear. Requesting approval to deliver the response.',
+      'I have the task and requirements in view. Requesting approval to deliver this result.',
+      'The scope and work requirements are clear. Requesting approval to proceed with delivery.',
+      "The brief is clear and ready to apply. Requesting approval to deliver this task's response.",
+      'The requirements for this task are clear. Requesting approval to deliver the final result.',
+      'Everything in the brief is clear. Requesting approval to deliver the response for this task.',
+      'The task direction and requirements are clear. Requesting approval to deliver the result.',
+      "I've reviewed the brief and requirements. Requesting approval to deliver this task's result.",
+      'The work requirements are clear and aligned. Requesting approval to deliver the response.',
+    ],
+  },
 } as const
 
 export const READ_RESULT = [

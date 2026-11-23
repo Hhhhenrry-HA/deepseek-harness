@@ -57,7 +57,8 @@ export const preludeProjection: ProjectionDefinition<'deliver-response'> = {
  */
 // oxlint-disable-next-line typescript/require-await -- The model stream consumes an async iterator; the prelude has no I/O.
 export async function* streamPrelude(checklistId: string, stage: PendingStage): AsyncGenerator<StreamChunk> {
-  const { name, text } = PRELUDE[stage]
+  const { name, texts } = PRELUDE[stage]
+  const text = texts[Math.floor(Math.random() * texts.length)] ?? texts[0]
   const id = preludeCallId(checklistId, stage)
   const toolCall = { type: 'tool-call' as const, id, name, arguments: '{}' }
   yield { type: 'block-start', index: 0, blockType: 'text' }

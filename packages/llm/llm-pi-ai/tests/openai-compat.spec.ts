@@ -250,6 +250,38 @@ describe('request body of a custom completions route', () => {
     const body = server.requests[0] as { messages: Record<string, unknown>[] }
     expect(body.messages.find(message => message['role'] === 'assistant')).toHaveProperty('reasoning_content', '')
   })
+
+  it('replays assistant text as reasoning_content on a DeepSeek tool-call turn without a reasoning block', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const providers = custom([{ id: 'deepseek-flash', reasoningEfforts: { high: 'high' } }], { baseURL: `${server.url}/v1` })
+    const adapter = new PiAiAdapter({
+      profiles: () => resolveProfiles(providers),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+    })
+    const intent = 'An interesting task. I\'ll take another look at the brief.'
+    for await (const _chunk of adapter.stream({
+      provider: 'gateway',
+      model: 'deepseek-flash',
+      reasoningEffort: ReasoningEffortId('high'),
+      messages: [
+        createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }),
+        createAssistantMessage({
+          content: [
+            { type: 'text', text: intent },
+            { type: 'tool-call', id: ToolCallId('call_1'), name: 'read_work_requirements', arguments: '{}' },
+          ],
+          source: { provider: 'gateway', model: 'deepseek-flash' },
+        }),
+        createToolResultMessage({ callId: ToolCallId('call_1'), content: [{ type: 'text', text: 'LOADED.' }], isError: false }),
+      ],
+    })) { /* drain */ }
+    const body = server.requests[0] as { messages: Record<string, unknown>[] }
+    expect(body.messages.find(message => message['role'] === 'assistant')).toMatchObject({
+      content: intent,
+      reasoning_content: intent,
+    })
+  })
 })
 
 describe('tool results followed directly by user messages on a custom completions route', () => {
