@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-experimental-deliver-response-bundle",
   "description": "Optional response delivery with editable additional work requirements",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "icon": "./icon.svg",
   "publishConfig": { "access": "public" },
   "repository": {
